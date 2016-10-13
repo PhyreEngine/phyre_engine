@@ -3,8 +3,11 @@ from phyre_engine.data.Sequence import Sequence
 
 class FastaInput(Component):
     """Read a FASTA file as input and output the sequence."""
+    REQUIRED = ['input']
+    ADDS     = ['sequence']
+    REMOVES  = []
 
-    def run(self, input: str):
+    def run(self, data):
         """Read the sequence from a FASTA file.
 
         Reads a single sequence from the file with the path given by input.
@@ -12,7 +15,8 @@ class FastaInput(Component):
         will be thrown.
 
         Args:
-            input: Path of the FASTA file to read.
+            data: Key-value mapping of data. The following keys are required:
+                `input`: Path of the FASTA file from which to read.
 
         Returns:
             A Sequence object representing the sequence from the FASTA file.
@@ -22,6 +26,7 @@ class FastaInput(Component):
             FastaInput.TooManySequencesError: The FASTA file contained multiple sequences.
         """
 
+        input = self.get_vals(data)
         with open(input, "r") as fasta:
             #Count the number of identifiers so we can throw an errror if
             #there is more than one.
@@ -34,7 +39,8 @@ class FastaInput(Component):
                         raise self.TooManySequencesError()
                 else:
                     seq_lines.append(line.strip())
-            return Sequence("".join(seq_lines))
+            data['sequence'] = Sequence("".join(seq_lines))
+        return data
 
 
     class TooManySequencesError(Exception):

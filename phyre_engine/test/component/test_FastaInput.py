@@ -25,13 +25,13 @@ class TestFastaInput(unittest.TestCase):
 
 
         fasta_input = FastaInput()
-        seq = fasta_input.run(input=valid_fasta_file.name)
+        seq = fasta_input.run({"input": valid_fasta_file.name})['sequence']
         self.assertEqual(str(seq), "".join(seq_lines))
 
     def test_file_exists(self):
         """Check that an IOError is raised if the input file does not exist."""
         with self.assertRaises(IOError):
-            FastaInput().run(input="bad_file_name")
+            FastaInput().run({"input": "bad_file_name"})
 
     def test_single_seq_required(self):
         """Require a single sequence only."""
@@ -50,4 +50,4 @@ class TestFastaInput(unittest.TestCase):
         msa_fasta_file.flush()
 
         with self.assertRaises(FastaInput.TooManySequencesError):
-            FastaInput().run(input=msa_fasta_file.name)
+            FastaInput().run({"input":msa_fasta_file.name})
