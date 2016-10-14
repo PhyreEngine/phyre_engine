@@ -1,6 +1,6 @@
 import unittest
 import textwrap
-from data.Sequence import Sequence;
+from phyre_engine.data.Sequence import Sequence;
 
 class TestSequence(unittest.TestCase):
     """Unit test Sequence class."""

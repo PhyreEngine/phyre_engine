@@ -1,5 +1,5 @@
-from component import Component
-from data.Sequence import Sequence
+from phyre_engine.component import Component
+from phyre_engine.data.Sequence import Sequence
 
 class FastaInput(Component):
     """Read a FASTA file as input and output the sequence."""

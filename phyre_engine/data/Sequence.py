@@ -1,4 +1,4 @@
-import data
+import phyre_engine.data as data
 
 class Sequence:
     """Class representing an amino acid sequence.
