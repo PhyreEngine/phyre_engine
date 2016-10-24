@@ -1,5 +1,5 @@
 from phyre_engine.component import Component
-from phyre_engine.data.Sequence import Sequence
+import Bio.SeqIO
 
 class FastaInput(Component):
     """Read a FASTA file as input and output the sequence."""
@@ -19,7 +19,7 @@ class FastaInput(Component):
                 `input`: Path of the FASTA file from which to read.
 
         Returns:
-            A Sequence object representing the sequence from the FASTA file.
+            A Bio.Seq object representing the sequence from the FASTA file.
 
         Raises:
             IOError: Error reading the file.
@@ -28,18 +28,10 @@ class FastaInput(Component):
 
         input = self.get_vals(data)
         with open(input, "r") as fasta:
-            #Count the number of identifiers so we can throw an errror if
-            #there is more than one.
-            identifiers = 0
-            seq_lines = []
-            for line in fasta:
-                if line.startswith(">"):
-                    identifiers = identifiers + 1
-                    if identifiers > 1:
-                        raise self.TooManySequencesError()
-                else:
-                    seq_lines.append(line.strip())
-            data['sequence'] = Sequence("".join(seq_lines))
+            try:
+                data['sequence'] = Bio.SeqIO.read(fasta, format="fasta")
+            except ValueError as e:
+                raise FastaInput.TooManySequencesError() from e
         return data
 
 

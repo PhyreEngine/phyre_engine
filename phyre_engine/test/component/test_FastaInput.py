@@ -26,7 +26,7 @@ class TestFastaInput(unittest.TestCase):
 
         fasta_input = FastaInput()
         seq = fasta_input.run({"input": valid_fasta_file.name})['sequence']
-        self.assertEqual(str(seq), "".join(seq_lines))
+        self.assertEqual(seq.seq, "".join(seq_lines))
 
     def test_file_exists(self):
         """Check that an IOError is raised if the input file does not exist."""
