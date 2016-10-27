@@ -1,5 +1,6 @@
 from phyre_engine.component import Component
 import Bio.SeqIO
+from Bio.Alphabet import IUPAC
 
 class FastaInput(Component):
     """Read a FASTA file as input and output the sequence."""
@@ -29,7 +30,8 @@ class FastaInput(Component):
         input = self.get_vals(data)
         with open(input, "r") as fasta:
             try:
-                data['sequence'] = Bio.SeqIO.read(fasta, format="fasta")
+                data['sequence'] = Bio.SeqIO.read(fasta, format="fasta",
+                        alphabet=IUPAC.protein)
             except ValueError as e:
                 raise FastaInput.TooManySequencesError() from e
         return data
