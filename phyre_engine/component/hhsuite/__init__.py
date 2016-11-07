@@ -1,5 +1,6 @@
 from phyre_engine.component import Component
 import phyre_engine.tools.hhsuite
+import phyre_engine.tools.hhsuite.parser as parser
 from tempfile import NamedTemporaryFile
 import Bio.SeqIO
 
@@ -102,4 +103,40 @@ class HHSearch(Component):
         hhsearch.run()
         data["hhsearch_atab"] = atab_name
         data["hhsearch_report"] = report_name
+        return data
+
+class ReportParser(Component):
+    """Parse hhsearch reports."""
+    REQUIRED = ["hhsearch_atab", "hhsearch_report"]
+    ADDS = ["hits"]
+
+    def run(self, data):
+        """
+        Parse report file and atab file into an array of hits.
+
+        Required parameters:
+            ``hhsearch_atab``: Location of a file produced by the ``-atab``
+                option of hhsearch.
+            ``hhsearch_report``: Location of a report file produced by hhsearch
+                (``-o`` option).
+
+        Adds:
+            ``hits``: Array of ``phyre_engine.tools.hhsuite.parser.Hit``
+                objects.
+        """
+
+        atab_file, report_file = self.get_vals(data)
+
+        #Parse report files to get hits, then combine the hits so that we have
+        #the summary information and alignments in the same hit.
+        report = parser.Report(report_file)
+        atab   = parser.Tabular(atab_file)
+        hits = []
+        for r, a in zip(report.hits, atab.hits):
+            hit = parser.Hit()
+            hit.info = r.info
+            hit.aln  = a.aln
+            hits.append(hit)
+
+        data["hits"] = hits
         return data
