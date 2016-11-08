@@ -99,3 +99,26 @@ class ClusterParser(Component):
                 clusters.append(clus_ln.rstrip().split())
         data["clusters"] = clusters
         return data
+
+class SimpleRepresentativePicker(Component):
+    """Simply pick the first element to represent each cluster.
+
+    The following keys are required when running this component.
+    ``clusters``: List of clusters. See `ClusterParser` for details on the data
+        structure.
+
+    The following keys are added when running this component:
+    ``representatives``: Array of PDB IDs. Each ID consists of the PDB ID and
+        the PDB chain, separated by an underscore.
+    """
+    REQUIRED = ['clusters']
+    ADDS     = ['representatives']
+    REMOVES  = []
+
+    def run(self, data):
+        """Extract representatives."""
+
+        clusters = self.get_vals(data)
+        representatives = [clus[0] for clus in clusters]
+        data['representatives'] = representatives
+        return data

@@ -66,3 +66,23 @@ class TestClusterParser(unittest.TestCase):
                     clusters[4],
                     ["4LCD_E"],
                     "Cluster 4 correct")
+
+class TestSimpleRepresentativePicker(unittest.TestCase):
+    """Test the (trivially) simple representative picker.."""
+
+    def test_parse(self):
+        """Pick representatives from clusters."""
+        clusters = [
+            "3J34_5 3J34_6 3J34_7 3J34_A 3J34_B 3J34_C 3J34_D".split(),
+            "1CE6_B 4X6C_B 4X6C_D 4X6E_B".split(),
+            "1LSG_A 5JEN_B 5JEN_D".split(),
+            "2KXK_A 2LGB_A".split(),
+            "4LCD_E".split()
+        ]
+
+        srp = db.SimpleRepresentativePicker()
+        representatives = srp.run({"clusters": clusters})["representatives"]
+        self.assertListEqual(
+                representatives,
+                ["3J34_5", "1CE6_B", "1LSG_A", "2KXK_A", "4LCD_E"],
+                "Correctly picked representatives")
