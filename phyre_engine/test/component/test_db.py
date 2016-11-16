@@ -1,11 +1,14 @@
+import json
 import os
 import tempfile
 import unittest
 import phyre_engine.component.db as db
+from pathlib import Path
 
 class TestRCSBClusterDownload(unittest.TestCase):
     """Test downloading cluster file from the RCSB"""
 
+    @unittest.skipUnless("NET_TESTS" in os.environ, "Not doing network tests")
     def test_retrieve_and_parse(self):
         """Test download and parse of RCSB clusters."""
 
@@ -86,3 +89,35 @@ class TestSimpleRepresentativePicker(unittest.TestCase):
                 representatives,
                 ["3J34_5", "1CE6_B", "1LSG_A", "2KXK_A", "4LCD_E"],
                 "Correctly picked representatives")
+
+class TestChainPDBBuilder(unittest.TestCase):
+    """Test ChainPDBBuilder class"""
+
+    @unittest.skipUnless("MMCIF" in os.environ, "MMCIF env var not set")
+    def test_build(self):
+        """Try and extract a chain"""
+        with tempfile.TemporaryDirectory() as out_dir:
+            builder = db.ChainPDBBuilder(os.environ["MMCIF"], out_dir)
+            results = builder.run({"representatives":["12AS_A"]})
+
+            self.assertTrue(Path(out_dir, "2a").exists(), "Created 2a subdir")
+            self.assertTrue(
+                Path(out_dir, "2a/12as_A.pdb").exists(),
+                "Created 12as_A"
+            )
+            self.assertEqual(
+                results["templates"][0].seq, (
+                "AYIAKQRQISFVKSHFSRQLEERLGLIEVQAPILSRVGDGTQDNLSGAEK"
+                "AVQVKVKALPDAQFEVVHSLAKWKRQTLGQHDFSAGEGLYTHMKALRPDE"
+                "DRLSPLHSVYVDQWDWERVMGDGERQFSTLKSTVEAIWAGIKATEAAVSE"
+                "EFGLAPFLPDQIHFVHSQELLSRYPDLDAKGRERAIAKDLGAVFLVGIGG"
+                "KLSDGHRHDVRAPDYDDWSTPSELGHAGLNGDILVWNPVLEDAFELSSMG"
+                "IRVDADTLKHQLALTGDEDRLELEWHQALLRGEMPQTIGGGIGQSRLTML"
+                "LLQLPHIGQVQAGVWPAAVRESVPSLL"),
+                "Got correct sequence")
+
+            description = json.loads(results["templates"][0].description)
+            self.assertEqual(description["PDB"], "12as",
+                    "Parseable description field 'PDB'")
+            self.assertEqual(description["chain"], "A",
+                    "Parseable description field 'chain'")

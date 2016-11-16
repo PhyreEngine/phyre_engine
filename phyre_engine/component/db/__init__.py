@@ -1,5 +1,14 @@
 from phyre_engine.component import Component
+from phyre_engine.tools.mmcif import SimplifySelector
+import gzip
+import pathlib
 import urllib.request
+import Bio.SeqUtils
+import json
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+from Bio.PDB import MMCIFParser, PDBParser
+from Bio.PDB import PDBIO
 
 
 class RCSBClusterDownload(Component):
@@ -121,4 +130,79 @@ class SimpleRepresentativePicker(Component):
         clusters = self.get_vals(data)
         representatives = [clus[0] for clus in clusters]
         data['representatives'] = representatives
+        return data
+
+class ChainPDBBuilder(Component):
+    """For each representative structure, extract that chain to a PDB file file
+    and extract the sequence (based on ATOM records) of that structure.
+
+    This component will read the chain of each representative from the
+    corresponding MMCIF file, write it to a PDB file, and store the sequence of
+    the ATOM records in that PDB file.
+    """
+
+    REQUIRED = ["representatives"]
+    ADDS     = ["templates"]
+    REMOVES  = []
+
+    def __init__(self, mmcif_dir, pdb_dir):
+        """Initialise new component.
+
+        Arguments:
+            ``mmcif_dir``: Base directory of the MMCIF archive.
+            ``pdb_dir``: Base directory in which to store PDB files.
+        """
+        self.mmcif_dir = pathlib.Path(mmcif_dir)
+        self.pdb_dir = pathlib.Path(pdb_dir)
+
+    def run(self, data):
+        """Run the component."""
+        representatives = self.get_vals(data)
+        if "templates" not in data:
+            data["templates"] = []
+
+        mmcif_parser = MMCIFParser()
+        pdb_parser = PDBParser()
+        pdbio = Bio.PDB.PDBIO()
+        simple_selector = SimplifySelector()
+
+        for rep in representatives:
+            id, chain = rep.split("_")
+            id = id.lower()
+            middle = id[1:3].lower()
+
+            # Create dir in which to store pdb file
+            (self.pdb_dir / middle).mkdir(exist_ok=True)
+            mmcif_file = self.mmcif_dir / middle / "{}.cif.gz".format(id)
+            pdb_file = self.pdb_dir / middle / "{}_{}.pdb".format(id, chain)
+
+            with gzip.open(str(mmcif_file), "rt") as mmcif_fh:
+                structure = mmcif_parser.get_structure(rep, mmcif_fh)
+            struc_model = next(structure.get_models())
+            struc_chain = struc_model[chain]
+
+            # Set chain ID to " " while writing
+            struc_chain.id = " "
+            pdbio.set_structure(struc_chain)
+            pdbio.save(str(pdb_file), simple_selector)
+
+            # Get sequence of the residues. To be absolutely sure that our
+            # sequence matches with the ATOM records, we will parse the PDB file
+            # that we just wrote.
+            pdb_struc = pdb_parser.get_structure(rep, str(pdb_file))
+            pdb_res = pdb_struc.get_residues()
+            pdb_seq = "".join([Bio.SeqUtils.seq1(r.get_resname()) for r in pdb_res])
+
+            # Build a Bio.PDB.SeqRecord object containing this sequence.
+            seq_description = {
+                "PDB": id,
+                "chain": chain,
+            }
+            bio_seq = SeqRecord(
+                    id=rep,
+                    description=json.dumps(seq_description),
+                    seq=Seq(pdb_seq)
+            )
+            data["templates"].append(bio_seq)
+
         return data
