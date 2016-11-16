@@ -102,7 +102,7 @@ class TestChainPDBBuilder(unittest.TestCase):
         """Try and extract a chain"""
         with tempfile.TemporaryDirectory() as out_dir:
             builder = db.ChainPDBBuilder(os.environ["MMCIF"], out_dir)
-            results = builder.run({"representatives":["12AS_A"]})
+            results = builder.run({"templates": [{"PDB": "12as", "chain": "A"}]})
 
             self.assertTrue(Path(out_dir, "2a").exists(), "Created 2a subdir")
             self.assertTrue(
@@ -110,7 +110,7 @@ class TestChainPDBBuilder(unittest.TestCase):
                 "Created 12as_A"
             )
             self.assertEqual(
-                results["templates"][0].seq, (
+                results["templates"][0]["sequence"].seq, (
                 "AYIAKQRQISFVKSHFSRQLEERLGLIEVQAPILSRVGDGTQDNLSGAEK"
                 "AVQVKVKALPDAQFEVVHSLAKWKRQTLGQHDFSAGEGLYTHMKALRPDE"
                 "DRLSPLHSVYVDQWDWERVMGDGERQFSTLKSTVEAIWAGIKATEAAVSE"
@@ -119,9 +119,3 @@ class TestChainPDBBuilder(unittest.TestCase):
                 "IRVDADTLKHQLALTGDEDRLELEWHQALLRGEMPQTIGGGIGQSRLTML"
                 "LLQLPHIGQVQAGVWPAAVRESVPSLL"),
                 "Got correct sequence")
-
-            description = json.loads(results["templates"][0].description)
-            self.assertEqual(description["PDB"], "12as",
-                    "Parseable description field 'PDB'")
-            self.assertEqual(description["chain"], "A",
-                    "Parseable description field 'chain'")

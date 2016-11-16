@@ -140,7 +140,7 @@ class SimpleRepresentativePicker(Component):
         return data
 
 class ChainPDBBuilder(Component):
-    """For each representative structure, extract that chain to a PDB file file
+    """For each structure, extract that chain to a PDB file file
     and extract the sequence (based on ATOM records) of that structure.
 
     This component will read the chain of each representative from the
@@ -148,8 +148,8 @@ class ChainPDBBuilder(Component):
     the ATOM records in that PDB file.
     """
 
-    REQUIRED = ["representatives"]
-    ADDS     = ["templates"]
+    REQUIRED = ["templates"]
+    ADDS     = []
     REMOVES  = []
 
     def __init__(self, mmcif_dir, pdb_dir):
@@ -164,18 +164,16 @@ class ChainPDBBuilder(Component):
 
     def run(self, data):
         """Run the component."""
-        representatives = self.get_vals(data)
-        if "templates" not in data:
-            data["templates"] = []
+        templates = self.get_vals(data)
 
         mmcif_parser = MMCIFParser()
         pdb_parser = PDBParser()
         pdbio = Bio.PDB.PDBIO()
         simple_selector = SimplifySelector()
 
-        for rep in representatives:
-            id, chain = rep.split("_")
-            id = id.lower()
+        for template in templates:
+            id    = template["PDB"].lower()
+            chain = template["chain"]
             middle = id[1:3].lower()
 
             # Create dir in which to store pdb file
@@ -184,7 +182,7 @@ class ChainPDBBuilder(Component):
             pdb_file = self.pdb_dir / middle / "{}_{}.pdb".format(id, chain)
 
             with gzip.open(str(mmcif_file), "rt") as mmcif_fh:
-                structure = mmcif_parser.get_structure(rep, mmcif_fh)
+                structure = mmcif_parser.get_structure(id, mmcif_fh)
             struc_model = next(structure.get_models())
             struc_chain = struc_model[chain]
 
@@ -196,20 +194,17 @@ class ChainPDBBuilder(Component):
             # Get sequence of the residues. To be absolutely sure that our
             # sequence matches with the ATOM records, we will parse the PDB file
             # that we just wrote.
-            pdb_struc = pdb_parser.get_structure(rep, str(pdb_file))
+            pdb_struc = pdb_parser.get_structure(id, str(pdb_file))
             pdb_res = pdb_struc.get_residues()
             pdb_seq = "".join([Bio.SeqUtils.seq1(r.get_resname()) for r in pdb_res])
 
             # Build a Bio.PDB.SeqRecord object containing this sequence.
-            seq_description = {
-                "PDB": id,
-                "chain": chain,
-            }
             bio_seq = SeqRecord(
-                    id=rep,
-                    description=json.dumps(seq_description),
+                    id="{}_{}".format(id, chain),
+                    description="",
                     seq=Seq(pdb_seq)
             )
-            data["templates"].append(bio_seq)
+            template["sequence"] = bio_seq
+            template["structure"] = pdb_file
 
         return data
