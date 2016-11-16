@@ -117,11 +117,13 @@ class SimpleRepresentativePicker(Component):
         structure.
 
     The following keys are added when running this component:
-    ``representatives``: Array of PDB IDs. Each ID consists of the PDB ID and
-        the PDB chain, separated by an underscore.
+    ``templates``: Array of templates. Each template is a dictionary. This
+        component sets the keys ``PDB`` and ``chain`` for each template,
+        corresponding to the PDB ID and PDB chain of the cluster
+        representatives.
     """
     REQUIRED = ['clusters']
-    ADDS     = ['representatives']
+    ADDS     = ['templates']
     REMOVES  = []
 
     def run(self, data):
@@ -129,7 +131,12 @@ class SimpleRepresentativePicker(Component):
 
         clusters = self.get_vals(data)
         representatives = [clus[0] for clus in clusters]
-        data['representatives'] = representatives
+        if "templates" not in data:
+            data["templates"] = []
+
+        for rep in representatives:
+            (pdb, chain) = rep.split("_")
+            data["templates"].append({"PDB":pdb, "chain":chain})
         return data
 
 class ChainPDBBuilder(Component):

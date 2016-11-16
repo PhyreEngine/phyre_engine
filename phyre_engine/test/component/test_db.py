@@ -84,11 +84,15 @@ class TestSimpleRepresentativePicker(unittest.TestCase):
         ]
 
         srp = db.SimpleRepresentativePicker()
-        representatives = srp.run({"clusters": clusters})["representatives"]
+        representatives = srp.run({"clusters": clusters})["templates"]
         self.assertListEqual(
-                representatives,
-                ["3J34_5", "1CE6_B", "1LSG_A", "2KXK_A", "4LCD_E"],
-                "Correctly picked representatives")
+                representatives, [
+                    {"PDB": "3J34", "chain": "5"},
+                    {"PDB": "1CE6", "chain": "B"},
+                    {"PDB": "1LSG", "chain": "A"},
+                    {"PDB": "2KXK", "chain": "A"},
+                    {"PDB": "4LCD", "chain": "E"}
+                ], "Correctly picked representatives")
 
 class TestChainPDBBuilder(unittest.TestCase):
     """Test ChainPDBBuilder class"""
