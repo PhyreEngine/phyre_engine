@@ -299,3 +299,31 @@ class AddSecondaryStructure(Component):
             subprocess.run([str(addss_pl), "-i", template["a3m"]])
         return data
 
+class HMMBuilder(Component):
+    """Use hhmake to build an hhm file for each template."""
+
+    REQUIRED = ["templates"]
+    ADDS = []
+    REMOVES = []
+
+    def __init__(self, overwrite=False):
+        self.overwrite = overwrite
+
+    def run(self, data):
+        templates = self.get_vals(data)
+        hhm_path = pathlib.Path("hhm")
+        hhm_path.mkdir(exist_ok=True)
+
+        for template in templates:
+            # Generate hhm file
+            hhm_name = "{}.hhm".format(template["name"])
+            hhm_file = hhm_path / hhm_name
+
+            if (not hhm_file.exists()) or self.overwrite:
+                subprocess.run(["hhmake",
+                    "-i", template["a3m"],
+                    "-o", str(hhm_file)
+                ])
+            template["hhm"] = str(hhm_file)
+        return data
+
