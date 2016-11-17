@@ -362,3 +362,109 @@ class CS219Builder(Component):
             template["cs219"] = str(cs219_file)
         return data
 
+class DatabaseBuilder(Component):
+    """Build ffindex/ffdata files for an hhsuite database."""
+
+    REQUIRED = ["templates"]
+    ADDS = ["database"]
+    REMOVES = ["templates"]
+
+    def __init__(self, db_prefix, overwrite=False):
+        self.db_prefix = db_prefix
+        self.overwrite = overwrite
+
+    def run(self, data):
+        """Collect and index the files that form an hhsuite database."""
+        templates = self.get_vals(data)
+
+        # Collect a3m/hhm/cs219 files into ffindex/ffdata databases
+        to_collect = ["a3m", "hhm", "cs219"]
+        ff_dbs = {}
+        for type in to_collect:
+            db_name = "{}_{}".format(self.db_prefix, type)
+            if self.overwrite:
+                ffindex = pathlib.Path("{}.ffindex".format(db_name))
+                ffdata  = pathlib.Path("{}.ffdata".format(db_name))
+                if ffindex.exists():
+                    ffindex.unlink()
+                if ffdata.exists():
+                    ffdata.unlink()
+
+            with tempfile.NamedTemporaryFile("w") as index:
+                # Write all files of type `type` to a temp file
+                for file in [template[type] for template in templates]:
+                    print(file, file=index)
+                index.flush()
+
+                # Run ffindex_build using the the temp file as the list of files
+                # to incude in the DB.
+                subprocess.run(["ffindex_build",
+                    "{}.ffdata".format(db_name),
+                    "{}.ffindex".format(db_name),
+                    "-f", index.name])
+                ff_dbs[type] = db_name
+
+        # Sort the cs219 ffindex
+        subprocess.run([
+            "ffindex_build", "-as",
+            "{}.ffdata".format(ff_dbs["cs219"]),
+            "{}.ffindex".format(ff_dbs["cs219"])])
+
+        # Cut useless information from the indices of each file.
+        for type, ff_db in ff_dbs.items():
+            self._trim_index_names(templates, type, ff_db)
+
+        # Get column state lengths and sort the a3m and hhm databases according
+        # to that order.
+        with open("{}.ffindex".format(ff_dbs["cs219"]), "r") as idx:
+            lines = [line.split() for line in idx.readlines()]
+            # Sort by length (index 2), and return the name (index 0)
+            names = [ln[0] for ln in sorted(lines, key=lambda ln: int(ln[2]))]
+
+            with tempfile.NamedTemporaryFile("w") as ordered_tmp:
+                for n in names:
+                    print(n, file=ordered_tmp)
+                ordered_tmp.flush()
+                self._ffindex_order(ff_dbs["a3m"], ordered_tmp.name)
+                self._ffindex_order(ff_dbs["hhm"], ordered_tmp.name)
+
+        del data["templates"]
+        data["database"] = self.db_prefix
+
+
+    def _trim_index_names(self, templates, type, db):
+        """Replace names of components in an ffindex with their stem.
+
+        When we generate an index using ``ffindex_build``, the names of each
+        element in that database are simply taken from the filenames used as
+        input. Since we are trying to build a valid database for hhblits and
+        hhsearch, each name in the index must be consistent across database. To
+        do that, we use the name of each template as the identifier.
+        """
+
+        # Build a dictionary of file -> name
+        file_to_name = {t[type]: t["name"] for t in templates}
+
+        index = "{}.ffindex".format(db)
+        with fileinput.input(index, inplace=True) as fh:
+            for line in fh:
+                fields = line.split("\t")
+                fields[0] = file_to_name[str(pathlib.Path(type, fields[0]))]
+                print("\t".join(fields), end="")
+
+    def _ffindex_order(self, database, by):
+        """Run ffindex_order to order an ffindex/ffdata database according with
+        the same order as the list given in the file "by". This function will
+        overwrite the unsorted database.
+        """
+        subprocess.run([
+            "ffindex_order", by,
+            "{}.ffdata".format(database),
+            "{}.ffindex".format(database),
+            "{}_ordered.ffdata".format(database),
+            "{}_ordered.ffindex".format(database)
+        ])
+        shutil.move("{}_ordered.ffdata".format(database),
+                "{}.ffdata".format(database))
+        shutil.move("{}_ordered.ffindex".format(database),
+                "{}.ffindex".format(database))
