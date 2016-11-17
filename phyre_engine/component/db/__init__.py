@@ -282,3 +282,20 @@ class MSABuilder(Component):
                 template["name"] = seq_name
         return data
 
+class AddSecondaryStructure(Component):
+    """Add predicted and actual secondary structure to MSAs."""
+
+    REQUIRED = ["templates"]
+    ADDS = []
+    REMOVES = []
+
+    def run(self, data):
+        templates = self.get_vals(data)
+
+        for template in templates:
+            # Add secondary structure
+            hhlib = os.environ["HHLIB"]
+            addss_pl = pathlib.Path(hhlib, "scripts/addss.pl")
+            subprocess.run([str(addss_pl), "-i", template["a3m"]])
+        return data
+
