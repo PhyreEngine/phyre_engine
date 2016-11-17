@@ -1,10 +1,17 @@
+import phyre_engine.tools.hhsuite as hh
 from phyre_engine.component import Component
 from phyre_engine.tools.mmcif import SimplifySelector
 import gzip
 import pathlib
 import urllib.request
 import Bio.SeqUtils
+import Bio.SeqIO
 import json
+import os
+import subprocess
+import tempfile
+import fileinput
+import shutil
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.PDB import MMCIFParser, PDBParser
@@ -208,3 +215,70 @@ class ChainPDBBuilder(Component):
             template["structure"] = pdb_file
 
         return data
+
+class MSABuilder(Component):
+    """Build MSA for each template sequence using hhblits."""
+
+    REQUIRED = ["templates"]
+    ADDS = []
+    REMOVES = []
+
+    def __init__(self, hhblits_db, overwrite=False, **hhblits_args):
+        """Initialise a new MSA builder; this is essentially a parallel hhblits
+        component.
+
+        This differs slightly from ``phyre_engine.component.hhsuite.HHBlits``:
+        that class will build a profile for a single sequence, while this will
+        operate on an array of sequences.
+
+        Files will be placed in the current working directory. Subdirectories
+        named ``a3m`` and ``hhr`` will be created containing the MSAs and
+        hhblits reports, respectively.
+
+        This component reads sequences (Bio.SeqRecord objects) from the
+        ``sequences`` key of the pipeline data, and adds the ``msas`` and
+        ``reports`` keys.
+        """
+        self.hhblits_db   = hhblits_db
+        self.hhblits_args = hhblits_args
+        self.overwrite = overwrite
+
+    def run(self, data):
+        templates = self.get_vals(data)
+
+        msa_path = pathlib.Path("a3m")
+        hhr_path = pathlib.Path("hhr")
+
+        msa_path.mkdir(exist_ok=True)
+        hhr_path.mkdir(exist_ok=True)
+
+        for template in templates:
+            sequence = template["sequence"]
+            seq_name = "{}_{}".format(template["PDB"], template["chain"])
+
+            with tempfile.NamedTemporaryFile(suffix=".fasta") as query_file:
+                msa_name    = "{}.a3m".format(seq_name)
+                report_name = "{}.hhr".format(seq_name)
+                msa_file = msa_path / msa_name
+                hhr_file = hhr_path / report_name
+
+                # No need to recreate
+                if (not msa_file.exists()) or self.overwrite:
+                    # Build a machine-readable (JSON) description for the sequence
+                    desc_dict = {k: template[k] for k in ("PDB", "chain")}
+                    sequence.description = json.dumps(desc_dict)
+
+                    Bio.SeqIO.write(sequence, query_file.name, "fasta")
+                    hhblits = hh.HHBlits(
+                            database=self.hhblits_db,
+                            input=query_file.name,
+                            output=str(hhr_file),
+                            oa3m=str(msa_file),
+                            **self.hhblits_args)
+                    hhblits.run()
+
+                template["a3m"] = str(msa_file)
+                template["hhm"] = str(hhr_file)
+                template["name"] = seq_name
+        return data
+
