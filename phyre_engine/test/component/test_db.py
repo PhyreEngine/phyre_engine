@@ -119,3 +119,49 @@ class TestChainPDBBuilder(unittest.TestCase):
                 "IRVDADTLKHQLALTGDEDRLELEWHQALLRGEMPQTIGGGIGQSRLTML"
                 "LLQLPHIGQVQAGVWPAAVRESVPSLL"),
                 "Got correct sequence")
+
+def skipUnlessEnv(*env):
+    for e in env:
+        if not e in os.environ:
+            return unittest.skip("Environment variable {} required.".format(e))
+    return lambda func: func
+
+class TestSimpleDBPipeline(unittest.TestCase):
+    """Try and run a pipeline to build a simple hhblits db."""
+
+    @skipUnlessEnv("HHLIB", "MMCIF", "HHBLITS_DB")
+    def test_pipeline(self):
+        """Build and run a pipeline."""
+
+        with tempfile.TemporaryDirectory() as pdb_dir \
+                tempfile.TemporaryDirectory() as template_dir:
+
+            try:
+                orig_dir = os.getcwd()
+                os.chdir(template_dir)
+                pipeline = [
+                    db.ChainPDBBuilder(os.environ["MMCIF"], pdb_dir),
+                    db.MSABuilder(os.environ["HHBLITS_DB"], cpu="20"),
+                    db.AddSecondaryStructure(),
+                    db.HMMBuilder(),
+                    db.CS219Builder(),
+                ]
+                data = {
+                    "templates":[
+                        {"PDB": "12AS", "chain": "A"},
+                        {"PDB": "3NGG", "chain": "A"},
+                    ]
+                }
+                for component in pipeline:
+                    data = component.run(data)
+                print(data)
+
+                db_builder = db.DatabaseBuilder("test_prefix", overwrite=True)
+                results = db_builder.run(data)
+                print(results)
+
+            finally:
+                os.chdir(orig_dir)
+
+if __name__ == "__main__":
+    unittest.main()
