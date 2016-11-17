@@ -327,3 +327,38 @@ class HMMBuilder(Component):
             template["hhm"] = str(hhm_file)
         return data
 
+class CS219Builder(Component):
+    """Use cstranslate to build coolumn state sequences for each sequence."""
+
+    REQUIRED = ["templates"]
+    ADDS = []
+    REMOVES = []
+
+    def __init__(self, overwrite=False):
+        self.overwrite = overwrite
+
+    def run(self, data):
+        hhlib = os.environ["HHLIB"]
+
+        templates = self.get_vals(data)
+        cs219_path = pathlib.Path("cs219")
+        cs219_path.mkdir(exist_ok=True)
+
+        for template in templates:
+            # Generate cs219 file
+            cs219_name = "{}.cs219".format(template["name"])
+            cs219_file = cs219_path / cs219_name
+
+            if (not cs219_file.exists()) or self.overwrite:
+                subprocess.run([
+                    "cstranslate",
+                    "-A", str(pathlib.Path(hhlib, "data/cs219.lib")),
+                    "-D", str(pathlib.Path(hhlib, "data/context_data.lib")),
+                    "-x", str(0.3), "-c", str(4), "-b",
+                    "-I", "a3m",
+                    "-i", template["a3m"],
+                    "-o", str(cs219_file)
+                ])
+            template["cs219"] = str(cs219_file)
+        return data
+
