@@ -153,21 +153,30 @@ class ChainPDBBuilder(Component):
     This component will read the chain of each representative from the
     corresponding MMCIF file, write it to a PDB file, and store the sequence of
     the ATOM records in that PDB file.
+
+    Sometimes it is useful to preserve the arcane mappings used by the authors
+    of PDB structures. For our purposes, we are often mapping between sequence
+    and structure, so it is useful to treat PDB files as arrays of residues. To
+    preserve the mappings, then, we write a JSON-encoded array of residue IDs
+    to a "map" file.
     """
 
     REQUIRED = ["templates"]
     ADDS     = []
     REMOVES  = []
 
-    def __init__(self, mmcif_dir, pdb_dir):
+    def __init__(self, mmcif_dir, pdb_dir, map_dir):
         """Initialise new component.
 
         Arguments:
             ``mmcif_dir``: Base directory of the MMCIF archive.
             ``pdb_dir``: Base directory in which to store PDB files.
+            ``map_dir``: Base directory in which sequence map files will be
+                saved.
         """
         self.mmcif_dir = pathlib.Path(mmcif_dir)
         self.pdb_dir = pathlib.Path(pdb_dir)
+        self.map_dir = pathlib.Path(map_dir)
 
     def run(self, data):
         """Run the component."""
@@ -185,13 +194,23 @@ class ChainPDBBuilder(Component):
 
             # Create dir in which to store pdb file
             (self.pdb_dir / middle).mkdir(exist_ok=True)
+            (self.map_dir / middle).mkdir(exist_ok=True)
+
             mmcif_file = self.mmcif_dir / middle / "{}.cif.gz".format(id)
             pdb_file = self.pdb_dir / middle / "{}_{}.pdb".format(id, chain)
+            map_file = self.map_dir / middle / "{}_{}.json".format(id, chain)
 
             with gzip.open(str(mmcif_file), "rt") as mmcif_fh:
                 structure = mmcif_parser.get_structure(id, mmcif_fh)
             struc_model = next(structure.get_models())
             struc_chain = struc_model[chain]
+
+            # Build mapping between sequence index and residue ID. This is just
+            # an array of residue IDs that can be indexed in the same way as
+            # everything else.
+            res_map = [r.get_id() for r in struc_chain]
+            with map_file.open("w") as map_fh:
+                json.dump(res_map, map_fh)
 
             # Set chain ID to " " while writing
             struc_chain.id = " "
@@ -213,6 +232,7 @@ class ChainPDBBuilder(Component):
             )
             template["sequence"] = bio_seq
             template["structure"] = pdb_file
+            template["map"] = map_file
 
         return data
 

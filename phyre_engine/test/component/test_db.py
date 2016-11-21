@@ -100,14 +100,25 @@ class TestChainPDBBuilder(unittest.TestCase):
     @unittest.skipUnless("MMCIF" in os.environ, "MMCIF env var not set")
     def test_build(self):
         """Try and extract a chain"""
-        with tempfile.TemporaryDirectory() as out_dir:
-            builder = db.ChainPDBBuilder(os.environ["MMCIF"], out_dir)
+        with tempfile.TemporaryDirectory() as base_dir:
+            out_dir = Path(base_dir, "pdb")
+            map_dir = Path(base_dir, "map")
+
+            out_dir.mkdir(exist_ok=True)
+            map_dir.mkdir(exist_ok=True)
+
+            builder = db.ChainPDBBuilder(os.environ["MMCIF"], out_dir, map_dir)
             results = builder.run({"templates": [{"PDB": "12as", "chain": "A"}]})
 
             self.assertTrue(Path(out_dir, "2a").exists(), "Created 2a subdir")
             self.assertTrue(
                 Path(out_dir, "2a/12as_A.pdb").exists(),
                 "Created 12as_A"
+            )
+            self.assertTrue(Path(map_dir, "2a").exists(), "Created 2a map dir")
+            self.assertTrue(
+                Path(map_dir, "2a/12as_A.json").exists(),
+                "Created 12as_A map"
             )
             self.assertEqual(
                 results["templates"][0]["sequence"].seq, (
@@ -119,6 +130,14 @@ class TestChainPDBBuilder(unittest.TestCase):
                 "IRVDADTLKHQLALTGDEDRLELEWHQALLRGEMPQTIGGGIGQSRLTML"
                 "LLQLPHIGQVQAGVWPAAVRESVPSLL"),
                 "Got correct sequence")
+
+            # Try and read the map file
+            with results["templates"][0]["map"].open("r") as map_fh:
+                map = json.load(map_fh)
+            self.assertEqual(map[0][0], " ", "Residue 1 het flag")
+            self.assertEqual(map[0][1], 4,   "Residue 1 ID")
+            self.assertEqual(map[0][2], " ", "Residue 1 icode")
+
 
 def skipUnlessEnv(*env):
     for e in env:
@@ -134,13 +153,14 @@ class TestSimpleDBPipeline(unittest.TestCase):
         """Build and run a pipeline."""
 
         with tempfile.TemporaryDirectory() as pdb_dir, \
-                tempfile.TemporaryDirectory() as template_dir:
+                tempfile.TemporaryDirectory() as template_dir, \
+                tempfile.TemporaryDirectory() as map_dir:
 
             try:
                 orig_dir = os.getcwd()
                 os.chdir(template_dir)
                 pipeline = [
-                    db.ChainPDBBuilder(os.environ["MMCIF"], pdb_dir),
+                    db.ChainPDBBuilder(os.environ["MMCIF"], pdb_dir, map_dir),
                     db.MSABuilder(os.environ["HHBLITS_DB"], cpu="20"),
                     db.AddSecondaryStructure(),
                     db.HMMBuilder(),
