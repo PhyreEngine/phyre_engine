@@ -12,6 +12,10 @@ import sys
 from phyre_engine.component import Component
 
 class ParallelComponent(Component):
+    REQUIRED = []
+    ADDS = []
+    REMOVES = []
+
     """Take advantage of PBS to run a function in parallel."""
 
     TASK_RUNNER = textwrap.dedent(
