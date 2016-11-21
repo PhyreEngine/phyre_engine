@@ -133,7 +133,7 @@ class TestSimpleDBPipeline(unittest.TestCase):
     def test_pipeline(self):
         """Build and run a pipeline."""
 
-        with tempfile.TemporaryDirectory() as pdb_dir \
+        with tempfile.TemporaryDirectory() as pdb_dir, \
                 tempfile.TemporaryDirectory() as template_dir:
 
             try:
