@@ -342,8 +342,15 @@ class ChainPDBBuilder(Component):
             for atom in res:
                 # Keep atoms if they are not disordered or are the first
                 # conformation.
-                if (not atom.is_disordered()) or atom.get_altloc() == 'A':
-                    sanitised_res.add(atom)
+                if not atom.is_disordered():
+                    sanitised_res.add(atom.copy())
+                else:
+                    conformation_A = atom.disordered_get('A').copy()
+                    # Ugly hack here. We need to flip the disordered flag, or
+                    # PDBIO will complain when we try to write this atom.
+                    conformation_A.disordered_flag = 0
+                    conformation_A.set_altloc(' ')
+                    sanitised_res.add(conformation_A)
             sanitised_chain.add(sanitised_res)
             res_index += 1
         return sanitised_chain, mapping

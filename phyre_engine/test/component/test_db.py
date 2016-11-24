@@ -3,6 +3,7 @@ import os
 import tempfile
 import unittest
 import phyre_engine.component.db as db
+from Bio.PDB import PDBParser
 from pathlib import Path
 
 class TestRCSBClusterDownload(unittest.TestCase):
@@ -138,6 +139,42 @@ class TestChainPDBBuilder(unittest.TestCase):
             self.assertEqual(map[0][1], 4,   "Residue 1 ID")
             self.assertEqual(map[0][2], " ", "Residue 1 icode")
 
+    @unittest.skipUnless("MMCIF" in os.environ, "MMCIF env var not set")
+    def test_build(self):
+        """Try and extract a chain for a structure with disordered atoms."""
+        with tempfile.TemporaryDirectory() as base_dir:
+            out_dir = Path(base_dir, "pdb")
+            map_dir = Path(base_dir, "map")
+
+            out_dir.mkdir(exist_ok=True)
+            map_dir.mkdir(exist_ok=True)
+
+            builder = db.ChainPDBBuilder(os.environ["MMCIF"], out_dir, map_dir)
+            results = builder.run({"templates": [{"PDB": "4n6v", "chain": "0"}]})
+
+            with results["templates"][0]["structure"].open("r") as pdb_fh:
+                structure = PDBParser().get_structure("result", pdb_fh)
+                chain = next(structure.get_models())[' ']
+
+            self.assertAlmostEqual(
+                chain[1]['N'].get_coord()[0], -5.252,
+                3, "X coord of residue 1 correct")
+            self.assertAlmostEqual(
+                chain[1]['N'].get_coord()[1], -0.725,
+                3, "Y coord of residue 1 correct")
+            self.assertAlmostEqual(
+                chain[1]['N'].get_coord()[2], 4.200,
+                3, "Z coord of residue 1 correct")
+
+            self.assertAlmostEqual(
+                chain[30]['CA'].get_coord()[0], -31.521,
+                3, "X coord of residue 30 correct")
+            self.assertAlmostEqual(
+                chain[30]['CA'].get_coord()[1], -2.596,
+                3, "Y coord of residue 30 correct")
+            self.assertAlmostEqual(
+                chain[30]['CA'].get_coord()[2], 2.172,
+                3, "Z coord of residue 30 correct")
 
 def skipUnlessEnv(*env):
     for e in env:
