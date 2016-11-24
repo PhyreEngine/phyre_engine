@@ -1,6 +1,5 @@
 import phyre_engine.tools.hhsuite as hh
 from phyre_engine.component import Component
-from phyre_engine.tools.mmcif import SimplifySelector
 import gzip
 import pathlib
 import urllib.request
@@ -16,6 +15,8 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.PDB import MMCIFParser, PDBParser
 from Bio.PDB import PDBIO
+from Bio.PDB.Chain import Chain
+from Bio.PDB.Residue import Residue
 
 
 class RCSBClusterDownload(Component):
@@ -185,7 +186,6 @@ class ChainPDBBuilder(Component):
         mmcif_parser = MMCIFParser()
         pdb_parser = PDBParser()
         pdbio = Bio.PDB.PDBIO()
-        simple_selector = SimplifySelector()
 
         for template in templates:
             id    = template["PDB"].lower()
@@ -203,26 +203,23 @@ class ChainPDBBuilder(Component):
             with gzip.open(str(mmcif_file), "rt") as mmcif_fh:
                 structure = mmcif_parser.get_structure(id, mmcif_fh)
             struc_model = next(structure.get_models())
-            struc_chain = struc_model[chain]
+            struc_chain, res_map = self.sanitise_chain(struc_model[chain])
 
             # Build mapping between sequence index and residue ID. This is just
             # an array of residue IDs that can be indexed in the same way as
             # everything else.
-            res_map = [r.get_id() for r in struc_chain]
             with map_file.open("w") as map_fh:
                 json.dump(res_map, map_fh)
 
-            # Set chain ID to " " while writing
-            struc_chain.id = " "
+            # Write PDB file.
             pdbio.set_structure(struc_chain)
-            pdbio.save(str(pdb_file), simple_selector)
+            pdbio.save(str(pdb_file))
 
-            # Get sequence of the residues. To be absolutely sure that our
-            # sequence matches with the ATOM records, we will parse the PDB file
-            # that we just wrote.
-            pdb_struc = pdb_parser.get_structure(id, str(pdb_file))
-            pdb_res = pdb_struc.get_residues()
-            pdb_seq = "".join([Bio.SeqUtils.seq1(r.get_resname()) for r in pdb_res])
+            # Get sequence of the residues.
+            pdb_seq = "".join([
+                Bio.SeqUtils.seq1(r.get_resname())
+                for r in struc_chain
+            ])
 
             # Build a Bio.PDB.SeqRecord object containing this sequence.
             bio_seq = SeqRecord(
@@ -235,6 +232,49 @@ class ChainPDBBuilder(Component):
             template["map"] = map_file
 
         return data
+
+    def sanitise_chain(self, chain, new_id=" "):
+        """Strip insertion codes and disordered atoms from a chain.
+
+        Given a Bio.PDB structure (Bio.PDB.Chain.Chain), renumber residues from
+        1, stripping out insertion codes. At the same time, we remove
+        disordered atoms and residues. For now, we just keep the first
+        conformation that occurs.
+
+        Args:
+            chain: Bio.PDB.Chain.Chain structure to sanitise.
+            new_id: ID of the new chain.
+
+        Returns:
+            A tuple containing:
+                1. A new Bio.PDB.Chain.Chain object consisting of
+                    sanitised residues.
+                2. An array containing the author-assigned IDs of the sanitised
+                    residues.
+        """
+        mapping = []
+        sanitised_chain = Chain(new_id)
+        res_index = 1
+        for res in chain:
+            # Discard HETATMs
+            if res.get_id()[0] != ' ':
+                continue
+
+            sanitised_res = Residue(
+                (' ', res_index, ' '),
+                res.get_resname(),
+                res.get_segid())
+            mapping.append(res.get_id())
+
+            for atom in res:
+                # Keep atoms if they are not disordered or are the first
+                # conformation.
+                if (not atom.is_disordered()) or atom.get_altloc() == 'A':
+                    sanitised_res.add(atom.copy())
+            sanitised_chain.add(sanitised_res)
+            res_index += 1
+        return sanitised_chain, mapping
+
 
 class MSABuilder(Component):
     """Build MSA for each template sequence using hhblits."""
