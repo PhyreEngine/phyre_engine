@@ -7,6 +7,7 @@ import Bio.SeqUtils
 import Bio.SeqIO
 import json
 import os
+import sys
 import subprocess
 import tempfile
 import fileinput
@@ -17,6 +18,7 @@ from Bio.PDB import MMCIFParser, PDBParser
 from Bio.PDB import PDBIO
 from Bio.PDB.Chain import Chain
 from Bio.PDB.Residue import Residue
+from Bio.PDB.PDBExceptions import PDBConstructionException
 
 
 class RCSBClusterDownload(Component):
@@ -183,10 +185,6 @@ class ChainPDBBuilder(Component):
         """Run the component."""
         templates = self.get_vals(data)
 
-        mmcif_parser = MMCIFParser()
-        pdb_parser = PDBParser()
-        pdbio = Bio.PDB.PDBIO()
-
         for template in templates:
             id    = template["PDB"].lower()
             chain = template["chain"]
@@ -200,38 +198,113 @@ class ChainPDBBuilder(Component):
             pdb_file = self.pdb_dir / middle / "{}_{}.pdb".format(id, chain)
             map_file = self.map_dir / middle / "{}_{}.json".format(id, chain)
 
-            with gzip.open(str(mmcif_file), "rt") as mmcif_fh:
-                structure = mmcif_parser.get_structure(id, mmcif_fh)
-            struc_model = next(structure.get_models())
-            struc_chain, res_map = self.sanitise_chain(struc_model[chain])
-
-            # Build mapping between sequence index and residue ID. This is just
-            # an array of residue IDs that can be indexed in the same way as
-            # everything else.
-            with map_file.open("w") as map_fh:
-                json.dump(res_map, map_fh)
-
-            # Write PDB file.
-            pdbio.set_structure(struc_chain)
-            pdbio.save(str(pdb_file))
-
-            # Get sequence of the residues.
-            pdb_seq = "".join([
-                Bio.SeqUtils.seq1(r.get_resname())
-                for r in struc_chain
-            ])
-
-            # Build a Bio.PDB.SeqRecord object containing this sequence.
-            bio_seq = SeqRecord(
-                    id="{}_{}".format(id, chain),
-                    description="",
-                    seq=Seq(pdb_seq)
-            )
-            template["sequence"] = bio_seq
-            template["structure"] = pdb_file
-            template["map"] = map_file
+            # If the output files already exist, we can just read from them.
+            if pdb_file.exists() and map_file.exists():
+                self.read_chain(id, chain, template, pdb_file, map_file)
+            else:
+                self.extract_chain(
+                    id, chain, template,
+                    mmcif_file, pdb_file, map_file)
 
         return data
+
+    def read_chain(
+            self, id, chain, template,
+            pdb_file, map_file):
+        """
+        Read a previously-extracted chain.
+
+        Sets the ``sequence``, ``structure`` and ``map`` fields of the
+        ``template`` argument. Modifies ``template`` in place.
+
+        Args:
+            id: PDB ID.
+            chain: PDB chain.
+            template: Dictionary describing template.
+            pdb_file: Path object pointing to the PDB file into which the chain
+                will be saved.
+            map_file: Path object poniting to the file into which the residue
+                mapping will be saved.
+        """
+        with pdb_file.open("r") as pdb_fh:
+            structure = PDBParser().get_structure(id, pdb_fh)
+            model = next(structure.get_models())
+            chain = model[' ']
+
+        # Get sequence of the residues.
+        pdb_seq = "".join([
+            Bio.SeqUtils.seq1(r.get_resname())
+            for r in chain
+        ])
+
+        # Build a Bio.PDB.SeqRecord object containing this sequence.
+        bio_seq = SeqRecord(
+                id="{}_{}".format(id, chain),
+                description="",
+                seq=Seq(pdb_seq)
+        )
+        template["sequence"] = bio_seq
+        template["structure"] = pdb_file
+        template["map"] = map_file
+
+
+    def extract_chain(
+            self, id, chain, template,
+            mmcif_file, pdb_file, map_file):
+        """
+        Extract a chain from an MMCIF file.
+
+        This method will extract the chain, save a PDB file containing that
+        chain, and write a map file containing the map between residue index and
+        author-assigned residue IDs.
+
+        Modifies the ``template`` argument in place.
+
+        Args:
+            id: PDB ID.
+            chain: PDB chain.
+            template: Dictionary describing template.
+            mmcif_file: Path object pointing to the MMCIF from which the chain
+                will be extracted.
+            pdb_file: Path object pointing to the PDB file into which the chain
+                will be saved.
+            map_file: Path object poniting to the file into which the residue
+                mapping will be saved.
+
+        """
+        mmcif_parser = MMCIFParser()
+        pdbio = Bio.PDB.PDBIO()
+
+        with gzip.open(str(mmcif_file), "rt") as mmcif_fh:
+            structure = mmcif_parser.get_structure(id, mmcif_fh)
+        struc_model = next(structure.get_models())
+        struc_chain, res_map = self.sanitise_chain(struc_model[chain])
+
+        # Build mapping between sequence index and residue ID. This is just
+        # an array of residue IDs that can be indexed in the same way as
+        # everything else.
+        with map_file.open("w") as map_fh:
+            json.dump(res_map, map_fh)
+
+        # Write PDB file.
+        pdbio.set_structure(struc_chain)
+        pdbio.save(str(pdb_file))
+
+        # Get sequence of the residues.
+        pdb_seq = "".join([
+            Bio.SeqUtils.seq1(r.get_resname())
+            for r in struc_chain
+        ])
+
+        # Build a Bio.PDB.SeqRecord object containing this sequence.
+        bio_seq = SeqRecord(
+                id="{}_{}".format(id, chain),
+                description="",
+                seq=Seq(pdb_seq)
+        )
+        template["sequence"] = bio_seq
+        template["structure"] = pdb_file
+        template["map"] = map_file
 
     def sanitise_chain(self, chain, new_id=" "):
         """Strip insertion codes and disordered atoms from a chain.
