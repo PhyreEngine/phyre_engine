@@ -185,6 +185,10 @@ class ChainPDBBuilder(Component):
         """Run the component."""
         templates = self.get_vals(data)
 
+        # Create a new list rather than modifying the existing list in place.
+        # This is so that we can handle failures gracefully, if you can call
+        # squawking an exception and then ignoring the template graceful.
+        new_templates = []
         for template in templates:
             id    = template["PDB"].lower()
             chain = template["chain"]
@@ -199,13 +203,24 @@ class ChainPDBBuilder(Component):
             map_file = self.map_dir / middle / "{}_{}.json".format(id, chain)
 
             # If the output files already exist, we can just read from them.
-            if pdb_file.exists() and map_file.exists():
-                self.read_chain(id, chain, template, pdb_file, map_file)
-            else:
-                self.extract_chain(
-                    id, chain, template,
-                    mmcif_file, pdb_file, map_file)
+            try:
+                if pdb_file.exists() and map_file.exists():
+                    self.read_chain(id, chain, template, pdb_file, map_file)
+                else:
+                    self.extract_chain(
+                        id, chain, template,
+                        mmcif_file, pdb_file, map_file)
+                new_templates.append(template)
+            except PDBConstructionException as e:
+                # TODO: When we start to use a logging framework, log this error
+                # properly.
+                print(
+                    "Error parsing chain {} of {}".format(chain, id),
+                    file=sys.stderr)
+            except Exception as e:
+                raise ChainExtractionError(id, chain) from e
 
+        data["templates"] = new_templates
         return data
 
     def read_chain(
@@ -354,6 +369,16 @@ class ChainPDBBuilder(Component):
             sanitised_chain.add(sanitised_res)
             res_index += 1
         return sanitised_chain, mapping
+
+class ChainExtractionError(Exception):
+    """
+    Exeception thrown when an error is encountered extracting a chain from an
+    MMCIF file.
+    """
+
+    ERR_MSG = "Error extracting chain {} from structure {}"
+    def __init__(self, structure, chain):
+        super().__init__(self.ERR_MSG.format(chain, structure))
 
 
 class MSABuilder(Component):
