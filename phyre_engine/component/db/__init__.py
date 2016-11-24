@@ -270,7 +270,7 @@ class ChainPDBBuilder(Component):
                 # Keep atoms if they are not disordered or are the first
                 # conformation.
                 if (not atom.is_disordered()) or atom.get_altloc() == 'A':
-                    sanitised_res.add(atom.copy())
+                    sanitised_res.add(atom)
             sanitised_chain.add(sanitised_res)
             res_index += 1
         return sanitised_chain, mapping
