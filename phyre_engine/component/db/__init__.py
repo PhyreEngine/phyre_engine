@@ -1,10 +1,13 @@
 import phyre_engine.tools.hhsuite as hh
 from phyre_engine.component import Component
+from phyre_engine.conformation import ArbitraryMutationSelector
+import copy
 import gzip
 import pathlib
 import urllib.request
 import Bio.SeqUtils
 import Bio.SeqIO
+import glob
 import json
 import os
 import sys
@@ -168,7 +171,9 @@ class ChainPDBBuilder(Component):
     ADDS     = []
     REMOVES  = []
 
-    def __init__(self, mmcif_dir, pdb_dir, map_dir):
+    def __init__(
+        self, mmcif_dir, pdb_dir, map_dir,
+        mutation_selector, microhet_selector=None):
         """Initialise new component.
 
         Arguments:
@@ -176,10 +181,19 @@ class ChainPDBBuilder(Component):
             ``pdb_dir``: Base directory in which to store PDB files.
             ``map_dir``: Base directory in which sequence map files will be
                 saved.
+            ``mutation_selector``: Subclass of
+                phyre_engine.component.db.conformation.MutationSelector used for
+                selecting which mutation of a template should be used.
+            ``microhet_selector``: Subclass of
+                phyre_engine.component.db.conformation.MicroConformationSelector
+                used to pick a single conformation. All conformations will be
+                kept if this is not supplied.
         """
         self.mmcif_dir = pathlib.Path(mmcif_dir)
         self.pdb_dir = pathlib.Path(pdb_dir)
         self.map_dir = pathlib.Path(map_dir)
+        self.mutation_selector = mutation_selector
+        self.microhet_selector = microhet_selector
 
     def run(self, data):
         """Run the component."""
@@ -195,22 +209,26 @@ class ChainPDBBuilder(Component):
             middle = id[1:3].lower()
 
             # Create dir in which to store pdb file
-            (self.pdb_dir / middle).mkdir(exist_ok=True)
-            (self.map_dir / middle).mkdir(exist_ok=True)
+            pdb_dir = self.pdb_dir / middle
+            map_dir = self.map_dir / middle
+            pdb_dir.mkdir(exist_ok=True)
+            map_dir.mkdir(exist_ok=True)
 
             mmcif_file = self.mmcif_dir / middle / "{}.cif.gz".format(id)
-            pdb_file = self.pdb_dir / middle / "{}_{}.pdb".format(id, chain)
-            map_file = self.map_dir / middle / "{}_{}.json".format(id, chain)
 
             # If the output files already exist, we can just read from them.
             try:
-                if pdb_file.exists() and map_file.exists():
-                    self.read_chain(id, chain, template, pdb_file, map_file)
+                (pdb_files, map_files) = self.find_template_files(id, chain)
+                if pdb_files and map_files:
+                    for pdb_file, map_file in zip(pdb_files, map_files):
+                        new_template = copy.copy(template)
+                        self.read_chain(id, chain, new_template, pdb_file, map_file)
+                        new_templates.append(new_template)
                 else:
-                    self.extract_chain(
+                    extracted_templates = self.extract_chain(
                         id, chain, template,
-                        mmcif_file, pdb_file, map_file)
-                new_templates.append(template)
+                        mmcif_file)
+                    new_templates.extend(extracted_templates)
             except PDBConstructionException as e:
                 # TODO: When we start to use a logging framework, log this error
                 # properly.
@@ -222,6 +240,32 @@ class ChainPDBBuilder(Component):
 
         data["templates"] = new_templates
         return data
+
+    def find_template_files(self, pdb_id, chain_id):
+        pdb_id = pdb_id.lower()
+        middle = pdb_id[1:3]
+        pdb_dir = self.pdb_dir / middle
+        map_dir = self.map_dir / middle
+
+        # First, check if the correct files exist for a single conformation.
+        # Next, check if multiple conformations exist.
+        # Otherwise, return None
+        pdb_file = pdb_dir / "{}_{}.pdb".format(pdb_id, chain_id)
+        map_file = map_dir / "{}_{}.json".format(pdb_id, chain_id)
+        if pdb_file.exists() and map_file.exists():
+            return ([pdb_file], [map_file])
+        else:
+            pdb_files = sorted(
+                list(pdb_dir.glob("{}_{}-*.pdb")),
+                key=lambda p: p.name)
+            map_files = sorted(
+                list(map_dir.glob("{}_{}-*.json")),
+                key=lambda p: p.name)
+            if pdb_files and map_files:
+                return (pdb_files, map_files)
+                #TODO: Throw error if lists don't match
+            else:
+                return (None, None)
 
     def read_chain(
             self, id, chain, template,
@@ -265,7 +309,7 @@ class ChainPDBBuilder(Component):
 
     def extract_chain(
             self, id, chain, template,
-            mmcif_file, pdb_file, map_file):
+            mmcif_file):
         """
         Extract a chain from an MMCIF file.
 
@@ -273,7 +317,9 @@ class ChainPDBBuilder(Component):
         chain, and write a map file containing the map between residue index and
         author-assigned residue IDs.
 
-        Modifies the ``template`` argument in place.
+        Returns:
+            A list of templates, shallow-copied from the original template, and
+            with "sequence", "structure" and "map" keys added.
 
         Args:
             id: PDB ID.
@@ -281,45 +327,61 @@ class ChainPDBBuilder(Component):
             template: Dictionary describing template.
             mmcif_file: Path object pointing to the MMCIF from which the chain
                 will be extracted.
-            pdb_file: Path object pointing to the PDB file into which the chain
-                will be saved.
-            map_file: Path object poniting to the file into which the residue
-                mapping will be saved.
-
         """
         mmcif_parser = MMCIFParser()
         pdbio = Bio.PDB.PDBIO()
 
+        id = id.lower()
+        middle = id[1:3]
+        pdb_dir = self.pdb_dir / middle
+        map_dir = self.map_dir / middle
+
         with gzip.open(str(mmcif_file), "rt") as mmcif_fh:
             structure = mmcif_parser.get_structure(id, mmcif_fh)
         struc_model = next(structure.get_models())
-        struc_chain, res_map = self.sanitise_chain(struc_model[chain])
 
-        # Build mapping between sequence index and residue ID. This is just
-        # an array of residue IDs that can be indexed in the same way as
-        # everything else.
-        with map_file.open("w") as map_fh:
-            json.dump(res_map, map_fh)
+        templates = []
+        mutations = self.mutation_selector.select(struc_model[chain])
+        for index, conformation in enumerate(mutations):
+            if self.microhet_selector:
+                conformation = self.microhet_selector.select(conformation)
+            struc_chain, res_map = self.sanitise_chain(conformation)
 
-        # Write PDB file.
-        pdbio.set_structure(struc_chain)
-        pdbio.save(str(pdb_file))
+            if len(mutations) > 1:
+                pdb_file = pdb_dir / "{}_{}-{}.pdb".format(id, chain, index+1)
+                map_file = map_dir / "{}_{}-{}.json".format(id, chain, index+1)
+            else:
+                pdb_file = pdb_dir / "{}_{}.pdb".format(id, chain)
+                map_file = map_dir / "{}_{}.json".format(id, chain)
 
-        # Get sequence of the residues.
-        pdb_seq = "".join([
-            Bio.SeqUtils.seq1(r.get_resname())
-            for r in struc_chain
-        ])
+            # Build mapping between sequence index and residue ID. This is just
+            # an array of residue IDs that can be indexed in the same way as
+            # everything else.
+            with map_file.open("w") as map_fh:
+                json.dump(res_map, map_fh)
 
-        # Build a Bio.PDB.SeqRecord object containing this sequence.
-        bio_seq = SeqRecord(
-                id="{}_{}".format(id, chain),
-                description="",
-                seq=Seq(pdb_seq)
-        )
-        template["sequence"] = bio_seq
-        template["structure"] = pdb_file
-        template["map"] = map_file
+            # Write PDB file.
+            pdbio.set_structure(struc_chain)
+            pdbio.save(str(pdb_file))
+
+            # Get sequence of the residues.
+            pdb_seq = "".join([
+                Bio.SeqUtils.seq1(r.get_resname())
+                for r in struc_chain
+            ])
+
+            # Build a Bio.PDB.SeqRecord object containing this sequence.
+            bio_seq = SeqRecord(
+                    id="{}_{}".format(id, chain),
+                    description="",
+                    seq=Seq(pdb_seq)
+            )
+            new_template = copy.copy(template)
+            new_template["sequence"] = bio_seq
+            new_template["structure"] = pdb_file
+            new_template["map"] = map_file
+            templates.append(new_template)
+        return templates
 
     def sanitise_chain(self, chain, new_id=" "):
         """Strip insertion codes and disordered atoms from a chain.
@@ -355,17 +417,7 @@ class ChainPDBBuilder(Component):
             mapping.append(res.get_id())
 
             for atom in res:
-                # Keep atoms if they are not disordered or are the first
-                # conformation.
-                if not atom.is_disordered():
-                    sanitised_res.add(atom.copy())
-                else:
-                    conformation_A = atom.disordered_get('A').copy()
-                    # Ugly hack here. We need to flip the disordered flag, or
-                    # PDBIO will complain when we try to write this atom.
-                    conformation_A.disordered_flag = 0
-                    conformation_A.set_altloc(' ')
-                    sanitised_res.add(conformation_A)
+                sanitised_res.add(atom.copy())
             sanitised_chain.add(sanitised_res)
             res_index += 1
         return sanitised_chain, mapping

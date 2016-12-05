@@ -3,6 +3,7 @@ import os
 import tempfile
 import unittest
 import phyre_engine.component.db as db
+import phyre_engine.conformation as conformation
 from Bio.PDB import PDBParser
 from pathlib import Path
 
@@ -108,7 +109,11 @@ class TestChainPDBBuilder(unittest.TestCase):
             out_dir.mkdir(exist_ok=True)
             map_dir.mkdir(exist_ok=True)
 
-            builder = db.ChainPDBBuilder(os.environ["MMCIF"], out_dir, map_dir)
+            builder = db.ChainPDBBuilder(
+                os.environ["MMCIF"],
+                out_dir, map_dir,
+                conformation.ArbitraryMutationSelector(),
+                conformation.ArbitraryConformationSelector())
             results = builder.run({"templates": [{"PDB": "12as", "chain": "A"}]})
 
             self.assertTrue(Path(out_dir, "2a").exists(), "Created 2a subdir")
@@ -149,7 +154,11 @@ class TestChainPDBBuilder(unittest.TestCase):
             out_dir.mkdir(exist_ok=True)
             map_dir.mkdir(exist_ok=True)
 
-            builder = db.ChainPDBBuilder(os.environ["MMCIF"], out_dir, map_dir)
+            builder = db.ChainPDBBuilder(
+                os.environ["MMCIF"],
+                out_dir, map_dir,
+                conformation.ArbitraryMutationSelector(),
+                conformation.ArbitraryConformationSelector())
             results = builder.run({"templates": [{"PDB": "4n6v", "chain": "0"}]})
 
             with results["templates"][0]["structure"].open("r") as pdb_fh:
@@ -197,7 +206,11 @@ class TestSimpleDBPipeline(unittest.TestCase):
                 orig_dir = os.getcwd()
                 os.chdir(template_dir)
                 pipeline = [
-                    db.ChainPDBBuilder(os.environ["MMCIF"], pdb_dir, map_dir),
+                    db.ChainPDBBuilder(
+                        os.environ["MMCIF"],
+                        pdb_dir, map_dir,
+                        conformation.ArbitraryMutationSelector(),
+                        conformation.ArbitraryConformationSelector()),
                     db.MSABuilder(os.environ["HHBLITS_DB"], cpu="20"),
                     db.AddSecondaryStructure(),
                     db.HMMBuilder(),
