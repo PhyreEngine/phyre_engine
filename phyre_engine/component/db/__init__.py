@@ -268,7 +268,7 @@ class ChainPDBBuilder(Component):
                 return (None, None)
 
     def read_chain(
-            self, id, chain, template,
+            self, pdb_id, chain_id, template,
             pdb_file, map_file):
         """
         Read a previously-extracted chain.
@@ -277,8 +277,8 @@ class ChainPDBBuilder(Component):
         ``template`` argument. Modifies ``template`` in place.
 
         Args:
-            id: PDB ID.
-            chain: PDB chain.
+            pdb_id: PDB ID.
+            chain_id: PDB chain.
             template: Dictionary describing template.
             pdb_file: Path object pointing to the PDB file into which the chain
                 will be saved.
@@ -286,7 +286,7 @@ class ChainPDBBuilder(Component):
                 mapping will be saved.
         """
         with pdb_file.open("r") as pdb_fh:
-            structure = PDBParser().get_structure(id, pdb_fh)
+            structure = PDBParser().get_structure(pdb_id, pdb_fh)
             model = next(structure.get_models())
             chain = model[' ']
 
@@ -298,7 +298,7 @@ class ChainPDBBuilder(Component):
 
         # Build a Bio.PDB.SeqRecord object containing this sequence.
         bio_seq = SeqRecord(
-                id="{}_{}".format(id, chain),
+                id="{}_{}".format(pdb_id, chain_id),
                 description="",
                 seq=Seq(pdb_seq)
         )
