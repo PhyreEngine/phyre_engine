@@ -621,29 +621,15 @@ class DatabaseBuilder(Component):
                     "-f", index.name])
                 ff_dbs[type] = db_name
 
-        # Sort the cs219 ffindex
-        subprocess.run([
-            "ffindex_build", "-as",
-            "{}.ffdata".format(ff_dbs["cs219"]),
-            "{}.ffindex".format(ff_dbs["cs219"])])
+            # Sort the indices
+            subprocess.run([
+                "ffindex_build", "-as",
+                "{}.ffdata".format(ff_dbs[type]),
+                "{}.ffindex".format(ff_dbs[type])])
 
         # Cut useless information from the indices of each file.
         for type, ff_db in ff_dbs.items():
             self._trim_index_names(templates, type, ff_db)
-
-        # Get column state lengths and sort the a3m and hhm databases according
-        # to that order.
-        with open("{}.ffindex".format(ff_dbs["cs219"]), "r") as idx:
-            lines = [line.split() for line in idx.readlines()]
-            # Sort by length (index 2), and return the name (index 0)
-            names = [ln[0] for ln in sorted(lines, key=lambda ln: int(ln[2]))]
-
-            with tempfile.NamedTemporaryFile("w") as ordered_tmp:
-                for n in names:
-                    print(n, file=ordered_tmp)
-                ordered_tmp.flush()
-                self._ffindex_order(ff_dbs["a3m"], ordered_tmp.name)
-                self._ffindex_order(ff_dbs["hhm"], ordered_tmp.name)
 
         del data["templates"]
         data["database"] = self.db_prefix
@@ -668,20 +654,3 @@ class DatabaseBuilder(Component):
                 fields = line.split("\t")
                 fields[0] = file_to_name[str(pathlib.Path(type, fields[0]))]
                 print("\t".join(fields), end="")
-
-    def _ffindex_order(self, database, by):
-        """Run ffindex_order to order an ffindex/ffdata database according with
-        the same order as the list given in the file "by". This function will
-        overwrite the unsorted database.
-        """
-        subprocess.run([
-            "ffindex_order", by,
-            "{}.ffdata".format(database),
-            "{}.ffindex".format(database),
-            "{}_ordered.ffdata".format(database),
-            "{}_ordered.ffindex".format(database)
-        ])
-        shutil.move("{}_ordered.ffdata".format(database),
-                "{}.ffdata".format(database))
-        shutil.move("{}_ordered.ffindex".format(database),
-                "{}.ffindex".format(database))
