@@ -7,9 +7,10 @@ class SimplifySelector(Bio.PDB.Select):
     """Class to select what should be output.
 
     The atoms to be output must satisfy the following constraints:
-    2. Part of an ``ATOM`` residue, not ``HETATM``.
-    3. One of the standard 20 amino acids.
-    4. If atoms have altlocs, the first location is chosen.
+
+    * Part of an ``ATOM`` residue, not ``HETATM``.
+    * One of the standard 20 amino acids.
+    * If atoms have altlocs, the first location is chosen.
 
     Note that this class does *not* filter by model or chain. This is because
     we cannot be certain what the first model ID is in an MMCIF file. To ensure
@@ -26,14 +27,13 @@ class SimplifySelector(Bio.PDB.Select):
         return (not atom.is_disordered()) or atom.get_altloc() == "A"
 
 class MMCIFToPDBChains:
-    """Used to build a valid PDB file for each chain of an MMCIF file."""
+    """Used to build a valid PDB file for each chain of an MMCIF file.
+
+    :param out_dir: Directory to which PDB files will be saved.
+    """
 
     def __init__(self, out_dir):
-        """Initialise a new converter.
-
-        Args:
-            ``out_dir``: Directory to which PDB files will be saved.
-        """
+        """Initialise a new converter."""
         self.out_dir = out_dir
 
     def convert(self, pdb_id, mmcif_file):
@@ -47,6 +47,10 @@ class MMCIFToPDBChains:
         ``xy``. This will always be converted to lowercase. Output files will
         be named like ``1xyz_AA.pdb``, where ``AA`` is the chain ID from which
         this file was generated.
+
+        :param str pdb_id: ID of the structure for naming purposes.
+        :param str mmcif_file: Path to an MMCIF file from which chains will be
+            extracted.
         """
 
         pdbio = Bio.PDB.PDBIO()

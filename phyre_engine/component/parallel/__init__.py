@@ -1,3 +1,4 @@
+"""Component for running components on a PBS cluster."""
 from abc import ABC, abstractmethod
 import math
 import pathlib
@@ -16,7 +17,47 @@ class ParallelComponent(Component):
     ADDS = []
     REMOVES = []
 
-    """Take advantage of PBS to run a function in parallel."""
+    """Take advantage of PBS to run a component in parallel.
+
+    This component takes a "sub-component" as input. When this component is run,
+    jobs will be submitted to a PBS cluster as an array job using ``qstat``.
+    Each job then runs on a node, and once all jobs have completed this
+    component will continue.
+
+    The parameter `slice_var_in` must be the name of an array within the `data`
+    parameter that is passed to the `run` method when this component is run.
+    This array will be split into chunks, each of which are run serially as a
+    job on a node. Similarly, the arrays specified by `slice_var_out` will be
+    joined into a single array.
+
+    :param component: Component to run in parallel.
+    :type component: :class:`phyre_engine.component.Component`
+
+    :param int max_jobs: Maximum number of jobs to run in parallel.
+
+    :param str slice_var_in: Array variable in data blob on which jobs
+        should be split.
+
+    :param str slice_var_out: Array variable on which to join output. If not
+        set then ``slice_var_in`` will be used.
+
+    :param str storage_dir: Node-accessible directory in which to store
+        data.
+
+    :param path_dirs: Array of paths to add to the python module search
+        path.
+    :type path_dirs: List of strings
+
+    :param Module submodule: Module containing the subclass calling this
+        constructor. Defaults to ``self.__module__``, so if the
+        subclass is a module on the python path, there is no need to
+        pass this parameter. However, if this is called from an
+        executable file (such as a unit test), the module may be set to
+        ``__main__``, in which case you should pass this parameter.
+
+    :param str subclass: Similar to ``submodule``, except for the class.
+        Defaults to ``self.__class__.__name__``.
+    """
 
     TASK_RUNNER = textwrap.dedent(
         """\
@@ -31,34 +72,7 @@ class ParallelComponent(Component):
     def __init__(self, component, max_jobs, storage_dir,
             slice_var_in, slice_var_out=None,
             path_dirs=None, submodule=None, subclass=None):
-        """Initialise this parallel component.
-
-        Args:
-            ``component``: Component to run in parallel.
-
-            ``max_jobs``: Maximum number of jobs to run in parallel.
-
-            ``slice_var_in``: Array variable in data blob on which jobs should
-                be split.
-
-            ``slice_var_out``: Array variable on which to join output. If not
-                set then ``slice_var_in`` will be used.
-
-            ``storage_dir``: Node-accessible directory in which to store data.
-
-            ``path_dirs``: Array of paths to add to the python module search
-                path.
-
-            ``submodule``: Module containing the subclass calling this
-                constructor. Defaults to ``self.__module__``, so if the
-                subclass is a module on the python path, there is no need to
-                pass this parameter. However, if this is called from an
-                executable file (such as a unit test), the module may be set to
-                ``__main__``, in which case you should pass this parameter.
-
-            ``subclass``: Similar to ``submodule``, except for the class.
-                Defaults to ``self.__class__.__name__``.
-        """
+        """Initialise this parallel component."""
         self.component = component
         self.max_jobs = max_jobs
         self.slice_var_in = slice_var_in
@@ -71,9 +85,10 @@ class ParallelComponent(Component):
 
     def run(self, data):
         """Submit this job to the queue system and wait until all tasks are
-        complete.
+        complete. This method will submit an array job (``qsub -t``).
 
-        This method will submit an array job (``qsub -t``).
+        :raises NoOutputError: Raised when a child fails to produce the expected
+            output.
         """
 
         # Note the fragile backslashes at the end of the lines. The "with"
@@ -146,11 +161,24 @@ class ParallelComponent(Component):
             return data
 
 class NoOutputError(Exception):
+    """
+    Exception indicating a failure of a :class:`ParallelComponent` because a
+    child process produced no output.
+    """
+
     def __init__(self, child, file):
         err_msg = "No output from child {} (file: {})"
         super().__init__(err_msg.format(child, file))
 
 def run_tasks():
+    """Called by scripts on nodes to run tasks.
+
+    This function requires the environment variable ``pickle`` to be set; this
+    is done automatically by :class:`ParallelComponent` when it is run. The file
+    pointed to by the ``pickle`` environment variable is a python pickle file
+    containing the current state of the pipeline. Pickled output will be written
+    to the output directory supplied to :class:`ParallelComponent`.
+    """
     pickle_data = pickle.load(open(os.environ["pickle"], "rb"))
 
     obj     = pickle_data["self"]

@@ -1,10 +1,14 @@
+"""Module containing components for reading sequences from files."""
 from phyre_engine.component import Component
 import Bio.SeqIO
 from Bio.Alphabet import IUPAC
 
 class FastaInput(Component):
     """Read a FASTA file as input and output the sequence."""
+    #: :param str input: Path of the FASTA file from which to read.
     REQUIRED = ['input']
+    #: :param sequence: Parsed sequence.
+    #: :type sequence: :class:`Bio.SeqRecord`
     ADDS     = ['sequence']
     REMOVES  = []
 
@@ -15,16 +19,9 @@ class FastaInput(Component):
         If the file can not be read or contains multiple sequences an exception
         will be thrown.
 
-        Args:
-            data: Key-value mapping of data. The following keys are required:
-                `input`: Path of the FASTA file from which to read.
-
-        Returns:
-            A Bio.Seq object representing the sequence from the FASTA file.
-
-        Raises:
-            IOError: Error reading the file.
-            FastaInput.TooManySequencesError: The FASTA file contained multiple sequences.
+        :raises IOError: Error reading the file.
+        :raises FastaInput.TooManySequencesError: The FASTA file contained
+            multiple sequences.
         """
 
         input = self.get_vals(data)

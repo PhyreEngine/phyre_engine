@@ -1,8 +1,11 @@
+"""Module containing classes for validating parsed sequences."""
 from phyre_engine.component import Component
 import Bio.Alphabet
 
 class SeqValidator(Component):
     """Ensure that a valid sequence was given."""
+    #: :param sequence: Sequence to be checked.
+    #: :type sequence: :class:`Bio.SeqRecord`
     REQUIRED = ['sequence']
     ADDS     = []
     REMOVES  = []
@@ -15,15 +18,7 @@ class SeqValidator(Component):
         exception if the sequence contains characters that are not contained
         within its alphabet.
 
-        Args:
-            data: Key-value mapping of data. The following keys are required:
-                ``sequence``: ``Bio.SeqRecord``-like object.
-
-        Returns:
-            Unmodified key-value mapping.
-
-        Raises:
-            ``SeqValidator.InvalidSeqError``: Error describing the alphabet
+        :raises SeqValidator.InvalidSeqError: Error describing the alphabet
                 mismatch.
         """
 

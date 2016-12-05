@@ -2,29 +2,28 @@
 import subprocess
 
 class HHSuiteTool:
-    """Base class for hh-suite tools responsible for running processes."""
+    """Base class for hh-suite tools responsible for running processes.
+
+    Each tool in hh-suite accepts several command-line flags. Some of these
+    flags have non-obvious names, so this method will convert between
+    human-readable flags and the actual command line flags. Subclasses
+    should define the dictionary ``flags`` mapping a human-readable version
+    to the actual flag. Flags not found in the ``flags`` map will be passed
+    straight to the tool after prepending a single hyphen.
+
+    >>> class HHSearchExample(HHSuiteTool)
+    >>>     program = "hhsearch"
+    >>>     flags = {"database": "d", "input": "i"}
+    >>>     pass
+    >>> hhs = HHSearchExample(database="uniprot_2012_03",
+    >>>        input="in.fasta", cpu=10, nocons=True)
+    >>> hhs.command_line
+    ["hhsearch", "-d" "uniprot_2012_03", "-i", "in.fasta",
+            "-cpu", "10", "-nocons"]
+    """
 
     def __init__(self, **flags):
-        """Set up a tool with the given command-line flags.
-
-        Each tool in hh-suite accepts several command-line flags. Some of these
-        flags have non-obvious names, so this method will convert between
-        human-readable flags and the actual command line flags. Subclasses
-        should define the dictionary ``flags`` mapping a human-readable version
-        to the actual flag. Flags not found in the ``flags`` map will be passed
-        straight to the tool after prepending a single hyphen.
-
-        >>> class HHSearchExample(HHSuiteTool)
-        >>>     program = "hhsearch"
-        >>>     flags = {"database": "d", "input": "i"}
-        >>>     pass
-        >>> hhs = HHSearchExample(database="uniprot_2012_03",
-        >>>        input="in.fasta", cpu=10, nocons=True)
-        >>> hhs.command_line
-        ["hhsearch", "-d" "uniprot_2012_03", "-i", "in.fasta",
-                "-cpu", "10", "-nocons"]
-        """
-
+        """Set up a tool with the given command-line flags."""
         long_flags = flags
         self.command_line = [self.program]
         self._map_flags(long_flags)
@@ -54,8 +53,7 @@ class HHSuiteTool:
     def run(self):
         """Execute the tool.
 
-        Raises:
-            ``subprocess.CalledProcessError``: A non-zero exit code was returned
+        :raises subprocess.CalledProcessError: A non-zero exit code was returned
                 by the tool. Standard error is returned in the ``output``
                 attribute.
         """
@@ -71,7 +69,18 @@ class HHSuiteTool:
 
 
 class HHBlits(HHSuiteTool):
-    """Wrapper for the hhblits tool included within the hh-suite package."""
+    """Wrapper for the hhblits tool included within the hh-suite package.
+
+    As well as the standard short-form flags of hhblits (see ``hhblits -help``),
+    the following flags are accepted:
+
+    :param database: HHsearch database, equivalent to the ``-d`` flag.
+    :param input: Input alignment file, equivalent to the ``-i`` flag.
+    :param iterations: Number of search iterations, equivalent to the
+        ``-n`` flag.
+    :param evalue_cutoff: e-value cutoff, equivalent to the ``-e`` flag.
+    :param output: output file, equivalent to the ``-o`` flag.
+    """
 
     program = "hhblits"
     flags = {
@@ -83,23 +92,21 @@ class HHBlits(HHSuiteTool):
             }
 
     def __init__(self, **flags):
-        """Set up command-line flags for hhblits.
-
-        As well as the standard short-form flags of hhblits (see ``hhblits
-        -help``), the following flags are accepted:
-
-            ``database``: HHsearch database, qquivalent to the ``-d`` flag.
-            ``input``: input alignment file, qquivalent to the ``-i`` flag.
-            ``iterations``: number of search iterations, equivalent to the
-                ``-n`` flag.
-            ``evalue_cutoff``: e-value cutoff, qquivalent to the ``-e`` flag.
-            ``output``: output file, qquivalent to the ``-o`` flag.
-        """
+        """Set up command-line flags for hhblits."""
         super().__init__(**flags)
 
 
 class HHSearch(HHSuiteTool):
-    """Wrapper for the hhsearch tool included within the hh-suite package."""
+    """Wrapper for the hhsearch tool included within the hh-suite package.
+
+    As well as the standard short-form flags of hhsearch (see ``hhsearch
+    -help``), the following flags are accepted:
+
+    :param database: HHsearch database, equivalent to the ``-d`` flag.
+    :param input: input alignment file, equivalent to the ``-i`` flag.
+    :param evalue_cutoff: e-value cutoff, equivalent to the ``-e`` flag.
+    :param output: output file, qquivalent to the ``-o`` flag.
+    """
 
     program = "hhblits"
     flags = {
@@ -110,16 +117,7 @@ class HHSearch(HHSuiteTool):
             }
 
     def __init__(self, **flags):
-        """Set up command-line flags for hhblits.
-
-        As well as the standard short-form flags of hhsearch (see ``hhsearch
-        -help``), the following flags are accepted:
-
-            ``database``: HHsearch database, qquivalent to the ``-d`` flag.
-            ``input``: input alignment file, qquivalent to the ``-i`` flag.
-            ``evalue_cutoff``: e-value cutoff, qquivalent to the ``-e`` flag.
-            ``output``: output file, qquivalent to the ``-o`` flag.
-        """
+        """Set up command-line flags for hhblits."""
         super().__init__(**flags)
 
 

@@ -1,3 +1,4 @@
+"""Module containing the base class of components."""
 from abc import ABC, abstractmethod
 
 class Component(ABC):
@@ -19,10 +20,9 @@ class Component(ABC):
         returned rather than a list of length 1. This is to allow simple
         unpacking, as shown in the example above.
 
-        Args:
-            data: Key-value mapping from which to retrieve values.
+        :param dict data: Key-value mapping from which to retrieve values.
 
-        Returns:
+        :returns:
             If only one item is required, a scalar corresponding to that item in
             the data field. If multiple items are required, a list containing
             the corresponding values is returned.
@@ -36,10 +36,9 @@ class Component(ABC):
     def run(data):
         """Run this component.
 
-        This method must be implemented by all subclasses of Component. The
-        argument `data` is a dictionary mapping keys to arbitrary objects.
+        This method must be implemented by all subclasses of Component.
 
-        Args:
-            data: Dictionary containing all parameters produced by the pipeline.
+        :param dict data: Dictionary containing all parameters produced by the
+            pipeline.
         """
         pass #pragma: no cover

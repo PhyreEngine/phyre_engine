@@ -8,12 +8,12 @@ class Report:
 
     This class will only parse data on a per-hit basis; it will not parse the
     actual alignments from the report file. To get the alignments, you should
-    generate a tabular file using the `-atab` option of hhblits/hhsearch and
-    parse the alignment data using the `Tabulated` parser.
+    generate a tabular file using the ``-atab`` option of hhblits/hhsearch and
+    parse the alignment data using the :class:`Tabular` parser.
 
-    Attributes:
-        ``hits``: List of ``Report.Hit`` objects.
-        ``summary``: Dictionary containing the summary lines of the report.
+    :param str file: Path of the report file to be parsed.
+    :ivar hits: List of :class:`Hit` objects.
+    :ivar summary: Dictionary containing the summary lines of the report.
     """
 
     #Tokens describing the current state of the parser. The state reflects the
@@ -26,10 +26,7 @@ class Report:
 
 
     def __init__(self, file):
-        """Parse a report file.
-
-        The report file will be parsed when this class is instantiated.
-        """
+        """Parse a report file."""
         self._parse_file(file)
 
 
@@ -210,17 +207,14 @@ class Hit:
     between a query and the hit or simply giving the name of the hit.
     Additionally, a hit may contain the alignment between a query and this hit.
 
-    Attributes:
-        ``info``: A dictionary giving per-hit properties.
-        ``aln``: A list of alignment pairs.
+    :param info: Optional keys to be added to the `info` attribute.
+    :ivar info: A dictionary giving per-hit properties.
+    :ivar aln: A list of alignment pairs.
     """
 
     def __init__(self, **info):
         """Initialise a new Hit method with empty `info` and `aln`
         attributes.
-
-        Args:
-            ``**info``: Optional keys to be added to the `info` attribute.
         """
 
         self.info = info
@@ -228,11 +222,11 @@ class Hit:
 
 
 class Tabular:
-    """Parse tabulated files from hhsearch (produced using the `-atab`
+    """Parse tabulated files from hhsearch (produced using the ``-atab``
     option.
 
-    Attributes:
-        ``hits``: List of hits contained within the file to be parsed.
+    :param str file: Path of the file to parse.
+    :ivar hits: List of hits contained within the file to be parsed.
     """
 
 
@@ -247,7 +241,7 @@ class Tabular:
     def _records(self, fh):
         """Generator yielding records from a tabulated file.
 
-        Records are separated by lines beginning with `>`. Each record that we
+        Records are separated by lines beginning with ``>``. Each record that we
         yield is a list of lines.
         """
         record = []
