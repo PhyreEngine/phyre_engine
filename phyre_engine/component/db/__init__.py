@@ -498,7 +498,7 @@ class MSABuilder(Component):
                     hhblits.run()
 
                 template["a3m"] = str(msa_file)
-                template["hhm"] = str(hhr_file)
+                template["hhr"] = str(hhr_file)
                 template["name"] = seq_name
         return data
 
