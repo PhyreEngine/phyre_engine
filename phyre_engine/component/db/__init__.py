@@ -440,7 +440,9 @@ class MSABuilder(Component):
     ADDS = []
     REMOVES = []
 
-    def __init__(self, hhblits_db, overwrite=False, **hhblits_args):
+    def __init__(
+            self, hhblits_db, overwrite=False,
+            basedir=".", **hhblits_args):
         """Initialise a new MSA builder; this is essentially a parallel hhblits
         component.
 
@@ -448,9 +450,9 @@ class MSABuilder(Component):
         that class will build a profile for a single sequence, while this will
         operate on an array of sequences.
 
-        Files will be placed in the current working directory. Subdirectories
-        named ``a3m`` and ``hhr`` will be created containing the MSAs and
-        hhblits reports, respectively.
+        Files will be placed in the directory `basedir`. Subdirectories under
+        `basedir` named ``a3m`` and ``hhr`` will be created containing the MSAs
+        and hhblits reports, respectively.
 
         This component reads sequences (Bio.SeqRecord objects) from the
         ``sequences`` key of the pipeline data, and adds the ``msas`` and
@@ -459,12 +461,13 @@ class MSABuilder(Component):
         self.hhblits_db   = hhblits_db
         self.hhblits_args = hhblits_args
         self.overwrite = overwrite
+        self.basedir = pathlib.Path(basedir)
 
     def run(self, data):
         templates = self.get_vals(data)
 
-        msa_path = pathlib.Path("a3m")
-        hhr_path = pathlib.Path("hhr")
+        msa_path = self.basedir / "a3m"
+        hhr_path = self.basedir / "hhr"
 
         msa_path.mkdir(exist_ok=True)
         hhr_path.mkdir(exist_ok=True)
@@ -670,5 +673,5 @@ class DatabaseBuilder(Component):
         with fileinput.input(index, inplace=True) as fh:
             for line in fh:
                 fields = line.split("\t")
-                fields[0] = file_to_name[str(pathlib.Path(type, fields[0]))]
+                fields[0] = pathlib.PurePath(fields[0]).stem
                 print("\t".join(fields), end="")
