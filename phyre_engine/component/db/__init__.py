@@ -563,14 +563,22 @@ class CS219Builder(Component):
     ADDS = []
     REMOVES = []
 
-    def __init__(self, overwrite=False):
+    def __init__(self, overwrite=False, basedir="."):
+        """Initialise a new CS219Builder.
+
+        Args:
+            overwrite: Overwrite any existing cs219 files.
+            basedir: Base directory in which to store files. Files will be
+                stored in the subdirectory ``cs219`` below this directory.
+        """
         self.overwrite = overwrite
+        self.basedir = pathlib.Path(basedir)
 
     def run(self, data):
         hhlib = os.environ["HHLIB"]
 
         templates = self.get_vals(data)
-        cs219_path = pathlib.Path("cs219")
+        cs219_path = self.basedir / "cs219"
         cs219_path.mkdir(exist_ok=True)
 
         for template in templates:

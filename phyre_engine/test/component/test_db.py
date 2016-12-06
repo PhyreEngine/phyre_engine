@@ -213,7 +213,7 @@ class TestSimpleDBPipeline(unittest.TestCase):
                     basedir=database_dir, cpu="23"),
                 db.AddSecondaryStructure(),
                 db.HMMBuilder(basedir=database_dir),
-                db.CS219Builder(),
+                db.CS219Builder(basedir=database_dir),
             ]
             data = {
                 "templates":[
