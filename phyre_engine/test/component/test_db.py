@@ -199,39 +199,45 @@ class TestSimpleDBPipeline(unittest.TestCase):
         """Build and run a pipeline."""
 
         with tempfile.TemporaryDirectory() as pdb_dir, \
-                tempfile.TemporaryDirectory() as template_dir, \
+                tempfile.TemporaryDirectory() as database_dir, \
                 tempfile.TemporaryDirectory() as map_dir:
 
-            try:
-                orig_dir = os.getcwd()
-                os.chdir(template_dir)
-                pipeline = [
-                    db.ChainPDBBuilder(
-                        os.environ["MMCIF"],
-                        pdb_dir, map_dir,
-                        conformation.ArbitraryMutationSelector(),
-                        conformation.ArbitraryConformationSelector()),
-                    db.MSABuilder(os.environ["HHBLITS_DB"], cpu="20"),
-                    db.AddSecondaryStructure(),
-                    db.HMMBuilder(),
-                    db.CS219Builder(),
+            pipeline = [
+                db.ChainPDBBuilder(
+                    os.environ["MMCIF"],
+                    pdb_dir, map_dir,
+                    conformation.ArbitraryMutationSelector(),
+                    conformation.ArbitraryConformationSelector()),
+                db.MSABuilder(os.environ["HHBLITS_DB"], cpu="23"),
+                db.AddSecondaryStructure(),
+                db.HMMBuilder(),
+                db.CS219Builder(),
+            ]
+            data = {
+                "templates":[
+                    {"PDB": "12AS", "chain": "A"},
+                    {"PDB": "3NGG", "chain": "A"},
                 ]
-                data = {
-                    "templates":[
-                        {"PDB": "12AS", "chain": "A"},
-                        {"PDB": "3NGG", "chain": "A"},
-                    ]
-                }
-                for component in pipeline:
-                    data = component.run(data)
-                print(data)
+            }
+            for component in pipeline:
+                data = component.run(data)
+            print(data)
 
-                db_builder = db.DatabaseBuilder("test_prefix", overwrite=True)
-                results = db_builder.run(data)
-                print(results)
+            db_builder = db.DatabaseBuilder(
+                "test_prefix", overwrite=True,
+                basedir=database_dir)
 
-            finally:
-                os.chdir(orig_dir)
+            results = db_builder.run(data)
+            self.assertIn("database", results, "database key added")
+            for file_type in ("a3m", "hhm", "cs219"):
+                db_prefix = "{}_{}".format(results["database"], file_type)
+                self.assertTrue(
+                    Path("{}.ffindex".format(db_prefix)).exists(),
+                    "ffindex file exists")
+                self.assertTrue(
+                    Path("{}.ffdata".format(db_prefix)).exists(),
+                    "ffdata file exists")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -586,7 +586,7 @@ class DatabaseBuilder(Component):
     ADDS = ["database"]
     REMOVES = ["templates"]
 
-    def __init__(self, db_prefix, overwrite=False):
+    def __init__(self, db_prefix, overwrite=False, basedir="."):
         """Initialise a new DatabaseBuilder component.
 
         Args:
@@ -595,22 +595,30 @@ class DatabaseBuilder(Component):
                 ``<prefix>_{a3m,hhm,cs219}.ff{index,data}``.
             overwrite: If ``True``, delete existing database files. Otherwise,
                 ``ffindex_build`` may be called on existing files.
+            basedir: Base directory in which to save the database files.
         """
         self.db_prefix = db_prefix
         self.overwrite = overwrite
+        self.basedir = basedir
 
     def run(self, data):
         """Collect and index the files that form an hhsuite database."""
         templates = self.get_vals(data)
 
+        # Make basedir if it doesn't exist.
+        pathlib.Path(self.basedir).mkdir(parents=True, exist_ok=True)
+
         # Collect a3m/hhm/cs219 files into ffindex/ffdata databases
         to_collect = ["a3m", "hhm", "cs219"]
         ff_dbs = {}
+        db_prefix = pathlib.Path(self.basedir, self.db_prefix)
+
         for type in to_collect:
-            db_name = "{}_{}".format(self.db_prefix, type)
+            db_name = pathlib.Path("{}_{}".format(str(db_prefix), type))
+            ffindex = pathlib.Path("{}.ffindex".format(str(db_name)))
+            ffdata = pathlib.Path("{}.ffdata".format(str(db_name)))
+
             if self.overwrite:
-                ffindex = pathlib.Path("{}.ffindex".format(db_name))
-                ffdata  = pathlib.Path("{}.ffdata".format(db_name))
                 if ffindex.exists():
                     ffindex.unlink()
                 if ffdata.exists():
@@ -624,9 +632,9 @@ class DatabaseBuilder(Component):
 
                 # Run ffindex_build using the the temp file as the list of files
                 # to incude in the DB.
-                subprocess.run(["ffindex_build",
-                    "{}.ffdata".format(db_name),
-                    "{}.ffindex".format(db_name),
+                subprocess.run([
+                    "ffindex_build",
+                    str(ffdata), str(ffindex),
                     "-f", index.name])
                 ff_dbs[type] = db_name
 
@@ -641,7 +649,8 @@ class DatabaseBuilder(Component):
             self._trim_index_names(templates, type, ff_db)
 
         del data["templates"]
-        data["database"] = self.db_prefix
+        data["database"] = str(db_prefix)
+        return data
 
 
     def _trim_index_names(self, templates, type, db):
