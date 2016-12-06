@@ -587,6 +587,15 @@ class DatabaseBuilder(Component):
     REMOVES = ["templates"]
 
     def __init__(self, db_prefix, overwrite=False):
+        """Initialise a new DatabaseBuilder component.
+
+        Args:
+            db_prefix: Prefix for database. The databases used by hhblits
+                consist of multiple files, named like
+                ``<prefix>_{a3m,hhm,cs219}.ff{index,data}``.
+            overwrite: If ``True``, delete existing database files. Otherwise,
+                ``ffindex_build`` may be called on existing files.
+        """
         self.db_prefix = db_prefix
         self.overwrite = overwrite
 
