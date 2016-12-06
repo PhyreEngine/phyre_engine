@@ -207,7 +207,7 @@ class TestSimpleDBPipeline(unittest.TestCase):
                     os.environ["MMCIF"],
                     pdb_dir, map_dir,
                     conformation.ArbitraryMutationSelector(),
-                    conformation.ArbitraryConformationSelector()),
+                    conformation.ArbitraryConformationSelector("A")),
                 db.MSABuilder(
                     os.environ["HHBLITS_DB"],
                     basedir=database_dir, cpu="23"),

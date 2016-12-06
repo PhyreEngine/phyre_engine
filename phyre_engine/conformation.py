@@ -67,6 +67,17 @@ class MutationSelector(ABC):
 class ArbitraryMutationSelector(MutationSelector):
     """Given a structure with point mutations, select an arbitrary sequence."""
 
+    def __init__(self, conformation=None):
+        """Initialise a new selector.
+
+        Args:
+            conformation: If supplied, this conformation will be chosen if it is
+                available. If the specified conformation does not exist, a
+                ValueError exception will be raised. If not supplied, then an
+                arbitrary conformation will be chosen.
+        """
+        self.conformation = conformation
+
     def select(self, chain):
         """Select the first conformation encountered."""
         new_chain = Chain(chain.get_id())
@@ -75,7 +86,10 @@ class ArbitraryMutationSelector(MutationSelector):
             # is_disordered() == 2 for point mutations.
             # is_disordered() == 1 if residue contains disordered atoms
             if residue.is_disordered() == 2:
-                first_res = residue.disordered_get_list()[0]
+                if self.conformation:
+                    first_res = residue.disordered_get(self.conformation)
+                else:
+                    first_res = residue.disordered_get_list()[0]
                 new_chain.add(self.clean_residue(first_res))
             else:
                 new_chain.add(residue)
@@ -157,6 +171,17 @@ class MicroConformationSelector(ABC):
 class ArbitraryConformationSelector(MicroConformationSelector):
     """Select a single, arbitrary, conformation."""
 
+    def __init__(self, conformation=None):
+        """Initialise a new selector.
+
+        Args:
+            conformation: If supplied, this conformation will be chosen if it is
+                available. If the specified conformation does not exist, a
+                ValueError exception will be raised. If not supplied, then an
+                arbitrary conformation will be chosen.
+        """
+        self.conformation = conformation
+
     def select(self, chain):
         """Pick an arbitrary conformation."""
 
@@ -173,7 +198,11 @@ class ArbitraryConformationSelector(MicroConformationSelector):
                     sanitised_res.add(atom)
                 else:
                     # Keep the first conformation
-                    conformation = atom.disordered_get_list()[0]
+                    if self.conformation:
+                        conformation = atom.disordered_get(self.conformation)
+                    else:
+                        conformation = atom.disordered_get_list()[0]
+
                     # Ugly hack here. We need to flip the disordered flag, or
                     # PDBIO will complain when we try to write this atom.
                     conformation.disordered_flag = 0
