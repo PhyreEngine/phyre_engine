@@ -212,7 +212,7 @@ class TestSimpleDBPipeline(unittest.TestCase):
                     os.environ["HHBLITS_DB"],
                     basedir=database_dir, cpu="23"),
                 db.AddSecondaryStructure(),
-                db.HMMBuilder(),
+                db.HMMBuilder(basedir=database_dir),
                 db.CS219Builder(),
             ]
             data = {

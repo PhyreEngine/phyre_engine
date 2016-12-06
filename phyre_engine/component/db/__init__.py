@@ -526,12 +526,21 @@ class HMMBuilder(Component):
     ADDS = []
     REMOVES = []
 
-    def __init__(self, overwrite=False):
+    def __init__(self, overwrite=False, basedir="."):
+        """Initialise a new HMMBuilder
+
+        Args:
+            overwrite: If true, force an overwrite of existing files. Otherwise,
+                files that already exist will not be touched.
+            basedir: Base directory in which to store HMM files. Files will be
+                stored in the subdirectory ``hhm`` below this.
+        """
         self.overwrite = overwrite
+        self.basedir = pathlib.Path(basedir)
 
     def run(self, data):
         templates = self.get_vals(data)
-        hhm_path = pathlib.Path("hhm")
+        hhm_path = self.basedir / "hhm"
         hhm_path.mkdir(exist_ok=True)
 
         for template in templates:
