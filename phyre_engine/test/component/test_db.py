@@ -223,7 +223,6 @@ class TestSimpleDBPipeline(unittest.TestCase):
             }
             for component in pipeline:
                 data = component.run(data)
-            print(data)
 
             db_builder = db.DatabaseBuilder(
                 "test_prefix", overwrite=True,
