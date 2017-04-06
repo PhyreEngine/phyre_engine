@@ -21,20 +21,20 @@ class Pipeline:
     To allow for programmatic validation of pipelines, each component defines
     the set of keys that it requires, adds and removes. This class provides
     methods to validate a pipeline.
+
+
+    Often, the start of a pipeline will require an input (for example, a
+    sequence or the name of a sequence file). To supply this, the parameter
+    "start" may be specified. Without this, validation will fail if the first
+    component in the list requires any keys.
+
+    :param components: Optional list of component objects.
+    :type components: List of :class:`phyre_engine.component.Component` objects
+    :param dict start: Starting elements to include in the key-value map.
     """
 
     def __init__(self, components=[], start={}):
-        """Initialise a new pipeline with an optional list of components.
-
-        Ofen, the start of a pipeline will require an input (for example, a
-        sequence or the name of a sequence file). To supply this, the parameter
-        "start" may be specified. Without this, validation will fail if the
-        first component in the list requires any keys.
-
-        Args:
-            components: Optional list of component objects.
-            start: Starting elements to include in the key-value map.
-        """
+        """Initialise a new pipeline with an optional list of components."""
         self.components = components
         self.start = start
 
@@ -45,8 +45,7 @@ class Pipeline:
         are required, added, and removed for each component. An exception is
         raised if the components do not match.
 
-        Raises:
-            Pipeline.ValidationError: The pipeline could not be validated.
+        :raises Pipeline.ValidationError: The pipeline could not be validated.
         """
 
         keys = set(self.start.keys())
@@ -70,12 +69,10 @@ class Pipeline:
     def run(self):
         """Run this pipeline, executing each component in turn.
 
-        Returns:
-            Modified data dictionary, with results added by components.
+        :returns: Modified data dictionary, with results added by components.
 
-        Raises:
-            Pipeline.ValidationError: If a component does not fulfil its
-                promises and add a key that the next component requires.
+        :raises Pipeline.ValidationError: If a component does not fulfil its
+            promises and add a key that the next component requires.
         """
 
         blob = copy.copy(self.start)
@@ -92,9 +89,11 @@ class Pipeline:
         pipeline to check that the promised keys are actually present in the
         data blob.
 
-        Raises:
-            Pipeline.ValidationError: If a component does not fulfil its
-                promises and add a key that the next component requires.
+        :param dict blob: Key-value blob to check.
+        :param component: Component from which the required keys are taken.
+
+        :raises Pipeline.ValidationError: If a component does not fulfil its
+            promises and add a key that the next component requires.
         """
         missing = []
         for reqd in type(component).REQUIRED:
@@ -108,23 +107,21 @@ class Pipeline:
     class ValidationError(Exception):
         """Raised when a pipeline is found to be invalid.
 
-        Attributes:
-            component: The component that requires a missing key.
-            missing: List of the missing keys.
+        The optional argument `data` can be set if this exception is raised at
+        runtime rather than at validation. It should contain the current state
+        of the system at the point of failure.
+
+        :ivar component: The component that requires a missing key.
+        :vartype component: `phyre_engine.component.Component`
+        :ivar missing: List of the missing keys.
+        :vartype missing: List of strings indicatig the missing keys.
+        :ivar data: List of the missing keys.
+        :vartype data: Key-value blob describing the state of the pipeline at
+            the time this exception was thrown.
         """
 
         def __init__(self, component, missing, data = {}):
-            """Returns a new exception indicating an error in component.
-
-            The optional argument "data" can be set if this exception is raised
-            at runtime rather than at validation. It should contain the current
-            state of the system at the point of failure.
-
-            Args:
-                component: The component causing the failure.
-                missing: List of missing keys
-                data: Optional key-value data.
-            """
+            """Returns a new exception indicating an error in component."""
             err_msg = "Component {} was missing keys {}"
             super().__init__(err_msg.format(type(component).__name__, missing))
 

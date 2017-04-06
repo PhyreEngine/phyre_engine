@@ -28,8 +28,8 @@ class RCSBClusterDownload(Component):
     """Download a cluster file from the RCSB.
 
     The files retrieved by this module are described at
-    `<http://www.rcsb.org/pdb/statistics/clusterStatistics.do>`, and are listed
-    at `<http://www.rcsb.org/pdb/static.do?p=download/ftp/resources.jsp>`.
+    http://www.rcsb.org/pdb/statistics/clusterStatistics.do, and are listed
+    at http://www.rcsb.org/pdb/static.do?p=download/ftp/resources.jsp.
 
     This class adds the following keys to the pipeline data:
 
@@ -46,17 +46,15 @@ class RCSBClusterDownload(Component):
     def __init__(self, threshold, filename="clusters"):
         """Initialise downloader at a given threshold.
 
-        Args:
-            ``threshold``: Sequence identity of clusters. Only the values
-                listed at
-                `<http://www.rcsb.org/pdb/static.do?p=download/ftp/resources.jsp>`
-                are valid. Other values will cause an exception to be raised when
-                `run` is called.
-            ``filename``: Optional argument specifying the the filename at
-                which to save the cluster file.
+        :param int threshold: Sequence identity of clusters. Only the values
+            listed at
+            `<http://www.rcsb.org/pdb/static.do?p=download/ftp/resources.jsp>`
+            are valid. Other values will cause an exception to be raised when
+            `run` is called.
+        :param str filename: Optional argument specifying the the filename at
+            which to save the cluster file.
 
-        Raises:
-            ValueError: Invalid threshold value supplied.
+        :raises ValueError: Invalid threshold value supplied.
         """
         err_msg = "Invalid threshold {}. Valid values: {}"
         try:
@@ -73,12 +71,10 @@ class RCSBClusterDownload(Component):
     def run(self, data):
         """Download and parse the cluster file.
 
-        Args:
-            ``data``: Data carried through the pipeline.
+        :param data: Data carried through the pipeline.
 
-        Raises:
-            URLError: Error downloading the cluster file, most likely a result
-                of specifying an invalid threshold in the constructor.
+        :raises URLError: Error downloading the cluster file, most likely a result
+            of specifying an invalid threshold in the constructor.
         """
 
         clus_file, headers = urllib.request.urlretrieve(
@@ -91,12 +87,14 @@ class ClusterParser(Component):
     """Parse a cluster file.
 
     The following keys are required when running this component.
+
     ``cluster_file``:
         File containing clusters. Each line of this file should represent one
         cluster, with each structure in that cluster separated by whitespace.
 
 
     The following keys are added when running this component:
+
     ``clusters``:
         Array of arrays containing PDB identifiers. Each sub-array is a
         cluster, with the ordering preserved from the original file. PDB IDs
@@ -110,8 +108,7 @@ class ClusterParser(Component):
     def run(self, data):
         """Download and parse the cluster file.
 
-        Args:
-            ``data``: Data carried through the pipeline.
+        :param data: Data carried through the pipeline.
         """
         clus_file = self.get_vals(data)
 
@@ -126,10 +123,12 @@ class SimpleRepresentativePicker(Component):
     """Simply pick the first element to represent each cluster.
 
     The following keys are required when running this component.
+
     ``clusters``: List of clusters. See `ClusterParser` for details on the data
         structure.
 
     The following keys are added when running this component:
+
     ``templates``: Array of templates. Each template is a dictionary. This
         component sets the keys ``PDB`` and ``chain`` for each template,
         corresponding to the PDB ID and PDB chain of the cluster
@@ -176,18 +175,19 @@ class ChainPDBBuilder(Component):
         mutation_selector, microhet_selector=None):
         """Initialise new component.
 
-        Arguments:
-            ``mmcif_dir``: Base directory of the MMCIF archive.
-            ``pdb_dir``: Base directory in which to store PDB files.
-            ``map_dir``: Base directory in which sequence map files will be
-                saved.
-            ``mutation_selector``: Subclass of
-                phyre_engine.component.db.conformation.MutationSelector used for
-                selecting which mutation of a template should be used.
-            ``microhet_selector``: Subclass of
-                phyre_engine.component.db.conformation.MicroConformationSelector
-                used to pick a single conformation. All conformations will be
-                kept if this is not supplied.
+        :param str mmcif_dir: Base directory of the MMCIF archive.
+        :param str pdb_dir: Base directory in which to store PDB files.
+        :param str map_dir: Base directory in which sequence map files will be
+            saved.
+        :param phyre_engine.component.db.conformation.MutationSelector mutation_selector:
+            Subclass of `phyre_engine.component.db.conformation.MutationSelector`
+            used for selecting which mutation of a template should be used.
+        :param phyre_engine.component.db.conformation.MicroConformationSelector microhet_selector:
+            Subclass of
+            `phyre_engine.component.db.conformation.MicroConformationSelector`
+            used to pick a single conformation. All conformations will be kept
+            if this is not supplied.
+
         """
         self.mmcif_dir = pathlib.Path(mmcif_dir)
         self.pdb_dir = pathlib.Path(pdb_dir)
@@ -276,14 +276,12 @@ class ChainPDBBuilder(Component):
         Sets the ``sequence``, ``structure`` and ``map`` fields of the
         ``template`` argument. Modifies ``template`` in place.
 
-        Args:
-            pdb_id: PDB ID.
-            chain_id: PDB chain.
-            template: Dictionary describing template.
-            pdb_file: Path object pointing to the PDB file into which the chain
-                will be saved.
-            map_file: Path object poniting to the file into which the residue
-                mapping will be saved.
+        :param str pdb_id: PDB ID.
+        :param dict template: Dictionary describing template.
+        :param pathlib.Path pdb_file: Path object pointing to the PDB file into
+            which the chain will be saved.
+        :param pathlib.Path map_file: Path object poniting to the file into
+            which the residue mapping will be saved.
         """
         with pdb_file.open("r") as pdb_fh:
             structure = PDBParser().get_structure(pdb_id, pdb_fh)
@@ -317,16 +315,14 @@ class ChainPDBBuilder(Component):
         chain, and write a map file containing the map between residue index and
         author-assigned residue IDs.
 
-        Returns:
-            A list of templates, shallow-copied from the original template, and
-            with "sequence", "structure" and "map" keys added.
+        :return: A list of templates, shallow-copied from the original template,
+            and with "sequence", "structure" and "map" keys added.
 
-        Args:
-            id: PDB ID.
-            chain: PDB chain.
-            template: Dictionary describing template.
-            mmcif_file: Path object pointing to the MMCIF from which the chain
-                will be extracted.
+        :param str id: PDB ID.
+        :param str chain: PDB chain.
+        :param str template: Dictionary describing template.
+        :param pathlib.Path mmcif_file: Path object pointing to the MMCIF from
+            which the chain  will be extracted.
         """
         mmcif_parser = MMCIFParser()
         pdbio = Bio.PDB.PDBIO()
@@ -386,21 +382,18 @@ class ChainPDBBuilder(Component):
     def sanitise_chain(self, chain, new_id=" "):
         """Strip insertion codes and disordered atoms from a chain.
 
-        Given a Bio.PDB structure (Bio.PDB.Chain.Chain), renumber residues from
-        1, stripping out insertion codes. At the same time, we remove
+        Given a `Bio.PDB` structure (`Bio.PDB.Chain.Chain`), renumber residues
+        from 1, stripping out insertion codes. At the same time, we remove
         disordered atoms and residues. For now, we just keep the first
         conformation that occurs.
 
-        Args:
-            chain: Bio.PDB.Chain.Chain structure to sanitise.
-            new_id: ID of the new chain.
+        :param `Bio.PDB.Chain` chain: structure to sanitise.
+        :param str new_id: ID of the new chain.
 
-        Returns:
-            A tuple containing:
-                1. A new Bio.PDB.Chain.Chain object consisting of
-                    sanitised residues.
-                2. An array containing the author-assigned IDs of the sanitised
-                    residues.
+        :return: A tuple containing:
+
+            1. A new `Bio.PDB.Chain` object consisting of sanitised residues.
+            2. An array containing the author-assigned IDs of the sanitised residues.
         """
         mapping = []
         sanitised_chain = Chain(new_id)
@@ -529,11 +522,10 @@ class HMMBuilder(Component):
     def __init__(self, overwrite=False, basedir="."):
         """Initialise a new HMMBuilder
 
-        Args:
-            overwrite: If true, force an overwrite of existing files. Otherwise,
-                files that already exist will not be touched.
-            basedir: Base directory in which to store HMM files. Files will be
-                stored in the subdirectory ``hhm`` below this.
+        :param bool overwrite: If true, force an overwrite of existing files.
+            Otherwise, files that already exist will not be touched.
+        :param str basedir: Base directory in which to store HMM files. Files
+            will be stored in the subdirectory ``hhm`` below this.
         """
         self.overwrite = overwrite
         self.basedir = pathlib.Path(basedir)
@@ -557,7 +549,7 @@ class HMMBuilder(Component):
         return data
 
 class CS219Builder(Component):
-    """Use cstranslate to build coolumn state sequences for each sequence."""
+    """Use cstranslate to build column state sequences for each sequence."""
 
     REQUIRED = ["templates"]
     ADDS = []
@@ -566,10 +558,9 @@ class CS219Builder(Component):
     def __init__(self, overwrite=False, basedir="."):
         """Initialise a new CS219Builder.
 
-        Args:
-            overwrite: Overwrite any existing cs219 files.
-            basedir: Base directory in which to store files. Files will be
-                stored in the subdirectory ``cs219`` below this directory.
+        :param bool overwrite: Overwrite any existing cs219 files.
+        :param str basedir: Base directory in which to store files. Files will
+            be stored in the subdirectory ``cs219`` below this directory.
         """
         self.overwrite = overwrite
         self.basedir = pathlib.Path(basedir)
@@ -609,13 +600,12 @@ class DatabaseBuilder(Component):
     def __init__(self, db_prefix, overwrite=False, basedir="."):
         """Initialise a new DatabaseBuilder component.
 
-        Args:
-            db_prefix: Prefix for database. The databases used by hhblits
-                consist of multiple files, named like
-                ``<prefix>_{a3m,hhm,cs219}.ff{index,data}``.
-            overwrite: If ``True``, delete existing database files. Otherwise,
-                ``ffindex_build`` may be called on existing files.
-            basedir: Base directory in which to save the database files.
+        :param str db_prefix: Prefix for database. The databases used by hhblits
+            consist of multiple files, named like
+            ``<prefix>_{a3m,hhm,cs219}.ff{index,data}``.
+        :param bool overwrite: If ``True``, delete existing database files.
+            Otherwise, ``ffindex_build`` may be called on existing files.
+        :param str basedir: Base directory in which to save the database files.
         """
         self.db_prefix = db_prefix
         self.overwrite = overwrite

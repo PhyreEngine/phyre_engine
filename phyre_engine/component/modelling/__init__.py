@@ -31,8 +31,7 @@ class HomologyModeller(Component):
         """
         Create a new modeller.
 
-        Args:
-            ``mmcif_dir``: Directory containing MMCIF files.
+        :param str mmcif_dir: Directory containing MMCIF files.
         """
         self.mmcif_dir = mmcif_dir
 
@@ -67,8 +66,7 @@ class HomologyModeller(Component):
         on the RCSB's FTP server. That is, structure ``12as`` would be in
         ``<root>/2a/12as.cif``.
 
-        Args:
-            ``pdb_id``: PDB code.
+        :param str pdb_id: PDB code.
         """
 
         middle = pdb_id[1:3].lower()
@@ -145,12 +143,11 @@ class HomologyModeller(Component):
         prefers author-assigned IDs, so this method allows us to build a
         mapping between a label ID and author ID.
 
-        Args:
-            ``mmcif_file``: File from which to parse mappings.
-            ``structure``: Bio.PDB.Structure object.
-            ``pdb_chain``: The chain of interest.
+        :param str mmcif_file: File from which to parse mappings.
+        :param `Bio.PDB.Structure` structure: Structure object.
+        :param str pdb_chain: The chain of interest.
 
-        Returns:
+        :return:
             Dictionary mapping ``label_seq_id`` to the full ID tuples of
             ``(group, auth_seq_id, pdbx_PDB_ins_code)`` used by BioPython to
             index residues.

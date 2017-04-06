@@ -43,10 +43,9 @@ class MutationSelector(ABC):
         available, those atoms cannot actually be disordered. This method will
         convert those atoms into Atom objects.
 
-        Args:
-            residue: A Bio.PDB.Residue.Residue object.
-
-        Returns: A Bio.PDB.Residue.Residue object.
+        @param Bio.PDB.Residue.Residue residue: Residue object.
+        @return: A cleaned residue object
+        @rtype: `Bio.PDB.Residue.Residue`
         """
         sanitised_res = Residue(
             residue.get_id(),
@@ -70,11 +69,10 @@ class ArbitraryMutationSelector(MutationSelector):
     def __init__(self, conformation=None):
         """Initialise a new selector.
 
-        Args:
-            conformation: If supplied, this conformation will be chosen if it is
-                available. If the specified conformation does not exist, a
-                ValueError exception will be raised. If not supplied, then an
-                arbitrary conformation will be chosen.
+        @param str conformation: If supplied, this conformation will be chosen
+            if it is available. If the specified conformation does not exist, a
+            ValueError exception will be raised. If not supplied, then an
+            arbitrary conformation will be chosen.
         """
         self.conformation = conformation
 
@@ -106,8 +104,8 @@ class AllMutationSelector(MutationSelector):
         If a structure contains a point mutation, this selector will split it
         into two structures, one for each sequences.
 
-        Raises:
-            TooManyMutationsError: When more than two mutations are present.
+        @param Bio.PDB.Chain chain: Chain on which to operate.
+        @raises TooManyMutationsError: When more than two mutations are present.
         """
 
         # First, count the number of mutations
@@ -138,8 +136,7 @@ class TooManyMutationsError(Exception):
     def __init__(self, num_mutations):
         """Initialise a new error.
 
-        Args:
-            new_mutations: Number of mutations found.
+        @param int new_mutations: Number of mutations found.
         """
         msg = "Found too many ({}) mutations".format(num_mutations)
         super().__init__(msg)
@@ -164,7 +161,7 @@ class MicroConformationSelector(ABC):
         """
         Method called to select a single conformation.
 
-        This method must return a single ``Bio.PDB.Chain.Chain`` object.
+        This method must return a single `Bio.PDB.Chain.Chain` object.
         """
         pass
 
@@ -174,11 +171,10 @@ class ArbitraryConformationSelector(MicroConformationSelector):
     def __init__(self, conformation=None):
         """Initialise a new selector.
 
-        Args:
-            conformation: If supplied, this conformation will be chosen if it is
-                available. If the specified conformation does not exist, a
-                ValueError exception will be raised. If not supplied, then an
-                arbitrary conformation will be chosen.
+        @param str conformation: If supplied, this conformation will be chosen
+            if it is available. If the specified conformation does not exist, a
+            ValueError exception will be raised. If not supplied, then an
+            arbitrary conformation will be chosen.
         """
         self.conformation = conformation
 
@@ -236,7 +232,11 @@ class PopulationConformationSelector(MicroConformationSelector):
 
     def score_conformations(self, residue):
         """Assign scores to conformations, and return the ID of the
-        top-ranked conformation."""
+        top-ranked conformation.
+
+        :param Bio.PDB.Residue residue: Residue from which conformations are
+            scored.
+        """
 
         # Build a list of all conformations.
         conformations = {}
