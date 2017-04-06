@@ -41,7 +41,7 @@ class MMCIFToPDBChains:
 
         Each chain in the MMCIF file will be given its own PDB file. The chain
         identifiers in MMCIF can contain more than one character, so the chain
-        ID in each PDB file will be set to `` ``.
+        ID in each PDB file will be set to a single space character.
 
         Files with the PDB ID ``1xyz`` will be placed in the subdirectory
         ``xy``. This will always be converted to lowercase. Output files will
