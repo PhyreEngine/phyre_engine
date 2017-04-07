@@ -4,7 +4,7 @@ AMINO_ACIDS = (
 )
 
 NUM_CHI_ANGLES = {
-    "GLY": 0, "ALA": 0, "VAL": 1, "LEU": 2, "ILE": 2, "PRO": 3, "PHE": 2,
+    "GLY": 0, "ALA": 0, "VAL": 1, "LEU": 2, "ILE": 2, "PRO": 1, "PHE": 2,
     "TYR": 2, "TRP": 2, "SER": 1, "THR": 1, "CYS": 1, "MET": 3, "MSE": 3,
     "LYS": 4, "HIS": 2, "ARG": 4, "ASP": 2, "ASN": 2, "GLN": 3, "GLU": 3,
 }
