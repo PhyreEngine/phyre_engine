@@ -41,6 +41,8 @@ class Sidechain:
             `None` if the specified residue doesn't have a side-chain (i.e.
             glycine and alanine).
         """
+        if residue.get_resname() not in data.AMINO_ACIDS:
+            raise UnknownResidueType(residue.get_resname())
         if data.NUM_CHI_ANGLES[residue.get_resname()] == 0:
             return None
 
@@ -57,7 +59,11 @@ class Sidechain:
         :rtype: tuple(float)
 
         :raise MissingAtomError: When a required atom is not found.
+        :raise UnknownResidueType: When an unknown residue type is passed in.
         """
+        if residue.get_resname() not in data.AMINO_ACIDS:
+            raise UnknownResidueType(residue.get_resname())
+
         num_angles = data.NUM_CHI_ANGLES[residue.get_resname()]
         angles = [None] * num_angles
 
@@ -175,6 +181,17 @@ class MissingAtomError(ValueError):
         self.chi = chi
         self.atom = atom
 
+class UnknownResidueType(Exception):
+    """
+    Thrown when a residue is of an unknown type.
+
+    :ivar type: Residue type that caused the failure.
+    """
+    _ERR_MSG = "Can't calculate side-chain angles for residue type {}"
+
+    def __init__(self, type):
+        super().__init__(self._ERR_MSG.format(type))
+        self.type = type
 
 # Pre-load list of rotamers
 ALL_ROTAMERS = {}

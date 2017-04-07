@@ -55,6 +55,16 @@ ATOM     39  NZ  LYS A   1      14.138  35.863  22.307  1.00 17.64           N
             tuple(),
             "ALA has no chi angles")
 
+    def test_unknown(self):
+        res = Bio.PDB.Residue.Residue(1, "HOH", 0)
+        with self.assertRaises(rot.UnknownResidueType) as err:
+            rot.Sidechain.calculate_angles(res)
+            self.assertEqual(
+                err.exception.type, "HOH", "Exception residue type")
+
+        with self.assertRaises(rot.UnknownResidueType) as err:
+            rot.Sidechain.calculate(res)
+
     def test_valine(self):
         """Parse an atom with a single χ angle."""
         with io.StringIO(self.VALINE) as string_fh:
