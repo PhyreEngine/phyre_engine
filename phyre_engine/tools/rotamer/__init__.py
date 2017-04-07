@@ -38,8 +38,13 @@ class Sidechain:
 
         :param `Bio.PDB.Residue` residue: Residue to parse.
         :raise MissingAtomError: If an atom is missing from
-        :return: A `Sidechain` object populated with the calculated angles.
+        :return: A `Sidechain` object populated with the calculated angles or
+            `None` if the specified residue doesn't have a side-chain (i.e.
+            glycine and alanine).
         """
+        if data.NUM_CHI_ANGLES[residue.get_resname()] == 0:
+            return None
+
         angles = cls.calculate_angles(residue)
         return cls(residue.get_resname(), angles)
 
@@ -55,12 +60,11 @@ class Sidechain:
         :raise MissingAtomError: When a required atom is not found.
         """
         num_angles = data.NUM_CHI_ANGLES[residue.get_resname()]
-        atom_names = data.CHI_ATOMS[residue.get_resname()]
         angles = [None] * num_angles
 
         for i in range(0, num_angles):
             chi_atoms = []
-            for atom in atom_names[i]:
+            for atom in data.CHI_ATOMS[residue.get_resname()][i]:
                 if atom not in residue:
                     raise MissingAtomError(residue, i, atom)
                 else:

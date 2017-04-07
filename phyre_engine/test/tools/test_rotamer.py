@@ -35,6 +35,25 @@ ATOM     37  CD  LYS A   1      14.121  34.127  24.100  1.00  9.17           C
 ATOM     38  CE  LYS A   1      14.967  34.939  23.141  1.00  6.88           C
 ATOM     39  NZ  LYS A   1      14.138  35.863  22.307  1.00 17.64           N
 """
+    def test_glycine(self):
+        res = Bio.PDB.Residue.Residue(1, "GLY", 0)
+        self.assertIsNone(
+            rot.Sidechain.calculate(res),
+            "GLY has no SC")
+        self.assertTupleEqual(
+            rot.Sidechain.calculate_angles(res),
+            tuple(),
+            "GLY has no chi angles")
+
+    def test_alanine(self):
+        res = Bio.PDB.Residue.Residue(1, "ALA", 0)
+        self.assertIsNone(
+            rot.Sidechain.calculate(res),
+            "ALA has no SC")
+        self.assertTupleEqual(
+            rot.Sidechain.calculate_angles(res),
+            tuple(),
+            "ALA has no chi angles")
 
     def test_valine(self):
         """Parse an atom with a single χ angle."""
