@@ -7,7 +7,6 @@ import Bio.PDB
 
 from . import data
 from Bio.PDB.Residue import Residue
-from Bio.codonalign.chisq import chisqprob
 
 class Sidechain:
     """
