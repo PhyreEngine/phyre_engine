@@ -148,7 +148,7 @@ class Rotamer:
         :return: `True` if all angles are valid or `False` otherwise.
         """
         for i, chi in enumerate(angles):
-            if not (self.ranges[i][0] <= chi < self.ranges[i][1]):
+            if chi not in self.ranges[i]:
                 return False
         return True
 
