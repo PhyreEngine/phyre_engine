@@ -8,6 +8,7 @@ import Bio.PDB
 import phyre_engine.test
 import phyre_engine.tools.rotamer as rot
 from phyre_engine.tools.rotamer.angle_range import AngleRange
+from phyre_engine.tools.rotamer.data.molprobity import ROTAMERS
 
 DATA_DIR = Path(phyre_engine.test.__file__).parent / "data"
 DATA_DIR_2 = os.path.join(os.path.dirname(phyre_engine.test.__file__), 'data')
@@ -172,12 +173,13 @@ class TestRotamer(unittest.TestCase):
         """Test that each of our test angles is valid for that rotamer."""
         for aa, rots in self.test_angles.items():
             for rotamer, angles in rots.items():
+                ranges = ROTAMERS[aa][rotamer]
                 self.assertTrue(
-                    rot.Rotamer(aa, rotamer).valid_chi(angles),
+                    rot.Rotamer(aa, rotamer, ranges).valid_chi(angles),
                     "Rotamer {} of AA {} is valid".format(rotamer, aa))
         self.assertFalse(
-            rot.Rotamer("MET", "mmt").valid_chi((10, 10, 10)),
-            "Invalid rotamer")
+            rot.Rotamer("MET", "mmt", ROTAMERS["MET"]["mmt"]).valid_chi(
+                (10, 10, 10)), "Invalid rotamer")
 
     def test_find_rotamers(self):
         """Test that we find the correct rotamer for each angle."""
@@ -185,7 +187,7 @@ class TestRotamer(unittest.TestCase):
             for rotamer, angles in rots.items():
                 self.assertEqual(
                     rotamer,
-                    rot.Rotamer.find(rot.Sidechain(aa, angles)).name,
+                    rot.Rotamer.find(rot.Sidechain(aa, angles), ROTAMERS).name,
                     "Found rotamer {} of {}".format(rotamer, aa))
 
 class TestAngleRange(unittest.TestCase):

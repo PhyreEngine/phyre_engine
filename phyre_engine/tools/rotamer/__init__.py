@@ -7,7 +7,6 @@ import Bio.PDB
 
 from .data.generic import (
     AMINO_ACIDS, NUM_CHI_ANGLES, CHI_ATOMS, SYMMETRIC_FINAL_CHI)
-from .data.molprobity import ROTAMERS
 from Bio.PDB.Residue import Residue
 
 class Sidechain:
@@ -118,18 +117,18 @@ class Rotamer:
     :ivar name: Name of this tuple.
     """
 
-    def __init__(self, res_name, rot_name):
+    def __init__(self, res_name, rot_name, ranges):
         """
         Instantiate a new `Rotamer` object.
 
         :param str res_name: Name of the amino acid type of this rotamer.
         :param str rot_name: Rotamer name.
         """
-        self.ranges = ROTAMERS[res_name][rot_name]
+        self.ranges = ranges
         self.name = rot_name
 
     @classmethod
-    def find(cls, sidechain):
+    def find(cls, sidechain, rotamers):
         """
         Returns the rotameric state of the given sidechain.
 
@@ -141,7 +140,8 @@ class Rotamer:
         # this to be part of any high-performance pipelines. It would probably
         # be possible to reduce this to O(1) because we know the start and stop
         # of each range tend to be the same values.
-        for rot in ALL_ROTAMERS[sidechain.res_name].values():
+        for rot_name, rot_angles in rotamers[sidechain.res_name].items():
+            rot = Rotamer(sidechain.res_name, rot_name, rot_angles)
             if rot.valid_chi(sidechain.angles):
                 return rot
         return None
@@ -198,10 +198,3 @@ class UnknownResidueType(Exception):
     def __init__(self, type):
         super().__init__(self._ERR_MSG.format(type))
         self.type = type
-
-# Pre-load list of rotamers
-ALL_ROTAMERS = {}
-for aa, rots in ROTAMERS.items():
-    ALL_ROTAMERS[aa] = {}
-    for rot_name in rots.keys():
-        ALL_ROTAMERS[aa][rot_name] = Rotamer(aa, rot_name)
