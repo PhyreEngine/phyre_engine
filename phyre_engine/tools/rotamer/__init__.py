@@ -5,7 +5,8 @@ import math
 
 import Bio.PDB
 
-from .data.generic import AMINO_ACIDS, NUM_CHI_ANGLES, CHI_ATOMS
+from .data.generic import (
+    AMINO_ACIDS, NUM_CHI_ANGLES, CHI_ATOMS, SYMMETRIC_FINAL_CHI)
 from .data.molprobity import ROTAMERS
 from Bio.PDB.Residue import Residue
 
@@ -80,6 +81,10 @@ class Sidechain:
             if dihedral < 0:
                 dihedral += 360
             angles[i] = dihedral
+
+        # Correct final chi angle of residues with symmetric final units.
+        if residue.get_resname() in SYMMETRIC_FINAL_CHI:
+            angles[-1] %= 180
         return tuple(angles)
 
     def isclose(self, other, rel_tol=1e-09, abs_tol=0.0):

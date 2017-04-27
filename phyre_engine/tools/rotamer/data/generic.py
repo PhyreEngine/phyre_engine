@@ -15,6 +15,11 @@ variables:
     elements, corresponding to the atom names defining that χ angle.
 :vartype CHI_ATOMS: Dictionary of lists of tuples.
 
+:var SYMMETRIC_FINAL_CHI: Tuple of amino acids for which the final rotating unit
+    is a ring or ``O-C=O``. In these cases, it doesn't make any sense to
+    differentiate between angles in the 0--180° range and those in the 180--360°
+    range, so the angles of these residues should be taken modulo 180°.
+
 >>> CHI_ATOMS["VAL"][0]
 ("N", "CA" , "CB" , "CG1"
 """
@@ -29,6 +34,8 @@ NUM_CHI_ANGLES = {
     "TYR": 2, "TRP": 2, "SER": 1, "THR": 1, "CYS": 1, "MET": 3, "MSE": 3,
     "LYS": 4, "HIS": 2, "ARG": 4, "ASP": 2, "ASN": 2, "GLN": 3, "GLU": 3,
 }
+
+SYMMETRIC_FINAL_CHI = ("PHE", "TYR", "ASP", "GLU")
 
 CHI_ATOMS = {aa: [None] * n for aa, n in NUM_CHI_ANGLES.items() if n > 0}
 CHI_ATOMS["VAL"][0] = ("N", "CA" , "CB" , "CG1")
