@@ -43,3 +43,6 @@ class AngleRange:
             if ang_range[0] <= angle < ang_range[1]:
                 return True
         return False
+
+    def __repr__(self):
+        return "<AngleRange(*{})>".format(self.ranges)
