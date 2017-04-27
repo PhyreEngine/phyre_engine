@@ -5,7 +5,8 @@ import math
 
 import Bio.PDB
 
-from . import data
+from .data.generic import AMINO_ACIDS, NUM_CHI_ANGLES, CHI_ATOMS
+from .data.molprobity import ROTAMERS
 from Bio.PDB.Residue import Residue
 
 class Sidechain:
@@ -41,9 +42,9 @@ class Sidechain:
             `None` if the specified residue doesn't have a side-chain (i.e.
             glycine and alanine).
         """
-        if residue.get_resname() not in data.AMINO_ACIDS:
+        if residue.get_resname() not in AMINO_ACIDS:
             raise UnknownResidueType(residue.get_resname())
-        if data.NUM_CHI_ANGLES[residue.get_resname()] == 0:
+        if NUM_CHI_ANGLES[residue.get_resname()] == 0:
             return None
 
         angles = cls.calculate_angles(residue)
@@ -61,15 +62,15 @@ class Sidechain:
         :raise MissingAtomError: When a required atom is not found.
         :raise UnknownResidueType: When an unknown residue type is passed in.
         """
-        if residue.get_resname() not in data.AMINO_ACIDS:
+        if residue.get_resname() not in AMINO_ACIDS:
             raise UnknownResidueType(residue.get_resname())
 
-        num_angles = data.NUM_CHI_ANGLES[residue.get_resname()]
+        num_angles = NUM_CHI_ANGLES[residue.get_resname()]
         angles = [None] * num_angles
 
         for i in range(0, num_angles):
             chi_atoms = []
-            for atom in data.CHI_ATOMS[residue.get_resname()][i]:
+            for atom in CHI_ATOMS[residue.get_resname()][i]:
                 if atom not in residue:
                     raise MissingAtomError(residue, i, atom)
                 else:
@@ -119,7 +120,7 @@ class Rotamer:
         :param str res_name: Name of the amino acid type of this rotamer.
         :param str rot_name: Rotamer name.
         """
-        self.ranges = data.ROTAMERS[res_name][rot_name]
+        self.ranges = ROTAMERS[res_name][rot_name]
         self.name = rot_name
 
     @classmethod
@@ -195,7 +196,7 @@ class UnknownResidueType(Exception):
 
 # Pre-load list of rotamers
 ALL_ROTAMERS = {}
-for aa, rots in data.ROTAMERS.items():
+for aa, rots in ROTAMERS.items():
     ALL_ROTAMERS[aa] = {}
     for rot_name in rots.keys():
         ALL_ROTAMERS[aa][rot_name] = Rotamer(aa, rot_name)
