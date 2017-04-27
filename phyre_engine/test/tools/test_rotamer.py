@@ -186,3 +186,15 @@ class TestRotamer(unittest.TestCase):
                     rotamer,
                     rot.Rotamer.find(rot.Sidechain(aa, angles)).name,
                     "Found rotamer {} of {}".format(rotamer, aa))
+
+class TestAngleRange(unittest.TestCase):
+    """Test AngleRange class."""
+
+    def test_angrange(self):
+        ang_range = rot.AngleRange((0, 15), (345, 360))
+        self.assertIn(0, ang_range, "0 in 0-15")
+        self.assertNotIn(15, ang_range, "15 not in 0-15")
+        self.assertNotIn(45.5, ang_range, "45.5 not in 0-15 or 345-360")
+        self.assertIn(350, ang_range, "350 in 340-360")
+        self.assertIn(360, ang_range, "360 in 0-15")
+        self.assertIn(361, ang_range, "361 in 0-15")
