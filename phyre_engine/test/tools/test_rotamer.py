@@ -7,6 +7,7 @@ import Bio.PDB
 
 import phyre_engine.test
 import phyre_engine.tools.rotamer as rot
+from phyre_engine.tools.rotamer.angle_range import AngleRange
 
 DATA_DIR = Path(phyre_engine.test.__file__).parent / "data"
 DATA_DIR_2 = os.path.join(os.path.dirname(phyre_engine.test.__file__), 'data')
@@ -191,7 +192,7 @@ class TestAngleRange(unittest.TestCase):
     """Test AngleRange class."""
 
     def test_angrange(self):
-        ang_range = rot.AngleRange((0, 15), (345, 360))
+        ang_range = AngleRange((0, 15), (345, 360))
         self.assertIn(0, ang_range, "0 in 0-15")
         self.assertNotIn(15, ang_range, "15 not in 0-15")
         self.assertNotIn(45.5, ang_range, "45.5 not in 0-15 or 345-360")
