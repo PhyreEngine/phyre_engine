@@ -8,7 +8,7 @@ import Bio.PDB
 import phyre_engine.test
 import phyre_engine.tools.rotamer as rot
 from phyre_engine.tools.rotamer.angle_range import AngleRange
-from phyre_engine.tools.rotamer.data.molprobity import ROTAMERS
+from phyre_engine.tools.rotamer.data.molprobity import ROTAMERS, SYMMETRIC_FINAL_CHI
 
 DATA_DIR = Path(phyre_engine.test.__file__).parent / "data"
 DATA_DIR_2 = os.path.join(os.path.dirname(phyre_engine.test.__file__), 'data')
@@ -40,43 +40,43 @@ ATOM     39  NZ  LYS A   1      14.138  35.863  22.307  1.00 17.64           N
     def test_glycine(self):
         res = Bio.PDB.Residue.Residue(1, "GLY", 0)
         self.assertIsNone(
-            rot.Sidechain.calculate(res),
+            rot.Sidechain.calculate(res, SYMMETRIC_FINAL_CHI),
             "GLY has no SC")
         self.assertTupleEqual(
-            rot.Sidechain.calculate_angles(res),
+            rot.Sidechain.calculate_angles(res, SYMMETRIC_FINAL_CHI),
             tuple(),
             "GLY has no chi angles")
 
     def test_alanine(self):
         res = Bio.PDB.Residue.Residue(1, "ALA", 0)
         self.assertIsNone(
-            rot.Sidechain.calculate(res),
+            rot.Sidechain.calculate(res, SYMMETRIC_FINAL_CHI),
             "ALA has no SC")
         self.assertTupleEqual(
-            rot.Sidechain.calculate_angles(res),
+            rot.Sidechain.calculate_angles(res, SYMMETRIC_FINAL_CHI),
             tuple(),
             "ALA has no chi angles")
 
     def test_unknown(self):
         res = Bio.PDB.Residue.Residue(1, "HOH", 0)
         with self.assertRaises(rot.UnknownResidueType) as err:
-            rot.Sidechain.calculate_angles(res)
+            rot.Sidechain.calculate_angles(res, SYMMETRIC_FINAL_CHI)
             self.assertEqual(
                 err.exception.type, "HOH", "Exception residue type")
 
         with self.assertRaises(rot.UnknownResidueType) as err:
-            rot.Sidechain.calculate(res)
+            rot.Sidechain.calculate(res, SYMMETRIC_FINAL_CHI)
 
     def test_valine(self):
         """Parse an atom with a single χ angle."""
         with io.StringIO(self.VALINE) as string_fh:
             pdb = Bio.PDB.PDBParser().get_structure("val", string_fh)
             res = list(pdb.get_residues())[0]
-            angles = rot.Sidechain.calculate_angles(res)
+            angles = rot.Sidechain.calculate_angles(res, SYMMETRIC_FINAL_CHI)
 
             # Instantiate objects and compare them
             sc1 = rot.Sidechain("VAL", angles)
-            sc2 = rot.Sidechain.calculate(res)
+            sc2 = rot.Sidechain.calculate(res, SYMMETRIC_FINAL_CHI)
             self.assertTrue(sc1.isclose(sc2), "Instantiated side-chains match")
 
             # Test angle parsing
@@ -88,11 +88,11 @@ ATOM     39  NZ  LYS A   1      14.138  35.863  22.307  1.00 17.64           N
         with io.StringIO(self.LYSINE) as string_fh:
             pdb = Bio.PDB.PDBParser().get_structure("lys", string_fh)
             res = list(pdb.get_residues())[0]
-            angles = rot.Sidechain.calculate_angles(res)
+            angles = rot.Sidechain.calculate_angles(res, SYMMETRIC_FINAL_CHI)
 
             # Instantiate objects and compare them
             sc1 = rot.Sidechain("LYS", angles)
-            sc2 = rot.Sidechain.calculate(res)
+            sc2 = rot.Sidechain.calculate(res, SYMMETRIC_FINAL_CHI)
 
             # Check angles are good against known values
             self.assertTrue(sc1.isclose(sc2), "Instantiated side-chains match")
@@ -110,7 +110,7 @@ ATOM     39  NZ  LYS A   1      14.138  35.863  22.307  1.00 17.64           N
             res = list(pdb.get_residues())[0]
             del res["CB"]
         with self.assertRaises(rot.MissingAtomError) as err:
-            rot.Sidechain.calculate_angles(res)
+            rot.Sidechain.calculate_angles(res, SYMMETRIC_FINAL_CHI)
             self.check_exception(err.exception, res, "CB", 0)
 
     def test_missing_lysine(self):
@@ -123,25 +123,25 @@ ATOM     39  NZ  LYS A   1      14.138  35.863  22.307  1.00 17.64           N
         with self.assertRaises(rot.MissingAtomError) as err:
             copy = res.copy()
             del copy["CB"]
-            rot.Sidechain.calculate_angles(copy)
+            rot.Sidechain.calculate_angles(copy, SYMMETRIC_FINAL_CHI)
             self.check_exception(err.exception, copy, "CB", 0)
 
         with self.assertRaises(rot.MissingAtomError) as err:
             copy = res.copy()
             del copy["CD"]
-            rot.Sidechain.calculate_angles(copy)
+            rot.Sidechain.calculate_angles(copy, SYMMETRIC_FINAL_CHI)
             self.check_exception(err.exception, copy, "CD", 1)
 
         with self.assertRaises(rot.MissingAtomError) as err:
             copy = res.copy()
             del copy["CE"]
-            rot.Sidechain.calculate_angles(copy)
+            rot.Sidechain.calculate_angles(copy, SYMMETRIC_FINAL_CHI)
             self.check_exception(err.exception, copy, "CE", 2)
 
         with self.assertRaises(rot.MissingAtomError) as err:
             copy = res.copy()
             del copy["NZ"]
-            rot.Sidechain.calculate_angles(copy)
+            rot.Sidechain.calculate_angles(copy, SYMMETRIC_FINAL_CHI)
             self.check_exception(err.exception, copy, "NZ", 3)
 
 

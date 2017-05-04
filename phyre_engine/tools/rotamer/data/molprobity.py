@@ -8,11 +8,21 @@ the name of the rotamer according to MolProbity nomenclature. The values of this
 dictionary are a tuple of `AngleRange`s indicating the actual range of each chi
 angle for this rotamer.
 
+:var ROTAMERS: Dictionary indexed by three-letter amino acid codes.
+
+:var SYMMETRIC_FINAL_CHI: Set of amino acids for which the final rotating unit
+    is a ring or ``O-C=O``. In these cases, it doesn't make any sense to
+    differentiate between angles in the 0--180° range and those in the 180--360°
+    range, so the angles of these residues should be taken modulo 180°.
+
 >>> ROTAMERS["ARG"]["ppp80"]
 """
 
 from ..angle_range import AngleRange
 from .generic import NUM_CHI_ANGLES
+
+# These are considered to be uniquely determined only within 0-180 degrees.
+SYMMETRIC_FINAL_CHI = set(("PHE", "TYR", "ASP", "GLU"))
 
 ROTAMERS = {aa: {} for aa, n in NUM_CHI_ANGLES.items() if n > 0}
 ROTAMERS["THR"]["p"] = (

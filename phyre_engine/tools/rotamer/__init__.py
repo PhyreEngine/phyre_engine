@@ -6,7 +6,7 @@ import math
 import Bio.PDB
 
 from .data.generic import (
-    AMINO_ACIDS, NUM_CHI_ANGLES, CHI_ATOMS, SYMMETRIC_FINAL_CHI)
+    AMINO_ACIDS, NUM_CHI_ANGLES, CHI_ATOMS)
 from Bio.PDB.Residue import Residue
 
 class Sidechain:
@@ -32,11 +32,12 @@ class Sidechain:
         self.angles = angles
 
     @classmethod
-    def calculate(cls, residue):
+    def calculate(cls, residue, symmetric=set()):
         """
         Calculate side-chain angles from a residue.
 
         :param `Bio.PDB.Residue` residue: Residue to parse.
+        :param set symmetric: Set of residues with symmetric final chi angles.
         :raise MissingAtomError: If an atom is missing from
         :return: A `Sidechain` object populated with the calculated angles or
             `None` if the specified residue doesn't have a side-chain (i.e.
@@ -47,11 +48,11 @@ class Sidechain:
         if NUM_CHI_ANGLES[residue.get_resname()] == 0:
             return None
 
-        angles = cls.calculate_angles(residue)
+        angles = cls.calculate_angles(residue, symmetric)
         return cls(residue.get_resname(), angles)
 
     @staticmethod
-    def calculate_angles(residue):
+    def calculate_angles(residue, symmetric=set()):
         """
         Calculate χ angles for a given residue.
 
@@ -82,7 +83,7 @@ class Sidechain:
             angles[i] = dihedral
 
         # Correct final chi angle of residues with symmetric final units.
-        if residue.get_resname() in SYMMETRIC_FINAL_CHI:
+        if residue.get_resname() in symmetric:
             angles[-1] %= 180
         return tuple(angles)
 
