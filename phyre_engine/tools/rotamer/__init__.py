@@ -2,6 +2,7 @@
 This module contains tools to analyse side-chain rotamers.
 """
 import math
+import enum
 
 import Bio.PDB
 
@@ -73,7 +74,7 @@ class Sidechain:
             chi_atoms = []
             for atom in CHI_ATOMS[residue.get_resname()][i]:
                 if atom not in residue:
-                    raise MissingAtomError(residue, i, atom)
+                    raise MissingAtomError(residue, atom, ResidueFeature.CHI, i)
                 else:
                     chi_atoms.append(residue[atom].get_vector())
 
@@ -159,22 +160,40 @@ class Rotamer:
                 return False
         return True
 
+class ResidueFeature(enum.Enum):
+    """
+    Different types of angles that we may want to measure.
+    """
+    # : Phi (φ) backbone angle
+    PHI = "φ"
+    # : Psi (ψ) backbone angle
+    PSI = "ψ"
+    # : Chi (χ) side-chain angles
+    CHI = "χ"
+    # : Cα-Cα distance
+    CA_DISTANCE = "Cα-Cα "
+
 class MissingAtomError(ValueError):
     """Thrown when a χ angle cannot be calculated due to missing angles.
 
     :ivar residue: The residue that is missing an atom.
-    :ivar chi: The index of the χ angle (starting from 0).
+    :ivar feature: The residue feature being calculated (e.g. φ, ψ, χ angles).
+    :ivar angle_index: The index of the χ angle (starting from 0), or `None` if
+        not relevant.
     :ivar atom: The name of the missing atom.
 
     :vartype residue: `Bio.PDB.Residue`
-    :vartype chi: int
+    :vartype feature: :py:class:`.ResidueFeature`
+    :vartype angle_index: `None` or int
     :vartype atom: str
     """
 
-    _ERR_MSG = "Atom {atom} missing when calculating χ angle {chi} of " \
+    _ERR_MSG_NOINDEX = "Atom {atom} missing when calculating {feature} of " \
         "residue {residue}"
+    _ERR_MSG_INDEX = "Atom {atom} missing when calculating " \
+        "{angle_index} of {feature} for residue {residue} "
 
-    def __init__(self, residue, chi, atom):
+    def __init__(self, residue, atom, feature, angle_index=None):
         """
         Initialise a new exception.
 
@@ -182,10 +201,20 @@ class MissingAtomError(ValueError):
         :param int chi: Index of the χ angle (starting from 0).
         :param str atom: Name of the missing atom.
         """
-        super().__init__(
-            self._ERR_MSG.format(atom=atom, residue=residue, chi=chi))
+        if angle_index is None:
+            err_template = self._ERR_MSG_NOINDEX
+        else:
+            err_template = self._ERR_MSG_INDEX
+        err_msg = err_template.format(
+            residue=residue,
+            feature=feature,
+            angle_index=angle_index,
+            atom=atom
+        )
+        super().__init__(err_msg)
         self.residue = residue
-        self.chi = chi
+        self.feature = feature
+        self.angle_index = angle_index
         self.atom = atom
 
 class UnknownResidueType(Exception):

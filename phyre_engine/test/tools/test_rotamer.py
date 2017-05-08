@@ -145,10 +145,13 @@ ATOM     39  NZ  LYS A   1      14.138  35.863  22.307  1.00 17.64           N
             self.check_exception(err.exception, copy, "NZ", 3)
 
 
-    def check_exception(self, err, res, atom, chi):
+    def check_exception(self, err, res, atom, angle_index):
         self.assertIs(err.residue, res, "Error references residue")
         self.assertEqual(err.atom, atom, "Error specifies missing atom")
-        self.assertEqual(err.chi, chi, "Error specifies correct chi angle")
+        self.assertEqual(
+            err.angle_index, angle_index, "Error specifies correct chi angle")
+        self.assertEqual(
+            err.feature, rot.ResidueFeature.CHI, "Error references chi")
 
 class TestRotamer(unittest.TestCase):
     """Test rotameric state lookup."""
