@@ -16,7 +16,72 @@ variables:
 :vartype CHI_ATOMS: Dictionary of lists of tuples.
 
 >>> CHI_ATOMS["VAL"][0]
-("N", "CA" , "CB" , "CG1"
+("N", "CA" , "CB" , "CG1")
+
+.. _description-of-rotamer-variables:
+
+Rotamer definitions
+-------------------
+
+Different rotamer libraries use different rotamer definitions, and even
+different definitions of side-chain angles. For example, Dunbrack's 1997 rotamer
+library defines the final rotamer of ASN, ASP, GLN and GLU only on the range
+-90--90°, while the MolProbity rotamer library considers ASN and GLN to be
+defined on the full range of -180--180° but defines the ranges for ASP and GLU
+on the ranges 0--180°.
+
+This module supplies generic information regarding rotamer libraries: it is
+unlikely that any implementation will need to alter the number of χ angles on
+each amino acid, or the atoms over which each angle is defined. Rotamer
+libraries should be defined in separate modules, and should contain variables
+defining the angular ranges over which each rotamer is defined and the ranges
+over which each non-standard final χ atom is defined. These variables can be
+named arbitrarily, as they must be explicitly passed to any methods making use
+of them, but the modules included with this distribution name them ``ROTAMERS``
+and ``FINAL_CHI_RANGE``. In this discussion, I will use this convention to refer
+to these variables.
+
+The ``ROTAMERS`` variable
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``ROTAMERS`` variable is a two-level dictionary indexed first by the
+(three-letter) amino acid name, and then by the rotamer name. The value should
+be a tuple of :py:class:`phyre_engine.tools.rotamer.AngleRange`s defining the
+ranges of χ angles over which a given rotamer is defined. The rotamer names may
+be any hashable value. For example, here is a rotamer for arginine:
+
+.. highlight::
+
+    ROTAMERS["ARG"]["mmm-85"] = (
+        AngleRange((240, 360)),
+        AngleRange((240, 360)),
+        AngleRange((240, 360)),
+        AngleRange((240, 360)),
+    )
+
+Each angle range in the tuple describes the allowed range for the corresponding
+χ angles. In this case, each χ angle is allowed to range between 240 and 360°.
+For amino acids with fewer χ angles, fewer elements need be included in the
+tuple.
+
+The ``FINAL_CHI_RANGE`` variable
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Some amino acids have a final rotating unit on their side-chain that is
+(roughly) symmetric. In the case of PHE and TYR, this is a ring; for ASP and
+GLU, this is a carboxyl group. These amino acids are typically only defined in a
+180° range. Some rotamer libraries take this further, and also limit HIS, ASN
+and GLN to a 180° angular range.
+
+This variable must be a dictionary indexed by (three-letter) amino acid names,
+each value of which is an :py:class:`phyre_engine.tools.rotamer.AngleRange`.
+These definitions may be used when calculating side-chain angles to flip the
+final χ angle by 180°. For example:
+
+.. highlight::
+
+    FINAL_CHI_RANGE["PHE"] = AngleRange((0, 180))
+
 """
 
 AMINO_ACIDS = (

@@ -43,16 +43,26 @@ This module exposes the following variables:
 
 :var ROTAMERS: Dictionary indexed by three-letter amino acid codes.
 
-:var SYMMETRIC_FINAL_CHI: Set of amino acids for which the final rotating unit
+:var FINAL_CHI_RANGE: Set of amino acids for which the final rotating unit
     is only determined within 0--180 degrees. This module uses the rotamer
     definitions of Dunbrack's 1997 paper, so ASN, ASP, GLN, GLU, PHE, TYR, HIS,
-    and TRP are defined only over 180 degrees.
+    PRO and TRP are defined only over 180 degrees.
+
+.. seealso::
+
+Section :ref:`description-of-rotamer-variables`
+    For a description of the :py:data:`ROTAMERS` and :py:data:`FINAL_CHI_RANGE`
+    variables.
 """
 
 from ..angle_range import AngleRange
 from .generic import NUM_CHI_ANGLES
 
-SYMMETRIC_FINAL_CHI = set(("ASN", "ASP", "GLN", "GLU", "PHE", "TYR", "HIS"))
+FINAL_CHI_RANGE = {}
+for aa in ("ASN", "ASP", "GLN", "GLU", "PRO"):
+    FINAL_CHI_RANGE[aa] = AngleRange((0, 90), (270, 360))
+for aa in ("PHE", "TYR", "HIS"):
+    FINAL_CHI_RANGE[aa] = AngleRange((0, 150), (330, 360))
 
 # Mapping of Dunbrack's IDs (1-3) for rotameric chi angles to the corresponding
 # ranges

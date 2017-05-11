@@ -33,31 +33,39 @@ class Sidechain:
         self.angles = angles
 
     @classmethod
-    def calculate(cls, residue, symmetric=set()):
+    def calculate(cls, residue, final_chi_ranges=None):
         """
         Calculate side-chain angles from a residue.
 
         :param `Bio.PDB.Residue` residue: Residue to parse.
-        :param set symmetric: Set of residues with symmetric final chi angles.
+        :param dict final_chi_ranges: Definitions of the angular ranges allowed
+            for the final χ atom.
         :raise MissingAtomError: If an atom is missing from
         :return: A `Sidechain` object populated with the calculated angles or
             `None` if the specified residue doesn't have a side-chain (i.e.
             glycine and alanine).
+
+        .. seealso::
+
+        Section :ref:`description-of-rotamer-variables`
+            For a description of the :py:data:`ROTAMERS` and :py:data:`FINAL_CHI_RANGE`
+            variables.
         """
         if residue.get_resname() not in AMINO_ACIDS:
             raise UnknownResidueType(residue.get_resname())
         if NUM_CHI_ANGLES[residue.get_resname()] == 0:
             return None
 
-        angles = cls.calculate_angles(residue, symmetric)
+        angles = cls.calculate_angles(residue, final_chi_ranges)
         return cls(residue.get_resname(), angles)
 
     @staticmethod
-    def calculate_angles(residue, symmetric=set()):
+    def calculate_angles(residue, final_chi_ranges=None):
         """
         Calculate χ angles for a given residue.
 
-        :param `Bio.PDB.Residue` residue: Residue to parse.
+        Parameters are defined the same as for :py:meth:`calculate`.
+
         :return: Tuple of angles (in degree)
         :rtype: tuple(float)
 
@@ -84,8 +92,12 @@ class Sidechain:
             angles[i] = dihedral
 
         # Correct final chi angle of residues with symmetric final units.
-        if residue.get_resname() in symmetric:
-            angles[-1] %= 180
+        if (final_chi_ranges is not None
+            and residue.get_resname() in final_chi_ranges):
+
+            # If the angle is not in the allowed range, flip it by 180 degrees.
+            if angles[-1] not in final_chi_ranges[residue.get_resname()]:
+                angles[-1] = (angles[-1] + 180) % 360
         return tuple(angles)
 
     def isclose(self, other, rel_tol=1e-09, abs_tol=0.0):
