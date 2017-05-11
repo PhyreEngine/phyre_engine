@@ -37,6 +37,16 @@ ATOM     37  CD  LYS A   1      14.121  34.127  24.100  1.00  9.17           C
 ATOM     38  CE  LYS A   1      14.967  34.939  23.141  1.00  6.88           C
 ATOM     39  NZ  LYS A   1      14.138  35.863  22.307  1.00 17.64           N
 """
+
+    def setUp(self):
+        """Create residue objects for valine and lysine."""
+        with io.StringIO(self.VALINE) as string_fh:
+            pdb = Bio.PDB.PDBParser().get_structure("val", string_fh)
+            self.valine = list(pdb.get_residues())[0]
+        with io.StringIO(self.LYSINE) as string_fh:
+            pdb = Bio.PDB.PDBParser().get_structure("lys", string_fh)
+            self.lysine = list(pdb.get_residues())[0]
+
     def test_glycine(self):
         res = Bio.PDB.Residue.Residue(1, "GLY", 0)
         self.assertIsNone(
@@ -69,102 +79,85 @@ ATOM     39  NZ  LYS A   1      14.138  35.863  22.307  1.00 17.64           N
 
     def test_valine(self):
         """Parse an atom with a single χ angle."""
-        with io.StringIO(self.VALINE) as string_fh:
-            pdb = Bio.PDB.PDBParser().get_structure("val", string_fh)
-            res = list(pdb.get_residues())[0]
-            angles = rot.Sidechain.calculate_angles(res, FINAL_CHI_RANGE)
+        angles = rot.Sidechain.calculate_angles(self.valine, FINAL_CHI_RANGE)
 
-            # Instantiate objects and compare them
-            sc1 = rot.Sidechain("VAL", angles)
-            sc2 = rot.Sidechain.calculate(res, FINAL_CHI_RANGE)
-            self.assertTrue(sc1.isclose(sc2), "Instantiated side-chains match")
+        # Instantiate objects and compare them
+        sc1 = rot.Sidechain("VAL", angles)
+        sc2 = rot.Sidechain.calculate(self.valine, FINAL_CHI_RANGE)
+        self.assertTrue(sc1.isclose(sc2), "Instantiated side-chains match")
 
-            # Test angle parsing
-            self.assertEqual(len(angles), 1, "Valine has 1 χ angle")
-            self.assertAlmostEqual(angles[0], 176.8, 1, "Parsed χ1 of Valine")
+        # Test angle parsing
+        self.assertEqual(len(angles), 1, "Valine has 1 χ angle")
+        self.assertAlmostEqual(angles[0], 176.8, 1, "Parsed χ1 of Valine")
 
     def test_lysine(self):
         """Parse an atom with four χ angles."""
-        with io.StringIO(self.LYSINE) as string_fh:
-            pdb = Bio.PDB.PDBParser().get_structure("lys", string_fh)
-            res = list(pdb.get_residues())[0]
-            angles = rot.Sidechain.calculate_angles(res, FINAL_CHI_RANGE)
+        angles = rot.Sidechain.calculate_angles(self.lysine, FINAL_CHI_RANGE)
 
-            # Instantiate objects and compare them
-            sc1 = rot.Sidechain("LYS", angles)
-            sc2 = rot.Sidechain.calculate(res, FINAL_CHI_RANGE)
+        # Instantiate objects and compare them
+        sc1 = rot.Sidechain("LYS", angles)
+        sc2 = rot.Sidechain.calculate(self.lysine, FINAL_CHI_RANGE)
 
-            # Check angles are good against known values
-            self.assertTrue(sc1.isclose(sc2), "Instantiated side-chains match")
-            self.assertEqual(len(angles), 4, "Lysine has 4 χ angles")
-            self.assertAlmostEqual(angles[0], 213.1, 1, "Parsed χ1 of Lysine")
-            self.assertAlmostEqual(angles[1], 175.0, 1, "Parsed χ2 of Lysine")
-            self.assertAlmostEqual(angles[2], 69.7, 1, "Parsed χ3 of Lysine")
-            self.assertAlmostEqual(angles[3], 201.5, 1, "Parsed χ4 of Lysine")
+        # Check angles are good against known values
+        self.assertTrue(sc1.isclose(sc2), "Instantiated side-chains match")
+        self.assertEqual(len(angles), 4, "Lysine has 4 χ angles")
+        self.assertAlmostEqual(angles[0], 213.1, 1, "Parsed χ1 of Lysine")
+        self.assertAlmostEqual(angles[1], 175.0, 1, "Parsed χ2 of Lysine")
+        self.assertAlmostEqual(angles[2], 69.7, 1, "Parsed χ3 of Lysine")
+        self.assertAlmostEqual(angles[3], 201.5, 1, "Parsed χ4 of Lysine")
 
     def test_missing_valine(self):
         """Check an error is thrown when parsing small
         residues (VAL) with missing atoms."""
-        with io.StringIO(self.VALINE) as string_fh:
-            pdb = Bio.PDB.PDBParser().get_structure("val", string_fh)
-            res = list(pdb.get_residues())[0]
-            del res["CB"]
+        del self.valine["CB"]
         with self.assertRaises(rot.MissingAtomError) as err:
-            rot.Sidechain.calculate_angles(res, FINAL_CHI_RANGE)
-            self.check_exception(err.exception, res, "CB", 0)
+            rot.Sidechain.calculate_angles(self.valine, FINAL_CHI_RANGE)
+            self.check_exception(err.exception, self.valine, "CB", 0)
 
     def test_missing_lysine(self):
         """Check an error is thrown when parsing large residues (LYS) with
         missing atoms."""
-        with io.StringIO(self.LYSINE) as string_fh:
-            pdb = Bio.PDB.PDBParser().get_structure("yls", string_fh)
-            res = list(pdb.get_residues())[0]
-
         with self.assertRaises(rot.MissingAtomError) as err:
-            copy = res.copy()
+            copy = self.lysine.copy()
             del copy["CB"]
             rot.Sidechain.calculate_angles(copy, FINAL_CHI_RANGE)
             self.check_exception(err.exception, copy, "CB", 0)
 
         with self.assertRaises(rot.MissingAtomError) as err:
-            copy = res.copy()
+            copy = self.lysine.copy()
             del copy["CD"]
             rot.Sidechain.calculate_angles(copy, FINAL_CHI_RANGE)
             self.check_exception(err.exception, copy, "CD", 1)
 
         with self.assertRaises(rot.MissingAtomError) as err:
-            copy = res.copy()
+            copy = self.lysine.copy()
             del copy["CE"]
             rot.Sidechain.calculate_angles(copy, FINAL_CHI_RANGE)
             self.check_exception(err.exception, copy, "CE", 2)
 
         with self.assertRaises(rot.MissingAtomError) as err:
-            copy = res.copy()
+            copy = self.lysine.copy()
             del copy["NZ"]
             rot.Sidechain.calculate_angles(copy, FINAL_CHI_RANGE)
             self.check_exception(err.exception, copy, "NZ", 3)
 
     def test_rotamer_flip(self):
         """Check that the final χ angles are placed in the correct range."""
-        with io.StringIO(self.VALINE) as string_fh:
-            pdb = Bio.PDB.PDBParser().get_structure("val", string_fh)
-            res = list(pdb.get_residues())[0]
+        final_chi_angles = {"VAL": AngleRange((0, 90), (270, 360))}
+        angles = rot.Sidechain.calculate_angles(self.valine, final_chi_angles)
+        # Angle should have been flipped by 180°.
+        self.assertAlmostEqual(
+            angles[0],
+            176.8 + 180,
+            1, "Flipped χ1 of Valine")
 
-            final_chi_angles = {"VAL": AngleRange((0, 90), (270, 360))}
-            angles = rot.Sidechain.calculate_angles(res, final_chi_angles)
-            # Angle should have been flipped by 180°.
-            self.assertAlmostEqual(
-                angles[0],
-                176.8 + 180,
-                1, "Flipped χ1 of Valine")
-
-            final_chi_angles = {"VAL": AngleRange((0, 90), (0, 180))}
-            angles = rot.Sidechain.calculate_angles(res, final_chi_angles)
-            # Angle should have been flipped by 180°.
-            self.assertAlmostEqual(
-                angles[0],
-                176.8,
-                1, "Did not flip χ1 of Valine")
+        final_chi_angles = {"VAL": AngleRange((0, 90), (0, 180))}
+        angles = rot.Sidechain.calculate_angles(self.valine, final_chi_angles)
+        # Angle should have been flipped by 180°.
+        self.assertAlmostEqual(
+            angles[0],
+            176.8,
+            1, "Did not flip χ1 of Valine")
 
 
     def check_exception(self, err, res, atom, angle_index):
