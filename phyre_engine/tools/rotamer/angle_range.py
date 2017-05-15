@@ -38,6 +38,8 @@ class AngleRange:
         """
         if angle >= 360:
             angle = angle % 360
+        elif angle < 0:
+            angle += 360
 
         for ang_range in self.ranges:
             if ang_range[0] <= angle < ang_range[1]:

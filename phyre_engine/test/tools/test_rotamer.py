@@ -217,3 +217,4 @@ class TestAngleRange(unittest.TestCase):
         self.assertIn(350, ang_range, "350 in 340-360")
         self.assertIn(360, ang_range, "360 in 0-15")
         self.assertIn(361, ang_range, "361 in 0-15")
+        self.assertIn(-1, ang_range, "361 in 0-15")
