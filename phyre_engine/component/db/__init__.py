@@ -23,6 +23,46 @@ from Bio.PDB.Chain import Chain
 from Bio.PDB.Residue import Residue
 from Bio.PDB.PDBExceptions import PDBConstructionException
 
+class NameTemplate(Component):
+    """Add a ``name`` attribute to each template."""
+    REQUIRED = ["templates"]
+    ADDS = []
+    REMOVES = []
+
+    def __init__(self, name_fn):
+        """
+        :param function name_fn: Function accepting a template dictinoary and
+            returning a name.
+        """
+        self.name_fn = name_fn
+
+    def run(self, data):
+        templates = self.get_vals(data)
+        for template in templates:
+            template["name"] = self.name_fn(template)
+        return data
+
+class DescribeTemplate(Component):
+    """
+    Alter the description of the template sequence.
+
+    This component alters the ``.description`` field of the
+    :py:class:`Bio.PDB.SeqRecord` object pointed to by the ``sequence`` key of
+    each template.
+    """
+
+    def __init__(self, description_fn):
+        """
+        :param function name_fn: Function accepting a template dictinoary and
+            returning a description.
+        """
+        self.description_fn = description_fn
+
+    def run(self, data):
+        templates = self.get_vals(data)
+        for template in templates:
+            template["sequence"].description = self.description_fn(template)
+        return data
 
 class RCSBClusterDownload(Component):
     """Download a cluster file from the RCSB.
@@ -295,11 +335,13 @@ class ChainPDBBuilder(Component):
         ])
 
         # Build a Bio.PDB.SeqRecord object containing this sequence.
+        seq_name = "{}_{}".format(pdb_id, chain_id)
         bio_seq = SeqRecord(
-                id="{}_{}".format(pdb_id, chain_id),
+                id=seq_name,
                 description="",
                 seq=Seq(pdb_seq)
         )
+        template["name"] = seq_name
         template["sequence"] = bio_seq
         template["structure"] = pdb_file
         template["map"] = map_file
@@ -467,20 +509,15 @@ class MSABuilder(Component):
 
         for template in templates:
             sequence = template["sequence"]
-            seq_name = "{}_{}".format(template["PDB"], template["chain"])
 
             with tempfile.NamedTemporaryFile(suffix=".fasta") as query_file:
-                msa_name    = "{}.a3m".format(seq_name)
-                report_name = "{}.hhr".format(seq_name)
+                msa_name    = "{}.a3m".format(template["name"])
+                report_name = "{}.hhr".format(template["name"])
                 msa_file = msa_path / msa_name
                 hhr_file = hhr_path / report_name
 
                 # No need to recreate
                 if (not msa_file.exists()) or self.overwrite:
-                    # Build a machine-readable (JSON) description for the sequence
-                    desc_dict = {k: template[k] for k in ("PDB", "chain")}
-                    sequence.description = json.dumps(desc_dict)
-
                     Bio.SeqIO.write(sequence, query_file.name, "fasta")
                     hhblits = hh.HHBlits(
                             database=self.hhblits_db,
@@ -492,7 +529,6 @@ class MSABuilder(Component):
 
                 template["a3m"] = str(msa_file)
                 template["hhr"] = str(hhr_file)
-                template["name"] = seq_name
         return data
 
 class AddSecondaryStructure(Component):
