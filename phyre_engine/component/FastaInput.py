@@ -37,3 +37,25 @@ class FastaInput(Component):
     class TooManySequencesError(Exception):
         """Indicates too many sequences were present in a FASTA file."""
         pass
+
+class MultipleFastaInput(Component):
+    """
+    Create a template for each sequence in a FASTA file.
+
+    Adds the ``templates`` key to the pipeline data. Each template is a
+    dictinoary containing a ``sequence'' key point to a
+    :py:class:`Bio.PDB.SeqRecord` object.
+    """
+
+    REQUIRED = ["input"]
+    ADDS = ["templates"]
+    REMOVES = []
+
+    def run(self, data):
+        """Read multiple sequences from a FASTA file."""
+        input = self.get_vals(data)
+        templates = []
+        for record in Bio.SeqIO.parse(input, "fasta"):
+            templates.append({"sequence": record})
+        data["templates"] = templates
+        return data
