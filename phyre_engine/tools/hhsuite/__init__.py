@@ -12,9 +12,9 @@ class HHSuiteTool:
     straight to the tool after prepending a single hyphen.
 
     >>> class HHSearchExample(HHSuiteTool)
-    >>>     program = "hhsearch"
     >>>     flags = {"database": "d", "input": "i"}
-    >>>     pass
+    >>>     def __init__(self, program="hhsearch", **args):
+    >>>         super().__init__(program, args)
     >>> hhs = HHSearchExample(database="uniprot_2012_03",
     >>>        input="in.fasta", cpu=10, nocons=True)
     >>> hhs.command_line
@@ -22,8 +22,9 @@ class HHSuiteTool:
             "-cpu", "10", "-nocons"]
     """
 
-    def __init__(self, **flags):
+    def __init__(self, program, **flags):
         """Set up a tool with the given command-line flags."""
+        self.program = program
         long_flags = flags
         self.command_line = [self.program]
         self._map_flags(long_flags)
@@ -47,7 +48,7 @@ class HHSuiteTool:
             else:
                 #Non-bool flags take an argument
                 self.command_line.append(flag)
-                self.command_line.append(value)
+                self.command_line.append(str(value))
 
 
     def run(self):
@@ -82,7 +83,6 @@ class HHBlits(HHSuiteTool):
     :param output: output file, equivalent to the ``-o`` flag.
     """
 
-    program = "hhblits"
     flags = {
             "database":"d",
             "input": "i",
@@ -91,9 +91,9 @@ class HHBlits(HHSuiteTool):
             "output": "o"
             }
 
-    def __init__(self, **flags):
+    def __init__(self, program="hhblits", **flags):
         """Set up command-line flags for hhblits."""
-        super().__init__(**flags)
+        super().__init__(program, **flags)
 
 
 class HHSearch(HHSuiteTool):
@@ -108,7 +108,6 @@ class HHSearch(HHSuiteTool):
     :param output: output file, qquivalent to the ``-o`` flag.
     """
 
-    program = "hhblits"
     flags = {
             "database":"d",
             "input": "i",
@@ -116,8 +115,8 @@ class HHSearch(HHSuiteTool):
             "output": "o"
             }
 
-    def __init__(self, **flags):
+    def __init__(self, program="hhsearch", **flags):
         """Set up command-line flags for hhblits."""
-        super().__init__(**flags)
+        super().__init__(program, **flags)
 
 
