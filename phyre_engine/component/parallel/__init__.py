@@ -1,5 +1,6 @@
 """Component for running components on a PBS cluster."""
 from abc import ABC, abstractmethod
+import copy
 import math
 import pathlib
 import pexpect
@@ -57,6 +58,9 @@ class ParallelComponent(Component):
 
     :param str subclass: Similar to ``submodule``, except for the class.
         Defaults to ``self.__class__.__name__``.
+
+    :param dict environment: Extra environment variables to pass with the ``-v``
+        flag of qsub.
     """
 
     TASK_RUNNER = textwrap.dedent(
@@ -71,7 +75,8 @@ class ParallelComponent(Component):
 
     def __init__(self, component, max_jobs, storage_dir,
             slice_var_in, slice_var_out=None,
-            path_dirs=None, submodule=None, subclass=None):
+            path_dirs=None, submodule=None, subclass=None,
+            environment={}):
         """Initialise this parallel component."""
         self.component = component
         self.max_jobs = max_jobs
@@ -82,6 +87,7 @@ class ParallelComponent(Component):
         self.path_dirs = path_dirs if path_dirs else []
         self.submodule = submodule if submodule else component.__module__
         self.subclass  = subclass if subclass  else component.__class__.__name__
+        self.environment = environment
 
     def run(self, data):
         """Submit this job to the queue system and wait until all tasks are
@@ -123,10 +129,14 @@ class ParallelComponent(Component):
                     ))
                 jobscript.flush()
 
+                env = copy.copy(self.environment)
+                env["pickle"] = pickle_file.name
+                env_str = ",".join(["{}={}".format(k, str(v))
+                                   for k, v in env.items()])
                 qsub_cmd = [
                     "qsub",
                     "-t", "0-{}".format(array_elems - 1),
-                    "-v", "pickle={}".format(pickle_file.name),
+                    "-v", env_str,
                     "-d", os.getcwd(),
                     jobscript.name
                 ]
