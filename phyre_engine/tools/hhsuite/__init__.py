@@ -20,6 +20,9 @@ class HHSuiteTool:
     >>> hhs.command_line
     ["hhsearch", "-d" "uniprot_2012_03", "-i", "in.fasta",
             "-cpu", "10", "-nocons"]
+
+    :ivar list command_line: Command line of the program, separated into
+    individual arguments. The first element is the name of the program.
     """
 
     def __init__(self, program, **flags):
@@ -33,14 +36,18 @@ class HHSuiteTool:
     def _map_flags(self, flags):
         """Map human-readable option names to command-line flags."""
         for long_flag, value in flags.items():
-            flag = "-"
-
+            # Convert flag if a mapping was supplied
             if long_flag in self.flags:
-                #Convert long names to short names
-                flag += self.flags[long_flag]
+                flag = self.flags[long_flag]
             else:
-                #Or fall back to the short name
-                flag += long_flag
+                flag = long_flag
+
+            # Guess appropriate number of dashes if they weren't specified.
+            if not flag.startswith("-"):
+                if len(flag) > 1:
+                    flag = "--" + flag
+                else:
+                    flag = "-" + flag
 
             if type(value) == bool:
                 #Bool flags do not take a value
