@@ -61,6 +61,8 @@ class ParallelComponent(Component):
 
     :param dict environment: Extra environment variables to pass with the ``-v``
         flag of qsub.
+
+    :param dict qsub_flags: Extra arguments to pass to ``qsub``.
     """
 
     TASK_RUNNER = textwrap.dedent(
@@ -76,7 +78,7 @@ class ParallelComponent(Component):
     def __init__(self, component, max_jobs, storage_dir,
             slice_var_in, slice_var_out=None,
             path_dirs=None, submodule=None, subclass=None,
-            environment={}):
+            environment={}, qsub_flags={}):
         """Initialise this parallel component."""
         self.component = component
         self.max_jobs = max_jobs
@@ -88,6 +90,7 @@ class ParallelComponent(Component):
         self.submodule = submodule if submodule else component.__module__
         self.subclass  = subclass if subclass  else component.__class__.__name__
         self.environment = environment
+        self.qsub_flags = qsub_flags
 
     def run(self, data):
         """Submit this job to the queue system and wait until all tasks are
@@ -140,6 +143,9 @@ class ParallelComponent(Component):
                     "-d", os.getcwd(),
                     jobscript.name
                 ]
+                for flag, value in self.qsub_flags.items():
+                    qsub_cmd.extend([flag, value])
+
                 process = subprocess.Popen(qsub_cmd, stdout=subprocess.PIPE,
                         universal_newlines=True)
                 stdout, stderr = process.communicate()
@@ -150,8 +156,11 @@ class ParallelComponent(Component):
                 # it is running on a tty.
                 monitor_args = [
                     "-W", "depend=afteranyarray:{0}".format(job_id),
-                    "-I"
+                    "-I",
                 ]
+                for flag, value in self.qsub_flags.items():
+                    monitor_args.extend([flag, value])
+
                 waiter = pexpect.spawn("qsub", monitor_args)
                 waiter.expect("^qsub: waiting for job \S+ to start\r\n")
                 waiter.expect("^qsub: job \S+ ready\r\n", timeout=None)
