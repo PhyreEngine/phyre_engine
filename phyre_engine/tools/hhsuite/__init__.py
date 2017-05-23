@@ -11,6 +11,8 @@ class HHSuiteTool:
     to the actual flag. Flags not found in the ``flags`` map will be passed
     straight to the tool after prepending a single hyphen.
 
+    Extra positional arguments will be appended to the command line verbatim.
+
     >>> class HHSearchExample(HHSuiteTool)
     >>>     flags = {"database": "d", "input": "i"}
     >>>     def __init__(self, program="hhsearch", **args):
@@ -25,13 +27,13 @@ class HHSuiteTool:
     individual arguments. The first element is the name of the program.
     """
 
-    def __init__(self, program, **flags):
+    def __init__(self, program, *args, **flags):
         """Set up a tool with the given command-line flags."""
         self.program = program
         long_flags = flags
         self.command_line = [self.program]
         self._map_flags(long_flags)
-
+        self.command_line.extend(args)
 
     def _map_flags(self, flags):
         """Map human-readable option names to command-line flags."""
@@ -165,13 +167,17 @@ class FFIndexBuild(HHSuiteTool):
     """
     Wrapper around ffindex_build.
 
+    :param str data: Output data file.
+
+    :param str index: Output index file.
+
     :param bool append: (``-a``) Append files/indexes, also needed for sorting
         an already existing ffindex.
 
-    :param str data_file: (``-d``) A second ffindex data file for
+    :param str data_file_2: (``-d``) A second ffindex data file for
         inserting/appending.
 
-    :param str index_file: (``-i``) A second ffindex index file for
+    :param str index_file_2: (``-i``) A second ffindex index file for
         inserting/appending.
 
     :param str file_list: (``-f``) File containing a list of file names, one per
@@ -183,12 +189,12 @@ class FFIndexBuild(HHSuiteTool):
 
     flags = {
         "append": "a",
-        "data_file": "d",
-        "index_file": "i",
+        "data_file_2": "d",
+        "index_file_2": "i",
         "file_list": "f",
         "sort_file": "s",
     }
 
-    def __init__(self, program="ffindex_build", **flags):
+    def __init__(self, data, index, program="ffindex_build", **flags):
         """Set up ffindex_build command line."""
-        super().__init__(program, **flags)
+        super().__init__(program, data, index, **flags)

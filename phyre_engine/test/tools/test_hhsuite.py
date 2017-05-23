@@ -11,8 +11,8 @@ class ExampleTool(hhsuite.HHSuiteTool):
         "test3": "-test3",
         "test4": "--test4",
     }
-    def __init__(self, program="test_program", **flags):
-        super().__init__(program, **flags)
+    def __init__(self, program="test_program", *args, **flags):
+        super().__init__(program, *args, **flags)
 
 class TestHHSuite(unittest.TestCase):
     """Test common methods for hhsuite tools."""
@@ -31,6 +31,7 @@ class TestHHSuite(unittest.TestCase):
 
         test_tool = ExampleTool(
                 "/path/to/test_program",
+                "positional_arg_1", "positional_arg_2",
                 test1="val_1", test2="val_2",
                 test3=True, test4=123,
                 test5=456, b=789,
@@ -49,6 +50,12 @@ class TestHHSuite(unittest.TestCase):
         self.verify_cmd_param(cmd, "--test5", "456")
         self.verify_cmd_param(cmd, "-b", "789")
         self.verify_cmd_param(cmd, "-----test-long", "101112")
+        self.assertEqual(
+            cmd[-2], "positional_arg_1",
+            "Positional arg appended")
+        self.assertEqual(
+            cmd[-1], "positional_arg_2",
+            "Positional arg appended")
 
     # These sanity checks are pretty much just so we can check that the program
     # name is correct and the class can be instantiated properly. Seems trivial,
@@ -85,8 +92,8 @@ class TestHHSuite(unittest.TestCase):
 
     def test_ffindex_build_cmd_line(self):
         """Sanity check on ffindex_build command line."""
-        ffindex_build = hhsuite.FFIndexBuild(append=True)
+        ffindex_build = hhsuite.FFIndexBuild("DATA", "INDEX", append=True)
         self.assertListEqual(
             ffindex_build.command_line,
-            ["ffindex_build", "-a"],
+            ["ffindex_build", "-a", "DATA", "INDEX"],
             "Sanity check on ffindex_build command line")
