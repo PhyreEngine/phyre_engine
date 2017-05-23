@@ -71,3 +71,22 @@ class TestHHSuite(unittest.TestCase):
             ["hhsearch", "-o", "test_out"],
             "Sanity check on hhsearch command line")
 
+    def test_cstranslate_cmd_line(self):
+        """cstranslate sanity check"""
+        cstranslate = hhsuite.CSTranslate(
+                infile="in_file",
+                pc_admix=0,
+                binary=True)
+        program = cstranslate.command_line.pop(0)
+        self.assertEqual(program, "cstranslate", "correct program")
+        self.verify_cmd_param(cstranslate.command_line, "--infile", "in_file")
+        self.verify_cmd_param(cstranslate.command_line, "--pc-admix", "0")
+        self.verify_cmd_param(cstranslate.command_line, "--binary")
+
+    def test_ffindex_build_cmd_line(self):
+        """Sanity check on ffindex_build command line."""
+        ffindex_build = hhsuite.FFIndexBuild(append=True)
+        self.assertListEqual(
+            ffindex_build.command_line,
+            ["ffindex_build", "-a"],
+            "Sanity check on ffindex_build command line")

@@ -126,4 +126,69 @@ class HHSearch(HHSuiteTool):
         """Set up command-line flags for hhblits."""
         super().__init__(program, **flags)
 
+class CSTranslate(HHSuiteTool):
+    """
+    Wrapper around hhsuite's cstranslate.
 
+    The following options are available. Hyphens may be replaced with
+    underscores to make valid python identifiers.
+
+    .. code-block:: none
+        infile <file>            Input file with alignment or sequence
+        outfile <file>           Output file for generated abstract state sequence (def: <infile>.as)
+        append <file>            Append generated abstract state sequence to this file
+        informat prf|seq|fas|... Input format: prf, seq, fas, a2m, or a3m (def=auto)
+        outformat seq|prf        Outformat: abstract state sequence or profile (def=seq)
+        match-assign [0:100]     Make all FASTA columns with less than X% gaps match columns
+                                 (def: make columns with residue in first sequence match columns)
+        alphabet <file>          Abstract state alphabet consisting of exactly 219 states (def=off)
+        context-data <file>      Add context-specific pseudocounts using given context-data (def=off)
+        pc-admix [0,1]           Pseudocount admix for context-specific pseudocounts (def=0.90)
+        pc-ali [0,inf[           Constant in pseudocount calculation for alignments (def=12.0)
+        weight [0,inf[           Weight of abstract state column in emission calculation (def=1000.00)
+        binary                   Write binary instead of character sequence (def=off)
+        ffindex                  Read from -i <ffindex>, write to -o <ffindex>; enables openmp if possible (def=off)
+
+    """
+
+    flags = {
+        "match_assign": "match-assign",
+        "pc_admix": "pc-admix",
+        "pc_ali": "pc-ali",
+    }
+
+    def __init__(self, program="cstranslate", **flags):
+        """Set up command line for cstranslate."""
+        super().__init__(program, **flags)
+
+class FFIndexBuild(HHSuiteTool):
+    """
+    Wrapper around ffindex_build.
+
+    :param bool append: (``-a``) Append files/indexes, also needed for sorting
+        an already existing ffindex.
+
+    :param str data_file: (``-d``) A second ffindex data file for
+        inserting/appending.
+
+    :param str index_file: (``-i``) A second ffindex index file for
+        inserting/appending.
+
+    :param str file_list: (``-f``) File containing a list of file names, one per
+        line.
+
+    :param str sort_file: (``-s``)  Sort index file, so that the index can queried.
+        Another append operations can be done without sorting.
+    """
+
+    flags = {
+        "append": "a",
+        "data_file": "d",
+        "index_file": "i",
+        "file_list": "f",
+        "sort_file": "s",
+    }
+
+    def __init__(self, program="ffindex_build", **flags):
+        """Set up ffindex_build command line."""
+        super().__init__(program, **flags)
