@@ -105,9 +105,9 @@ class HHBlits(HHSuiteTool):
             }
     long_flag_prefix = "-"
 
-    def __init__(self, program="hhblits", **flags):
+    def __init__(self, input, program="hhblits", **flags):
         """Set up command-line flags for hhblits."""
-        super().__init__(program, **flags)
+        super().__init__(program, input=input, **flags)
 
 
 class HHSearch(HHSuiteTool):
@@ -130,9 +130,9 @@ class HHSearch(HHSuiteTool):
             }
     long_flag_prefix = "-"
 
-    def __init__(self, program="hhsearch", **flags):
+    def __init__(self, input, database, program="hhsearch", **flags):
         """Set up command-line flags for hhblits."""
-        super().__init__(program, **flags)
+        super().__init__(program, input=input, database=database, **flags)
 
 class HHMake(HHSuiteTool):
     """Wrapper for the hhmake tool included within the hh-suite package.
@@ -191,9 +191,9 @@ class CSTranslate(HHSuiteTool):
         "pc_ali": "pc-ali",
     }
 
-    def __init__(self, program="cstranslate", **flags):
+    def __init__(self, infile, alphabet, program="cstranslate", **flags):
         """Set up command line for cstranslate."""
-        super().__init__(program, **flags)
+        super().__init__(program, infile=infile, alphabet=alphabet, **flags)
 
 class FFIndexBuild(HHSuiteTool):
     """

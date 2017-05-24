@@ -64,17 +64,22 @@ class TestHHSuite(unittest.TestCase):
 
     def test_hhblits_cmd_line(self):
         """HHBlits sanity check"""
-        hhblits = hhsuite.HHBlits(database="test_db", mark=True)
+        hhblits = hhsuite.HHBlits("test_in", database="test_db", mark=True)
         program = hhblits.command_line.pop(0)
         self.assertEqual(program, "hhblits", "correct program")
+        self.verify_cmd_param(hhblits.command_line, "-i", "test_in")
         self.verify_cmd_param(hhblits.command_line, "-d", "test_db")
         self.verify_cmd_param(hhblits.command_line, "-mark", None)
 
     def test_hhsearch_cmd_line(self):
         """HHSearch sanity check"""
-        hhsearch = hhsuite.HHSearch(output="test_out", oa3m="test_a3m")
+        hhsearch = hhsuite.HHSearch(
+            "in_file", "database_file",
+            output="test_out", oa3m="test_a3m")
         program = hhsearch.command_line.pop(0)
         self.assertEqual(program, "hhsearch", "correct program")
+        self.verify_cmd_param(hhsearch.command_line, "-i", "in_file")
+        self.verify_cmd_param(hhsearch.command_line, "-d", "database_file")
         self.verify_cmd_param(hhsearch.command_line, "-o", "test_out")
         self.verify_cmd_param(hhsearch.command_line, "-oa3m", "test_a3m")
 
@@ -93,12 +98,12 @@ class TestHHSuite(unittest.TestCase):
     def test_cstranslate_cmd_line(self):
         """cstranslate sanity check"""
         cstranslate = hhsuite.CSTranslate(
-                infile="in_file",
-                pc_admix=0,
-                binary=True)
+                "in_file", "alpha",
+                pc_admix=0, binary=True)
         program = cstranslate.command_line.pop(0)
         self.assertEqual(program, "cstranslate", "correct program")
         self.verify_cmd_param(cstranslate.command_line, "--infile", "in_file")
+        self.verify_cmd_param(cstranslate.command_line, "--alphabet", "alpha")
         self.verify_cmd_param(cstranslate.command_line, "--pc-admix", "0")
         self.verify_cmd_param(cstranslate.command_line, "--binary")
 
