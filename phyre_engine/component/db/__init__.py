@@ -555,14 +555,16 @@ class HMMBuilder(Component):
     ADDS = []
     REMOVES = []
 
-    def __init__(self, overwrite=False, basedir="."):
+    def __init__(self, program="hhmake", overwrite=False, basedir="."):
         """Initialise a new HMMBuilder
 
+        :param str program: Path to hhmake command.
         :param bool overwrite: If true, force an overwrite of existing files.
             Otherwise, files that already exist will not be touched.
         :param str basedir: Base directory in which to store HMM files. Files
             will be stored in the subdirectory ``hhm`` below this.
         """
+        self.program = program
         self.overwrite = overwrite
         self.basedir = pathlib.Path(basedir)
 
@@ -577,10 +579,12 @@ class HMMBuilder(Component):
             hhm_file = hhm_path / hhm_name
 
             if (not hhm_file.exists()) or self.overwrite:
-                subprocess.run(["hhmake",
-                    "-i", template["a3m"],
-                    "-o", str(hhm_file)
-                ])
+                hhmake = hh.HHMake(
+                    template["a3m"],
+                    output=str(hmm_file),
+                    program=self.program,
+                )
+                hhmake.run()
             template["hhm"] = str(hhm_file)
         return data
 
@@ -591,13 +595,15 @@ class CS219Builder(Component):
     ADDS = []
     REMOVES = []
 
-    def __init__(self, overwrite=False, basedir="."):
+    def __init__(self, program="cstranslate", overwrite=False, basedir="."):
         """Initialise a new CS219Builder.
 
+        :param str program: Path of the program to call.
         :param bool overwrite: Overwrite any existing cs219 files.
         :param str basedir: Base directory in which to store files. Files will
             be stored in the subdirectory ``cs219`` below this directory.
         """
+        self.program = program
         self.overwrite = overwrite
         self.basedir = pathlib.Path(basedir)
 
@@ -614,15 +620,16 @@ class CS219Builder(Component):
             cs219_file = cs219_path / cs219_name
 
             if (not cs219_file.exists()) or self.overwrite:
-                subprocess.run([
-                    "cstranslate",
+                cstranslate = hh.CSTranslate(
+                    self.program, **{
                     "-A", str(pathlib.Path(hhlib, "data/cs219.lib")),
                     "-D", str(pathlib.Path(hhlib, "data/context_data.lib")),
                     "-x", str(0.3), "-c", str(4), "-b",
                     "-I", "a3m",
                     "-i", template["a3m"],
                     "-o", str(cs219_file)
-                ])
+                })
+                cstranslate.run()
             template["cs219"] = str(cs219_file)
         return data
 
@@ -633,18 +640,24 @@ class DatabaseBuilder(Component):
     ADDS = ["database"]
     REMOVES = ["templates"]
 
-    def __init__(self, db_prefix, overwrite=False, basedir="."):
-        """Initialise a new DatabaseBuilder component.
+    def __init__(
+        self,
+        db_prefix, program="ffindex_build",
+        overwrite=False, basedir="."):
+        """
+        Initialise a new DatabaseBuilder component.
 
         :param str db_prefix: Prefix for database. The databases used by hhblits
             consist of multiple files, named like
             ``<prefix>_{a3m,hhm,cs219}.ff{index,data}``.
+        :param str program: Path to ``ffindex_build`` executable.
         :param bool overwrite: If ``True``, delete existing database files.
             Otherwise, ``ffindex_build`` may be called on existing files.
         :param str basedir: Base directory in which to save the database files.
         """
         self.db_prefix = db_prefix
         self.overwrite = overwrite
+        self.program = program
         self.basedir = basedir
 
     def run(self, data):
@@ -678,17 +691,18 @@ class DatabaseBuilder(Component):
 
                 # Run ffindex_build using the the temp file as the list of files
                 # to incude in the DB.
-                subprocess.run([
-                    "ffindex_build",
+                ffindex_builder = hh.FFIndexBuild(
                     str(ffdata), str(ffindex),
-                    "-f", index.name])
+                    program=self.program,
+                    file_list=index.name)
                 ff_dbs[type] = db_name
 
             # Sort the indices
-            subprocess.run([
-                "ffindex_build", "-as",
+            ffindex_sorter = hh.FFIndexBuild(
                 "{}.ffdata".format(ff_dbs[type]),
-                "{}.ffindex".format(ff_dbs[type])])
+                "{}.ffindex".format(ff_dbs[type]),
+                append=True, sort=True)
+            ffindex_sorter.run()
 
         # Cut useless information from the indices of each file.
         for type, ff_db in ff_dbs.items():
