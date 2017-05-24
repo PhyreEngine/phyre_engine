@@ -128,6 +128,31 @@ class HHSearch(HHSuiteTool):
         """Set up command-line flags for hhblits."""
         super().__init__(program, **flags)
 
+class HHMake(HHSuiteTool):
+    """Wrapper for the hhmake tool included within the hh-suite package.
+
+    All options to ``hhmake`` may be included in the constructor. The input file
+    (the ``-i`` option) is mandatory. The following aliases are accepted as
+    well as the standard options.
+
+    :param str input: Query alignment file.
+    :param str output: HMM file to be written (``-o`` flag)
+    :param str append: HMM file to be appended (``-a`` flag)
+    :param int verbose: Increase verbosity from 0 (silent) to 2 (verbose). This
+        is the ``-v`` flag.
+    """
+
+    flags = {
+            "input": "i",
+            "output": "o",
+            "append": "a",
+            "verbose": "v",
+            }
+
+    def __init__(self, input, program="hhmake", **flags):
+        """Set up command-line flags for hhmake."""
+        super().__init__(program, input=input, **flags)
+
 class CSTranslate(HHSuiteTool):
     """
     Wrapper around hhsuite's cstranslate.

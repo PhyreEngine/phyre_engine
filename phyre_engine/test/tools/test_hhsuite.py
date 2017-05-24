@@ -78,6 +78,16 @@ class TestHHSuite(unittest.TestCase):
             ["hhsearch", "-o", "test_out"],
             "Sanity check on hhsearch command line")
 
+    def test_hhmake_cmd_line(self):
+        """HHMake sanity check"""
+        hhmake = hhsuite.HHMake("input", output="test_out", verbose=3)
+
+        program = hhmake.command_line.pop(0)
+        self.assertEqual(program, "hhmake", "correct program")
+        self.verify_cmd_param(hhmake.command_line, "-i", "input")
+        self.verify_cmd_param(hhmake.command_line, "-o", "test_out")
+        self.verify_cmd_param(hhmake.command_line, "-v", "3")
+
     def test_cstranslate_cmd_line(self):
         """cstranslate sanity check"""
         cstranslate = hhsuite.CSTranslate(
