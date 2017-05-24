@@ -522,8 +522,8 @@ class MSABuilder(Component):
                     hhblits = hh.HHBlits(
                             database=self.hhblits_db,
                             input=query_file.name,
-                            output=str(hhr_file),
-                            oa3m=str(msa_file),
+                            output=hhr_file,
+                            oa3m=msa_file,
                             **self.hhblits_args)
                     hhblits.run()
 
@@ -582,7 +582,7 @@ class HMMBuilder(Component):
             if (not hhm_file.exists()) or self.overwrite:
                 hhmake = hh.HHMake(
                     template["a3m"],
-                    output=str(hmm_file),
+                    output=hmm_file,
                     **self.hhmake_args
                 )
                 hhmake.run()
@@ -695,7 +695,7 @@ class DatabaseBuilder(Component):
                 # Run ffindex_build using the the temp file as the list of files
                 # to incude in the DB.
                 ffindex_builder = hh.FFIndexBuild(
-                    str(ffdata), str(ffindex),
+                    ffdata, ffindex,
                     file_list=index.name,
                     **self.ffindex_args)
                 ff_dbs[type] = db_name
