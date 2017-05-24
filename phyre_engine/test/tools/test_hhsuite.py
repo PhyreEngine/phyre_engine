@@ -64,29 +64,31 @@ class TestHHSuite(unittest.TestCase):
 
     def test_hhblits_cmd_line(self):
         """HHBlits sanity check"""
-        hhblits = hhsuite.HHBlits(database="test_db")
-        self.assertListEqual(
-            hhblits.command_line,
-            ["hhblits", "-d", "test_db"],
-            "Sanity check on hhblits command line")
+        hhblits = hhsuite.HHBlits(database="test_db", mark=True)
+        program = hhblits.command_line.pop(0)
+        self.assertEqual(program, "hhblits", "correct program")
+        self.verify_cmd_param(hhblits.command_line, "-d", "test_db")
+        self.verify_cmd_param(hhblits.command_line, "-mark", None)
 
     def test_hhsearch_cmd_line(self):
         """HHSearch sanity check"""
-        hhsearch = hhsuite.HHSearch(output="test_out")
-        self.assertListEqual(
-            hhsearch.command_line,
-            ["hhsearch", "-o", "test_out"],
-            "Sanity check on hhsearch command line")
+        hhsearch = hhsuite.HHSearch(output="test_out", oa3m="test_a3m")
+        program = hhsearch.command_line.pop(0)
+        self.assertEqual(program, "hhsearch", "correct program")
+        self.verify_cmd_param(hhsearch.command_line, "-o", "test_out")
+        self.verify_cmd_param(hhsearch.command_line, "-oa3m", "test_a3m")
 
     def test_hhmake_cmd_line(self):
         """HHMake sanity check"""
-        hhmake = hhsuite.HHMake("input", output="test_out", verbose=3)
-
+        hhmake = hhsuite.HHMake(
+            "input", output="test_out",
+            verbose=3, cons=True)
         program = hhmake.command_line.pop(0)
         self.assertEqual(program, "hhmake", "correct program")
         self.verify_cmd_param(hhmake.command_line, "-i", "input")
         self.verify_cmd_param(hhmake.command_line, "-o", "test_out")
         self.verify_cmd_param(hhmake.command_line, "-v", "3")
+        self.verify_cmd_param(hhmake.command_line, "-cons", None)
 
     def test_cstranslate_cmd_line(self):
         """cstranslate sanity check"""

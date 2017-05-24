@@ -27,6 +27,10 @@ class HHSuiteTool:
     individual arguments. The first element is the name of the program.
     """
 
+    # Flag prefixes -- can be changed by subclasses
+    long_flag_prefix = "--"
+    short_flag_prefix = "-"
+
     def __init__(self, program, *args, **flags):
         """Set up a tool with the given command-line flags."""
         self.program = program
@@ -47,9 +51,9 @@ class HHSuiteTool:
             # Guess appropriate number of dashes if they weren't specified.
             if not flag.startswith("-"):
                 if len(flag) > 1:
-                    flag = "--" + flag
+                    flag = self.long_flag_prefix + flag
                 else:
-                    flag = "-" + flag
+                    flag = self.short_flag_prefix + flag
 
             if type(value) == bool:
                 #Bool flags do not take a value
@@ -99,6 +103,7 @@ class HHBlits(HHSuiteTool):
             "evalue_cutoff": "e",
             "output": "o"
             }
+    long_flag_prefix = "-"
 
     def __init__(self, program="hhblits", **flags):
         """Set up command-line flags for hhblits."""
@@ -123,6 +128,7 @@ class HHSearch(HHSuiteTool):
             "evalue_cutoff": "e",
             "output": "o"
             }
+    long_flag_prefix = "-"
 
     def __init__(self, program="hhsearch", **flags):
         """Set up command-line flags for hhblits."""
@@ -148,6 +154,7 @@ class HHMake(HHSuiteTool):
             "append": "a",
             "verbose": "v",
             }
+    long_flag_prefix = "-"
 
     def __init__(self, input, program="hhmake", **flags):
         """Set up command-line flags for hhmake."""
