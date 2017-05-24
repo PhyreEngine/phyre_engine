@@ -555,18 +555,19 @@ class HMMBuilder(Component):
     ADDS = []
     REMOVES = []
 
-    def __init__(self, program="hhmake", overwrite=False, basedir="."):
+    def __init__(self, overwrite=False, basedir=".", **hhmake_args):
         """Initialise a new HMMBuilder
 
-        :param str program: Path to hhmake command.
         :param bool overwrite: If true, force an overwrite of existing files.
             Otherwise, files that already exist will not be touched.
         :param str basedir: Base directory in which to store HMM files. Files
             will be stored in the subdirectory ``hhm`` below this.
+        :param **hhmake_args: Extra arguments to pass to
+            :py:class:`phyre_engine.tools.hhsuite.HHMake`.
         """
-        self.program = program
         self.overwrite = overwrite
         self.basedir = pathlib.Path(basedir)
+        self.hhmake_args = hhmake_args
 
     def run(self, data):
         templates = self.get_vals(data)
@@ -582,7 +583,7 @@ class HMMBuilder(Component):
                 hhmake = hh.HHMake(
                     template["a3m"],
                     output=str(hmm_file),
-                    program=self.program,
+                    **self.hhmake_args
                 )
                 hhmake.run()
             template["hhm"] = str(hhm_file)
@@ -595,17 +596,18 @@ class CS219Builder(Component):
     ADDS = []
     REMOVES = []
 
-    def __init__(self, program="cstranslate", overwrite=False, basedir="."):
+    def __init__(self, overwrite=False, basedir=".", **cstranslate_args):
         """Initialise a new CS219Builder.
 
-        :param str program: Path of the program to call.
         :param bool overwrite: Overwrite any existing cs219 files.
         :param str basedir: Base directory in which to store files. Files will
             be stored in the subdirectory ``cs219`` below this directory.
+        :param **cstranslate_args: Extra arguments to pass to
+            :py:class:`phyre_engine.tools.hhsuite.CSTranslate`.
         """
-        self.program = program
         self.overwrite = overwrite
         self.basedir = pathlib.Path(basedir)
+        self.cstranslate_args = cstranslate_args
 
     def run(self, data):
         hhlib = os.environ["HHLIB"]
@@ -620,15 +622,16 @@ class CS219Builder(Component):
             cs219_file = cs219_path / cs219_name
 
             if (not cs219_file.exists()) or self.overwrite:
-                cstranslate = hh.CSTranslate(
-                    self.program, **{
-                    "-A", str(pathlib.Path(hhlib, "data/cs219.lib")),
-                    "-D", str(pathlib.Path(hhlib, "data/context_data.lib")),
-                    "-x", str(0.3), "-c", str(4), "-b",
-                    "-I", "a3m",
-                    "-i", template["a3m"],
-                    "-o", str(cs219_file)
-                })
+                cs_args = {
+                    "-A": pathlib.Path(hhlib, "data/cs219.lib"),
+                    "-D": pathlib.Path(hhlib, "data/context_data.lib"),
+                    "-x": 0.3, "-c": 4, "-b": True,
+                    "-I": "a3m",
+                    "-i": template["a3m"],
+                    "-o": cs219_file
+                }
+                cs_args.update(self.cstranslate_args)
+                cstranslate = hh.CSTranslate(**cs_args)
                 cstranslate.run()
             template["cs219"] = str(cs219_file)
         return data
@@ -642,23 +645,23 @@ class DatabaseBuilder(Component):
 
     def __init__(
         self,
-        db_prefix, program="ffindex_build",
-        overwrite=False, basedir="."):
+        db_prefix, overwrite=False, basedir=".", **ffindex_args):
         """
         Initialise a new DatabaseBuilder component.
 
         :param str db_prefix: Prefix for database. The databases used by hhblits
             consist of multiple files, named like
             ``<prefix>_{a3m,hhm,cs219}.ff{index,data}``.
-        :param str program: Path to ``ffindex_build`` executable.
         :param bool overwrite: If ``True``, delete existing database files.
             Otherwise, ``ffindex_build`` may be called on existing files.
         :param str basedir: Base directory in which to save the database files.
+        :param **ffindex_args: Extra arguments to pass to
+            :py:class:`phyre_engine.tools.hhsuite.FFIndexBuild`.
         """
         self.db_prefix = db_prefix
         self.overwrite = overwrite
-        self.program = program
         self.basedir = basedir
+        self.ffindex_args = ffindex_args
 
     def run(self, data):
         """Collect and index the files that form an hhsuite database."""
@@ -693,15 +696,16 @@ class DatabaseBuilder(Component):
                 # to incude in the DB.
                 ffindex_builder = hh.FFIndexBuild(
                     str(ffdata), str(ffindex),
-                    program=self.program,
-                    file_list=index.name)
+                    file_list=index.name,
+                    **self.ffindex_args)
                 ff_dbs[type] = db_name
 
             # Sort the indices
             ffindex_sorter = hh.FFIndexBuild(
                 "{}.ffdata".format(ff_dbs[type]),
                 "{}.ffindex".format(ff_dbs[type]),
-                append=True, sort=True)
+                append=True, sort=True,
+                **self.ffindex_args)
             ffindex_sorter.run()
 
         # Cut useless information from the indices of each file.
