@@ -1,14 +1,18 @@
 import io
+import math
 import os
 import unittest
 from pathlib import Path
 import tempfile
 import Bio.PDB
 
+import numpy as np
+
 import phyre_engine.test
 import phyre_engine.tools.rotamer as rot
 from phyre_engine.tools.rotamer.angle_range import AngleRange
 from phyre_engine.tools.rotamer.data.molprobity import ROTAMERS, FINAL_CHI_RANGE
+from phyre_engine.tools.rotamer.kdtree import PeriodicKDTree
 
 DATA_DIR = Path(phyre_engine.test.__file__).parent / "data"
 DATA_DIR_2 = os.path.join(os.path.dirname(phyre_engine.test.__file__), 'data')
@@ -218,3 +222,88 @@ class TestAngleRange(unittest.TestCase):
         self.assertIn(360, ang_range, "360 in 0-15")
         self.assertIn(361, ang_range, "361 in 0-15")
         self.assertIn(-1, ang_range, "361 in 0-15")
+
+class TestPeriodiKDTree(unittest.TestCase):
+    """Test PeriodicKDTree for sanity."""
+
+    def setUp(self):
+        self.points = np.random.rand(1000, 2) * 360
+        self.tree = PeriodicKDTree(self.points, 360, 360)
+
+    def distance(self, a, b):
+        """Get periodic distance between x and y."""
+        dx = min(abs(a[0] - b[0]), 360 - abs(a[0] - b[0]))
+        dy = min(abs(a[1] - b[1]), 360 - abs(a[1] - b[1]))
+        return math.sqrt(dx ** 2 + dy ** 2)
+
+    def test_query_k_points(self):
+        """Get 10 points from the tree and verify them."""
+        query_point = np.array([0, 0])
+        distances, indices = self.tree.query(query_point, 10)
+
+        self.assertEqual(
+            len(distances), 10,
+            "Got 10 distances from PeriodicKDTree")
+        self.assertEqual(
+            len(indices), 10,
+            "Got 10 indices from PeriodicKDTree")
+
+        all_distances = []
+        for i, point in enumerate(self.points):
+            calculated_distance = self.distance(query_point, point)
+            all_distances.append((i, calculated_distance))
+            if i in indices:
+                kd_distance = distances[np.where(indices == i)]
+                self.assertAlmostEqual(
+                    calculated_distance,
+                    kd_distance,
+                    places=5,
+                    msg="PeriodicKDTree and simple distance calculation match")
+
+        # Go through the manually-counted list of distances and check that they
+        # are the same points as found by the tree
+        all_distances.sort(key=lambda x: x[1])
+        self.assertListEqual(
+            [x[0] for x in all_distances[0:10]],
+            list(indices),
+            "PeriodicKDTree returns same points as brute force.")
+
+    def test_query_by_distance(self):
+        """Query points from tree by maximum distance."""
+        query_point = np.array([0, 0])
+        distances, indices = self.tree.query(
+            query_point,
+            len(self.points),
+            distance_upper_bound=10)
+
+        all_distances = []
+        for i, point in enumerate(self.points):
+            calculated_distance = self.distance(query_point, point)
+            all_distances.append((i, calculated_distance))
+            if i in indices:
+                # Should be closer than 10 units
+                kd_distance = distances[np.where(indices == i)]
+                self.assertAlmostEqual(
+                    calculated_distance,
+                    kd_distance,
+                    places=5,
+                    msg="PeriodicKDTree and simple distance calculation match")
+                self.assertLessEqual(
+                    calculated_distance, 10,
+                    "Distances meets threshold")
+            else:
+                self.assertGreater(
+                    calculated_distance, 10,
+                    "Point is correctly marked as being further than 10 units")
+
+        # Go through the manually-counted list of distances and check that they
+        # are the same points as found by the tree. We slice indices from 0:-1
+        # because scipy adds a final infinite distance to signify exceeding the
+        # upper bound.
+        close_distances = sorted(
+            [x for x in all_distances if x[1] < 10],
+            key=lambda x: x[1])
+        self.assertListEqual(
+            [x[0] for x in close_distances],
+            list(indices[0:-1]),
+            "PeriodicKDTree returns same points as brute force.")
