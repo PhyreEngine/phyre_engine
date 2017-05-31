@@ -8,9 +8,10 @@ from Bio.PDB.Residue import Residue
 from phyre_engine.component.rotamer.extract import AngleExtractor
 from phyre_engine.component.rotamer.parse import CsvParser
 from phyre_engine.component.rotamer.rotamer import CalculateRotamer
-from phyre_engine.tools.rotamer import Sidechain
+from phyre_engine.tools.rotamer import Sidechain, Rotamer
 from phyre_engine.tools.rotamer.data import molprobity, dunbrack
 from phyre_engine.tools.rotamer.data.molprobity import FINAL_CHI_RANGE
+from phyre_engine.component.rotamer.db import GroupRotamers
 
 
 class TestAngleExtractor(unittest.TestCase):
@@ -192,7 +193,7 @@ class TestCsvParser(unittest.TestCase):
             "chain": "CHAIN",
             "residue": {"id": (None, "RES_INDEX", "ICODE"), "resname": "AA"}
         }
-        parser = CsvParser(mapping, delimiter=' ')
+        parser = CsvParser(mapping, {}, delimiter=' ')
         with tempfile.NamedTemporaryFile("w") as csv_file:
             csv_file.write(self.CSV_STRING)
             csv_file.flush()
@@ -221,3 +222,37 @@ class TestCsvParser(unittest.TestCase):
                     residue["chain"],
                     self.CORRECT_CHAINS[i],
                     "Residue {} chain".format(i))
+
+class TestGroupRotamers(unittest.TestCase):
+    """Test the GroupRotamers component"""
+    maxDiff = None
+    ARG_RES = Residue((" ", 1, " "), "ARG", 1)
+    SER_RES = Residue((" ", 1, " "), "SER", 1)
+
+    TEST_RESIDUES = [
+        {"residue": ARG_RES, "rotamer": Rotamer("ARG", (1, 1, 1, 1), (0, 360))},
+        {"residue": ARG_RES, "rotamer": Rotamer("ARG", (1, 1, 1, 1), (0, 360))},
+        {"residue": ARG_RES, "rotamer": Rotamer("ARG", (1, 1, 1, 2), (0, 360))},
+        {"residue": SER_RES, "rotamer": Rotamer("SER", (1,), (0, 360))},
+        {"residue": SER_RES, "rotamer": Rotamer("SER", (1,), (0, 360))},
+        {"residue": SER_RES, "rotamer": Rotamer("SER", (2,), (0, 360))},
+    ]
+
+    EXPECTED_RESULT = {
+        "ARG": {
+            (1, 1, 1, 1): TEST_RESIDUES[0:2],
+            (1, 1, 1, 2): TEST_RESIDUES[2:3],
+        },
+        "SER": {
+            (1,): TEST_RESIDUES[3:5],
+            (2,): TEST_RESIDUES[5:],
+        },
+    }
+
+    def test_grouping(self):
+        cpt = GroupRotamers()
+        result = cpt.run({"residues": self.TEST_RESIDUES})
+        self.assertDictEqual(
+            result["rotamer_dict"],
+            self.EXPECTED_RESULT,
+            "Correctly grouped residues")
