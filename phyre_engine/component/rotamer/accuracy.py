@@ -300,6 +300,9 @@ class PerResidueRMSD(SidechainMetric):
                      if n > 0}
 
             for aa, native_res, model_res in self._residues(native, model):
+                if aa not in rmsds:
+                    continue
+
                 square_distance = 0
                 n = 0
                 for n_atm, m_atm in self._atoms(native_res, model_res):
