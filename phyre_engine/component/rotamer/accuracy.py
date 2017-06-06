@@ -272,10 +272,10 @@ class PerResidueRMSD(SidechainMetric):
     def _atoms(self, native_res, model_res):
         bb_atoms = set(("N", "C", "CA", "O"))
         native_atoms = sorted(
-            native_res,
+            [atom for atom in native_res if atom.element != "H"],
             key=lambda x: x.get_name())
         model_atoms = sorted(
-            model_res,
+            [atom for atom in model_res if atom.element != "H"],
             key=lambda x: x.get_name())
 
         if len(native_atoms) != len(model_atoms):
