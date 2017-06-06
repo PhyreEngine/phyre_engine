@@ -1,9 +1,11 @@
 import Bio.PDB
 
 from phyre_engine.component import Component
-from phyre_engine.tools.rotamer import Sidechain
+from phyre_engine.tools.rotamer import Sidechain, MissingAtomError, \
+    UnknownResidueType
 from phyre_engine.tools.rotamer.data.generic import NUM_CHI_ANGLES
 from math import sqrt
+import sys
 
 
 r"""
@@ -129,13 +131,17 @@ class SidechainMetric(Component):
         Yields the amino acid type, native side-chain and model side-chain:
         """
         native_residues = native.get_residues()
-        model_residues = model.get_residues()
+        model_residues = {r.id: r for r in model.get_residues()}
 
-        for n_res, m_res in zip(native_residues, model_residues):
-            if n_res.id != m_res.id:
-                raise ResidueMismatchError(n_res, m_res)
-            aa = n_res.get_resname()
-            yield aa, n_res, m_res
+        for n_res in native_residues:
+            if n_res.id not in model_residues:
+                # FIXME: We need a proper way of handling warnings
+                print(
+                    "{} not present in model--skipping".format(n_res.id),
+                    file=sys.stderr)
+            else:
+                aa = n_res.get_resname()
+                yield aa, n_res, model_residues[n_res.id]
 
     def _sidechains(self, native, model):
         """
@@ -144,9 +150,17 @@ class SidechainMetric(Component):
         Yields the amino acid type, native side-chain and model side-chain:
         """
         for aa, n_res, m_res in self._residues(native, model):
-            n_sc = Sidechain.calculate(n_res)
-            m_sc = Sidechain.calculate(m_res)
-            yield aa, n_sc, m_sc
+            try:
+                n_sc = Sidechain.calculate(n_res)
+                m_sc = Sidechain.calculate(m_res)
+                if n_sc is not None and m_sc is not None:
+                    yield aa, n_sc, m_sc
+            except MissingAtomError as err:
+                # FIXME: We need a proper warning system
+                print(err, file=sys.stderr)
+            except UnknownResidueType as err:
+                # FIXME: We need a proper warning system
+                print(err, file=sys.stderr)
 
     def _chi_angles(self, native_sc, model_sc):
         """
@@ -265,11 +279,13 @@ class PerResidueRMSD(SidechainMetric):
             key=lambda x: x.get_name())
 
         if len(native_atoms) != len(model_atoms):
-            raise AtomMismatchError(native_res, model_res)
+            # FIXME: We need a proper warning system
+            print(AtomMismatchError(native_res, model_res), file=sys.stderr)
 
         for n_atm, m_atm in  zip(native_atoms, model_atoms):
             if n_atm.get_name() != m_atm.get_name():
-                raise AtomMismatchError(native_res, model_res)
+                # FIXME: We need a proper warning system
+                print(AtomMismatchError(native_res, model_res), file=sys.stderr)
             if n_atm.get_name() in bb_atoms:
                 continue
 
@@ -290,8 +306,13 @@ class PerResidueRMSD(SidechainMetric):
                     vec = n_atm.get_vector() - m_atm.get_vector()
                     square_distance += vec.normsq()
                     n += 1
-                rmsd = sqrt(square_distance) / n
-                rmsds[aa].append(rmsd)
+                if n > 0:
+                    rmsd = sqrt(square_distance) / n
+                    rmsds[aa].append(rmsd)
+                else:
+                    # FIXME: Need a proper warning system
+                    print("Error computing RMSD between {} and {} of structures {} and {}".format(
+                        native_res, model_res, native, model), file=sys.stderr)
 
             average_rmsds = {}
             for aa, rmsd_list in rmsds.items():
@@ -324,11 +345,12 @@ class AtomMismatchError(Exception):
     :ivar residues: Tuple of length2 containing the mismatched residues.
     """
 
-    ERR_MSG = "Different sets of atoms: {} and {}."
+    ERR_MSG = "Different sets of atoms in residues {} and {}: {} and {}."
 
     def __init__(self, res1, res2):
         self.residues = (res1, res2)
         super().__init__(self.ERR_MSG.format(
-            [a.get_name() for a in res1.get_atoms()],
-            [a.get_name() for a in res1.get_atoms()]
+            res1, res2,
+            [a.get_name() for a in res1],
+            [a.get_name() for a in res2]
         ))
