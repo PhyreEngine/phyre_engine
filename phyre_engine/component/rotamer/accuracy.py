@@ -98,7 +98,8 @@ class SidechainMetric(Component):
         if isinstance(model[field], Bio.PDB.Structure.Structure):
             return model[field]
         else:
-            return Bio.PDB.PDBParser().get_structure("model", model[field])
+            return Bio.PDB.PDBParser(QUIET=True).get_structure(
+                model[field], model[field])
 
     def _models(self, models):
         """
