@@ -1,7 +1,7 @@
 import unittest
 import tempfile
 import textwrap
-from phyre_engine.component.FastaInput import FastaInput;
+from phyre_engine.component.FastaInput import FastaInput
 
 class TestFastaInput(unittest.TestCase):
 

@@ -24,7 +24,7 @@ class AngleExtractorBase(Component):
     :vartype max_ca_distance: float
     """
 
-    max_ca_distance = 4.0;
+    max_ca_distance = 4.0
 
     def __init__(self, symmetric_chis=None):
         """
