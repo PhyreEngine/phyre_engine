@@ -276,6 +276,9 @@ class AngleExtractorPickle(AngleExtractorBase):
 class AssignRotamers(Component):
     """
     For each residue in the ``residues`` list, assign a rotamer.
+
+    Requires the ``sidechain`` attribute to be present on each element of the
+    ``residues`` array.
     """
     REQUIRED = ["residues"]
     ADDS = []
