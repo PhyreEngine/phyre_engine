@@ -26,7 +26,7 @@ class AngleExtractorBase(Component):
 
     max_ca_distance = 4.0;
 
-    def __init__(self, symmetric_chis=set()):
+    def __init__(self, symmetric_chis=None):
         """
         :param set symmetric_chis: Set of amino acids for which the final
             rotamer should be considered symmetric. Symmetric rotamers are
@@ -41,7 +41,7 @@ class AngleExtractorBase(Component):
                symmetric final χ angles according to the definitions of
                Dunbrack (1997) or MolProbity.
         """
-        self.symmetric_chis = symmetric_chis
+        self.symmetric_chis = symmetric_chis if symmetric_chis else set()
 
     def _residue_triplets(self, residues):
         """

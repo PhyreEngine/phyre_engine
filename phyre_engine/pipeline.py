@@ -33,10 +33,10 @@ class Pipeline:
     :param dict start: Starting elements to include in the key-value map.
     """
 
-    def __init__(self, components=[], start={}):
+    def __init__(self, components=None, start=None):
         """Initialise a new pipeline with an optional list of components."""
-        self.components = components
-        self.start = start
+        self.components = components if components else []
+        self.start = start if start else {}
 
     def validate(self):
         """Validate that the inputs and outptuts of each component match.
@@ -120,11 +120,11 @@ class Pipeline:
             the time this exception was thrown.
         """
 
-        def __init__(self, component, missing, data = {}):
+        def __init__(self, component, missing, data = None):
             """Returns a new exception indicating an error in component."""
             err_msg = "Component {} was missing keys {}"
             super().__init__(err_msg.format(type(component).__name__, missing))
 
             self.component = component
             self.missing = missing
-            self.data = data
+            self.data = data if data else {}

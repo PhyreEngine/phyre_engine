@@ -77,7 +77,7 @@ class ParallelComponent(Component):
     def __init__(self, component, max_jobs, storage_dir,
             slice_var_in, slice_var_out=None,
             path_dirs=None, submodule=None, subclass=None,
-            environment={}, qsub_flags={}):
+            environment=None, qsub_flags=None):
         """Initialise this parallel component."""
         self.component = component
         self.max_jobs = max_jobs
@@ -88,8 +88,8 @@ class ParallelComponent(Component):
         self.path_dirs = path_dirs if path_dirs else []
         self.submodule = submodule if submodule else component.__module__
         self.subclass  = subclass if subclass  else component.__class__.__name__
-        self.environment = environment
-        self.qsub_flags = qsub_flags
+        self.environment = environment if environment else {}
+        self.qsub_flags = qsub_flags if environment else {}
 
     def run(self, data):
         """Submit this job to the queue system and wait until all tasks are
