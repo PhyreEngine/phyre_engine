@@ -145,7 +145,7 @@ class TestChainPDBBuilder(unittest.TestCase):
             self.assertEqual(map[0][2], " ", "Residue 1 icode")
 
     @unittest.skipUnless("MMCIF" in os.environ, "MMCIF env var not set")
-    def test_build(self):
+    def test_disordered_build(self):
         """Try and extract a chain for a structure with disordered atoms."""
         with tempfile.TemporaryDirectory() as base_dir:
             out_dir = Path(base_dir, "pdb")
