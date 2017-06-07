@@ -161,8 +161,8 @@ class ParallelComponent(Component):
                     monitor_args.extend([flag, value])
 
                 waiter = pexpect.spawn("qsub", monitor_args)
-                waiter.expect("^qsub: waiting for job \S+ to start\r\n")
-                waiter.expect("^qsub: job \S+ ready\r\n", timeout=None)
+                waiter.expect(r"^qsub: waiting for job \S+ to start\r\n")
+                waiter.expect(r"^qsub: job \S+ ready\r\n", timeout=None)
                 waiter.sendline("exit")
 
             # At this point, all the node jobs should have run. We now just need to

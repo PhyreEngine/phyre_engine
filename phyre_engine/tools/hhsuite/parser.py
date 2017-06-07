@@ -188,10 +188,10 @@ class Report:
             #List of regexes, field names and functions to convert to the
             #correct data type.
             matches = [
-                ("Identities=([^%]+)%", "identities",    float),
-                ("Similarity=(\S+)",    "similarity",    float),
-                ("Sum_probs=(\S+)",     "sum_probs",     float),
-                ("Template_Neff=(\S+)", "template_neff", float),
+                (r"Identities=([^%]+)%", "identities",    float),
+                (r"Similarity=(\S+)",    "similarity",    float),
+                (r"Sum_probs=(\S+)",     "sum_probs",     float),
+                (r"Template_Neff=(\S+)", "template_neff", float),
             ]
 
             for regex, field, converter in matches:
