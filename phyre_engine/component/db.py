@@ -578,7 +578,7 @@ class HMMBuilder(Component):
             if (not hhm_file.exists()) or self.overwrite:
                 hhmake = hh.HHMake(
                     template["a3m"],
-                    output=hmm_file,
+                    output=hhm_file,
                     **self.hhmake_args
                 )
                 hhmake.run()
