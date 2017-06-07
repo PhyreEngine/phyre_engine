@@ -569,12 +569,12 @@ class CalculateRotamerAngles(Component):
                     for rotamer in rotamer_dict[aa].keys():
                         self._set_bin_mean(
                             rotamer_library, aa, partial_means,
-                            chi_index, rotamer, phi, psi)
+                            rotamer, phi, psi)
         return data
 
     def _set_bin_mean(
             self, rotamer_library, aa, partial_means,
-            chi_index, rotamer, phi, psi):
+            rotamer, phi, psi):
         """Set the mean of rotamer_library[aa][(phi, psi)][rotamer]."""
 
         chi_values = [None] * NUM_CHI_ANGLES[aa]
