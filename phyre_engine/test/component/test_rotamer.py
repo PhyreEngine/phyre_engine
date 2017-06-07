@@ -5,10 +5,10 @@ import unittest
 
 from Bio.PDB.Residue import Residue
 
-from phyre_engine.component.rotamer.extract import AngleExtractor
+from phyre_engine.component.rotamer.extract import AngleExtractor,\
+    AssignRotamers
 from phyre_engine.component.rotamer.parse import CsvParser
-from phyre_engine.component.rotamer.rotamer import CalculateRotamer
-from phyre_engine.tools.rotamer import Sidechain, Rotamer
+from phyre_engine.tools.rotamer.rotamer import Sidechain, Rotamer
 from phyre_engine.tools.rotamer.data import molprobity, dunbrack
 from phyre_engine.tools.rotamer.data.molprobity import FINAL_CHI_RANGE
 from phyre_engine.component.rotamer.db import GroupRotamers
@@ -130,7 +130,7 @@ class TestRotamerAssignment(unittest.TestCase):
                 "ASN",
                 (113.8016194939627, 184.31024615711995))
         }]
-        component = CalculateRotamer(molprobity.ROTAMERS)
+        component = AssignRotamers(molprobity.ROTAMERS)
         results = component.run({"residues": residues})
         self.assertEqual(
             results["residues"][0]["rotamer"].name,
@@ -144,7 +144,7 @@ class TestRotamerAssignment(unittest.TestCase):
                 "ASN",
                 (113.8016194939627, 84.31024615711995))
         }]
-        component = CalculateRotamer(dunbrack.ROTAMERS)
+        component = AssignRotamers(dunbrack.ROTAMERS)
         results = component.run({"residues": residues})
         self.assertTupleEqual(
             results["residues"][0]["rotamer"].name,

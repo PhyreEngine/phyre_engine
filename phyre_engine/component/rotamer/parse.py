@@ -13,7 +13,7 @@ import re
 from Bio.PDB.Residue import Residue
 
 from phyre_engine.component import Component
-from phyre_engine.tools.rotamer import Sidechain
+from phyre_engine.tools.rotamer.rotamer import Sidechain
 from phyre_engine.tools.rotamer.data.generic import NUM_CHI_ANGLES
 
 

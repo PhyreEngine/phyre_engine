@@ -7,8 +7,7 @@ import sys
 from phyre_engine.component import Component
 import Bio.PDB
 from Bio.PDB import PDBParser
-import phyre_engine.tools.rotamer as rotamer
-from phyre_engine.tools.rotamer import Rotamer
+import phyre_engine.tools.rotamer.rotamer as rotamer
 import pickle
 
 class AngleExtractorBase(Component):
@@ -304,6 +303,6 @@ class AssignRotamers(Component):
         Add a ``rotamer`` key to each residue.
         """
         for res in data["residues"]:
-            rotamer = Rotamer.find(res["sidechain"], self.rotamers)
-            res["rotamer"] = rotamer
+            res_rotamer = rotamer.Rotamer.find(res["sidechain"], self.rotamers)
+            res["rotamer"] = res_rotamer
         return data

@@ -1,7 +1,7 @@
 import Bio.PDB
 
 from phyre_engine.component import Component
-from phyre_engine.tools.rotamer import Sidechain, MissingAtomError, \
+from phyre_engine.tools.rotamer.rotamer import Sidechain, MissingAtomError, \
     UnknownResidueType
 from phyre_engine.tools.rotamer.data.generic import NUM_CHI_ANGLES
 from math import sqrt
