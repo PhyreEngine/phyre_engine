@@ -27,6 +27,8 @@ class Report:
 
     def __init__(self, file):
         """Parse a report file."""
+        self._state = Report.State.HEADER
+        self._current_index = 0
         self._parse_file(file)
 
 
@@ -34,11 +36,9 @@ class Report:
         #Parse the file line by line, maintaining the currents state in the
         #_state instance variable. Start by parsing the header:
         self.summary = {}
-        self._state = Report.State.HEADER
         self.hits = []
 
         #Index of the hit being parsed by _parse_pairwise_line
-        self._current_index = 0
 
         with open(file, "r") as in_fh:
             for line in in_fh:

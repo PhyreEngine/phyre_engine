@@ -97,8 +97,7 @@ class HomologyModeller(Component):
         model_structure.add(model_model)
 
         # Get mapping of simple 1-based index to full atom IDs
-        label_to_auth = self._auth_to_label_ids(mmcif_file, structure,
-                pdb_chain)
+        label_to_auth = self._auth_to_label_ids(mmcif_file, pdb_chain)
 
         for aln_pos in hit.aln:
             #indices i and j are the query and template indices
@@ -129,7 +128,7 @@ class HomologyModeller(Component):
         return model_structure
 
 
-    def _auth_to_label_ids(self, mmcif_file, structure, pdb_chain):
+    def _auth_to_label_ids(self, mmcif_file, pdb_chain):
         """
         Build a mapping of ``label_seq_id`` fields to ``auth_seq_id`` fields.
 

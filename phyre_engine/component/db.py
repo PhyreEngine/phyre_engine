@@ -117,7 +117,7 @@ class RCSBClusterDownload(Component):
             of specifying an invalid threshold in the constructor.
         """
 
-        clus_file, headers = urllib.request.urlretrieve(
+        clus_file, _ = urllib.request.urlretrieve(
                 self.BASE_URL.format(self.threshold),
                 self.filename)
         data["cluster_file"] = clus_file
@@ -699,6 +699,7 @@ class DatabaseBuilder(Component):
                     ffdata, ffindex,
                     file_list=index.name,
                     **self.ffindex_args)
+                ffindex_builder.run()
                 ff_dbs[file_type] = db_name
 
             # Sort the indices
@@ -711,14 +712,14 @@ class DatabaseBuilder(Component):
 
         # Cut useless information from the indices of each file.
         for ff_db in ff_dbs.values():
-            self._trim_index_names(templates, ff_db)
+            self._trim_index_names(ff_db)
 
         del data["templates"]
         data["database"] = str(db_prefix)
         return data
 
 
-    def _trim_index_names(self, templates, db):
+    def _trim_index_names(self, db):
         """Replace names of components in an ffindex with their stem.
 
         When we generate an index using ``ffindex_build``, the names of each

@@ -139,6 +139,7 @@ class Rotamer:
         :param str res_name: Name of the amino acid type of this rotamer.
         :param str rot_name: Rotamer name.
         """
+        self.res_name = res_name
         self.ranges = ranges
         self.name = rot_name
 

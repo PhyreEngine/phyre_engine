@@ -96,9 +96,9 @@ class CsvParser(Component):
         self.csv_params = csv_params
 
         # Raise exception if the "residue" key is not present.
-        mapping["residue"]
-        mapping["residue"]["id"]
-        mapping["residue"]["resname"]
+        _ = mapping["residue"]
+        _ = mapping["residue"]["id"]
+        _ = mapping["residue"]["resname"]
 
         # Default keys for mapping
         if "phi" not in self.mapping:
