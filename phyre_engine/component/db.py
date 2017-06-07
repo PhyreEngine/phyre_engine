@@ -14,6 +14,7 @@ import tempfile
 import fileinput
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
+import Bio.PDB
 from Bio.PDB import MMCIFParser, PDBParser
 from Bio.PDB.Chain import Chain
 from Bio.PDB.Residue import Residue
