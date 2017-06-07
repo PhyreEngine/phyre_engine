@@ -1,5 +1,4 @@
 """Component for running components on a PBS cluster."""
-from abc import ABC, abstractmethod
 import copy
 import math
 import pathlib

@@ -6,9 +6,7 @@ import enum
 
 import Bio.PDB
 
-from .data.generic import (
-    AMINO_ACIDS, NUM_CHI_ANGLES, CHI_ATOMS)
-from Bio.PDB.Residue import Residue
+from .data.generic import AMINO_ACIDS, NUM_CHI_ANGLES, CHI_ATOMS
 
 class Sidechain:
     """

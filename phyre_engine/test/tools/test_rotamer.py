@@ -3,7 +3,6 @@ import math
 import os
 import unittest
 from pathlib import Path
-import tempfile
 import Bio.PDB
 
 import numpy as np

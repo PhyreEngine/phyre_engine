@@ -1,6 +1,5 @@
 import os.path
 import unittest
-import tempfile
 import Bio.Seq
 import Bio.Alphabet.IUPAC
 import Bio.SeqUtils

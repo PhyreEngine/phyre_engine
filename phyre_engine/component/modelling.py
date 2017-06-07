@@ -4,12 +4,10 @@ import Bio.SeqUtils
 import Bio.PDB.Structure
 import Bio.PDB.Model
 import Bio.PDB.Chain
-import abc
 from Bio.PDB.Residue import Residue
 from Bio.PDB import MMCIFParser
 from Bio.PDB.MMCIF2Dict import MMCIF2Dict
 from phyre_engine.component import Component
-import phyre_engine.tools.hhsuite.parser as parser
 import os.path
 
 BACKBONE_ATOMS = {"N", "C", "CA", "O"} # Set of backbone atoms

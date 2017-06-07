@@ -1,24 +1,20 @@
 import phyre_engine.tools.hhsuite as hh
 from phyre_engine.component import Component
-from phyre_engine.conformation import ArbitraryMutationSelector
 import copy
 import gzip
 import pathlib
 import urllib.request
 import Bio.SeqUtils
 import Bio.SeqIO
-import glob
 import json
 import os
 import sys
 import subprocess
 import tempfile
 import fileinput
-import shutil
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.PDB import MMCIFParser, PDBParser
-from Bio.PDB import PDBIO
 from Bio.PDB.Chain import Chain
 from Bio.PDB.Residue import Residue
 from Bio.PDB.PDBExceptions import PDBConstructionException

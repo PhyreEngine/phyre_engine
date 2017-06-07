@@ -1,5 +1,4 @@
 import unittest
-import subprocess
 
 import phyre_engine.tools.hhsuite.tool as tools
 
