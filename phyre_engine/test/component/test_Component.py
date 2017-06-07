@@ -6,11 +6,11 @@ class TestComponent(unittest.TestCase):
 
     class MockComponentScalar(Component):
         REQUIRED = ["a"]
-        def run(data): pass
+        def run(self, data): pass
 
     class MockComponentList(Component):
         REQUIRED = ["a", "b"]
-        def run(data): pass
+        def run(self, data): pass
 
     def test_get_vals(self):
         data = {"a":123, "b":456}
