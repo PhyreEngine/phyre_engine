@@ -238,6 +238,6 @@ class UnknownResidueType(Exception):
     """
     _ERR_MSG = "Can't calculate side-chain angles for residue type {}"
 
-    def __init__(self, type):
-        super().__init__(self._ERR_MSG.format(type))
-        self.type = type
+    def __init__(self, res_type):
+        super().__init__(self._ERR_MSG.format(res_type))
+        self.type = res_type

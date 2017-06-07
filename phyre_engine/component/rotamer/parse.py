@@ -36,7 +36,7 @@ class CsvParser(Component):
 
 
         :param dict mapping: Mapping of fields in the CSV file to the required
-            fields in each residue. The ``residue`` key defines the ID and type
+            fields in each residue. The ``residue`` key defines the ID and res_type
             of a :py:mod:`Bio.PDB.Residue`. See the example for details.
         :param dict final_chi_range: Allowed ranges of final χ angles. See
             :ref:`description-of-rotamer-variables` for definition.

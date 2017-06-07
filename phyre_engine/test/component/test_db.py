@@ -139,10 +139,10 @@ class TestChainPDBBuilder(unittest.TestCase):
 
             # Try and read the map file
             with results["templates"][0]["map"].open("r") as map_fh:
-                map = json.load(map_fh)
-            self.assertEqual(map[0][0], " ", "Residue 1 het flag")
-            self.assertEqual(map[0][1], 4,   "Residue 1 ID")
-            self.assertEqual(map[0][2], " ", "Residue 1 icode")
+                res_map = json.load(map_fh)
+            self.assertEqual(res_map[0][0], " ", "Residue 1 het flag")
+            self.assertEqual(res_map[0][1], 4,   "Residue 1 ID")
+            self.assertEqual(res_map[0][2], " ", "Residue 1 icode")
 
     @unittest.skipUnless("MMCIF" in os.environ, "MMCIF env var not set")
     def test_disordered_build(self):
