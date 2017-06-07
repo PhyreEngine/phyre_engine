@@ -180,8 +180,12 @@ class HomologyModeller(Component):
 
             #Filter to only contain ATOM records from the first model with
             #the desired chain. Store the icode as well as the auth_seq_id
-            for id in zip(labels, auths, chains, model_nums, group, icodes):
-                if id[2] == pdb_chain and id[3] == "1" and id[4] == "ATOM":
-                    icode = id[5] if id[5] != "?" else " "
-                    label_to_auth[int(id[0])] = (' ', int(id[1]), icode)
+            generator = zip(labels, auths, chains, model_nums, group, icodes)
+            for res_id in generator:
+                if (res_id[2] == pdb_chain
+                    and res_id[3] == "1"
+                    and res_id[4] == "ATOM"):
+
+                    icode = res_id[5] if res_id[5] != "?" else " "
+                    label_to_auth[int(res_id[0])] = (' ', int(res_id[1]), icode)
         return label_to_auth
