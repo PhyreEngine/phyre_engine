@@ -61,7 +61,16 @@ class MMCIFToPDBChains:
         base_dir = os.path.join(self.out_dir, pdb_id[1:3].lower())
         os.makedirs(base_dir, exist_ok=True)
 
-        for chain in model:
+        # There is a bug (or least behaviour that I find non-obvious) in
+        # biopython. When calling pdbio.set_structure, the parent of the chain
+        # is altered, which means that resetting the chain_id does not work and
+        # biopython complains about duplicate chain IDs when setting the next
+        # chain ID to " ". I'm going to hack around this bug by iterating over
+        # the list of chains and deleting chains we've already seen from the
+        # MMCIf model.
+
+        chain_list = list(model)
+        for chain in chain_list:
             file_name = "{}_{}.pdb".format(pdb_id.lower(), chain.get_id())
             out_path = os.path.join(base_dir, file_name)
 
@@ -70,4 +79,5 @@ class MMCIFToPDBChains:
             chain.id = " "
             pdbio.set_structure(chain)
             pdbio.save(out_path, simple_selector)
-            chain.id = chain_id
+            # Delete chain from model as part of bugfix/hack mentioned above.
+            del model[" "]
