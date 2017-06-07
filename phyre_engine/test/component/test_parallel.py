@@ -7,6 +7,10 @@ from phyre_engine.component import Component
 top_dir = os.path.dirname(os.path.dirname(phyre_engine.__file__))
 
 class MockComponent(Component):
+    REQUIRED = []
+    ADDS = []
+    REMOVES = []
+
     def run(self, data):
         data["out"] = [x**2 for x in data["in"]]
         return data

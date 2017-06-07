@@ -3,7 +3,21 @@ from abc import ABC, abstractmethod
 
 class Component(ABC):
     """Base class for all component classes."""
-    pass
+
+    @property
+    @abstractmethod
+    def REQUIRED(self):
+        pass
+
+    @property
+    @abstractmethod
+    def ADDS(self):
+        pass
+
+    @property
+    @abstractmethod
+    def REMOVES(self):
+        pass
 
     def get_vals(self, data):
         """Get all required values from a key-value mapping.
