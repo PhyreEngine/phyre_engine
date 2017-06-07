@@ -84,7 +84,10 @@ class Sidechain:
                 else:
                     chi_atoms.append(residue[atom].get_vector())
 
-            dihedral = math.degrees(Bio.PDB.calc_dihedral(*chi_atoms))
+            dihedral = math.degrees(Bio.PDB.calc_dihedral(
+                chi_atoms[0], chi_atoms[1],
+                chi_atoms[2], chi_atoms[3]))
+
             if dihedral < 0:
                 dihedral += 360
             angles[i] = dihedral
