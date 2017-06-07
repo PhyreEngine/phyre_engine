@@ -9,20 +9,20 @@ import Bio.PDB
 from Bio.PDB import PDBParser
 import phyre_engine.tools.rotamer as rotamer
 from phyre_engine.tools.rotamer import Rotamer
+import pickle
 
-class AngleExtractor(Component):
+class AngleExtractorBase(Component):
     """
     Extract φ, ψ and χ angles from all residues in a list of PDB files.
+
+    This is a base class providing utility methods for extracting data. It does
+    not supply a ``run()`` method directly.
 
     :ivar max_ca_distance: Maximum allowed Cα--Cα distance between consecutive
         residues. Residue pairs farther than this distance will be discarded.
         Default: 4.0Å
     :vartype max_ca_distance: float
     """
-
-    REQUIRED = ["pdbs"]
-    ADDS = ["residues"]
-    REMOVES = ["pdbs"]
 
     max_ca_distance = 4.0;
 
@@ -43,7 +43,7 @@ class AngleExtractor(Component):
         """
         self.symmetric_chis = symmetric_chis
 
-    def residue_triplets(self, residues):
+    def _residue_triplets(self, residues):
         """
         Iterate over each triplet of residues.
 
@@ -60,7 +60,7 @@ class AngleExtractor(Component):
             current_res = next_res
             next_res = next(residues, None)
 
-    def require_atom(self, residue, atoms, feature, angle_index=None):
+    def _require_atom(self, residue, atoms, feature, angle_index=None):
         """
         Raise an exception if a residue is missing a particular atom.
 
@@ -79,7 +79,7 @@ class AngleExtractor(Component):
                     atom,
                     angle_index)
 
-    def dihedrals(self, triplet):
+    def _dihedrals(self, triplet):
         """
         Calculate φ and ψ angles (in degrees) for a given triplet.
 
@@ -91,9 +91,9 @@ class AngleExtractor(Component):
         # that doesn't exist, which doesn't give us the residue on which the
         # lookup failed. Here, we add some tedious error checking to provide
         # more informative exceptions.
-        self.require_atom(triplet[0], ("C",), rotamer.ResidueFeature.PHI)
-        self.require_atom(triplet[1], ("N", "C", "CA"), rotamer.ResidueFeature.PHI)
-        self.require_atom(triplet[2], ("N",), rotamer.ResidueFeature.PSI)
+        self._require_atom(triplet[0], ("C",), rotamer.ResidueFeature.PHI)
+        self._require_atom(triplet[1], ("N", "C", "CA"), rotamer.ResidueFeature.PHI)
+        self._require_atom(triplet[2], ("N",), rotamer.ResidueFeature.PSI)
 
         phi = Bio.PDB.calc_dihedral(
             triplet[0]["C"].get_vector(),
@@ -108,7 +108,7 @@ class AngleExtractor(Component):
         return phi / math.pi * 180, psi / math.pi * 180
 
 
-    def triplet_angles(self, triplet):
+    def _triplet_angles(self, triplet):
         """
         Calculate φ, ψ, and χ angles for a triplet of residues.
 
@@ -127,9 +127,9 @@ class AngleExtractor(Component):
         if any(r is None for r in triplet):
             return None
 
-        self.require_atom(triplet[0], ("CA",), rotamer.ResidueFeature.CA_DISTANCE)
-        self.require_atom(triplet[1], ("CA",), rotamer.ResidueFeature.CA_DISTANCE)
-        self.require_atom(triplet[2], ("CA",), rotamer.ResidueFeature.CA_DISTANCE)
+        self._require_atom(triplet[0], ("CA",), rotamer.ResidueFeature.CA_DISTANCE)
+        self._require_atom(triplet[1], ("CA",), rotamer.ResidueFeature.CA_DISTANCE)
+        self._require_atom(triplet[2], ("CA",), rotamer.ResidueFeature.CA_DISTANCE)
 
         # Check distances between CA atoms
         if triplet[0]["CA"] - triplet[1]["CA"] > self.max_ca_distance:
@@ -138,7 +138,7 @@ class AngleExtractor(Component):
             return None
 
         # Calculate angles
-        dihedrals = self.dihedrals(triplet)
+        dihedrals = self._dihedrals(triplet)
         sidechain = rotamer.Sidechain.calculate(
             triplet[1], self.symmetric_chis)
         return {
@@ -146,6 +146,44 @@ class AngleExtractor(Component):
             "torsion": dihedrals,
             "sidechain": sidechain
         }
+
+    def _residues(self, pdbs):
+
+        parser = PDBParser()
+        for pdb_file in pdbs:
+            structure = parser.get_structure("input", pdb_file)
+            for chain in structure[0]:
+                chain_id = chain.get_id()
+                residues = chain.get_residues()
+                for triplet in self._residue_triplets(residues):
+                    try:
+                        residue_angles = self._triplet_angles(triplet)
+                        if residue_angles is None:
+                            continue
+                        residue_angles["source"] = pdb_file
+                        residue_angles["chain"] = chain_id
+                        yield residue_angles, None
+                    except rotamer.MissingAtomError as err:
+                        yield None, err
+                    except rotamer.UnknownResidueType as err:
+                        yield None, err
+
+class AngleExtractor(AngleExtractorBase):
+    """
+    Extract φ, ψ and χ angles from all residues in a list of PDB files.
+
+    Adds a ``residues`` key to the pipeline state containing a list of
+    dictionaries. See :py:meth`.run` for details on the fields of each residue
+    dictionary.
+
+    :ivar max_ca_distance: Maximum allowed Cα--Cα distance between consecutive
+        residues. Residue pairs farther than this distance will be discarded.
+        Default: 4.0Å
+    :vartype max_ca_distance: float
+    """
+    REQUIRED = ["pdbs"]
+    ADDS = ["residues"]
+    REMOVES = ["pdbs"]
 
     def run(self, data):
         """
@@ -180,34 +218,60 @@ class AngleExtractor(Component):
         ``sidechain``
             A `phyre_engine.tools.rotamer.SideChain` object describing the chi
             angles of the residue.
-
-
         """
-        # Output list
-        res_list = []
-
         pdbs = self.get_vals(data)
-        parser = PDBParser()
-        for pdb_file in pdbs:
-            structure = parser.get_structure("input", pdb_file)
-            for chain in structure[0]:
-                chain_id = chain.get_id()
-                residues = chain.get_residues()
-                for triplet in self.residue_triplets(residues):
-                    try:
-                        residue_angles = self.triplet_angles(triplet)
-                        if residue_angles is None:
-                            continue
-                        residue_angles["source"] = pdb_file
-                        residue_angles["chain"] = chain_id
-                        res_list.append(residue_angles)
-                    except rotamer.MissingAtomError as err:
-                        print(err, file=sys.stderr)
-                    except rotamer.UnknownResidueType as err:
-                        print(err, file=sys.stderr)
+        residues = []
+        for residue, exception in self._residues(pdbs):
+            if exception:
+                # FIXME: Need a better logging system
+                print(exception, file=sys.stderr)
+                continue
+
+            residues.append(residue)
         del data["pdbs"]
-        data["residues"] = res_list
+        data["residues"] = residues
         return data
+
+class AngleExtractorPickle(AngleExtractorBase):
+    """
+    Identical to :py:class`.AngleExtractor`, but residues are pickled for later
+    reading.
+
+    Each residue dictionary is appended to the pickle file, so can be read by
+    unpickling the file multiple times. This class primarily exists so that
+    we can extract all residues from multiple PDB files in a single pass and
+    then process the residues in groups later to avoid exhausting the system
+    memory.
+    """
+    REQUIRED = ["pdbs"]
+    ADDS = []
+    REMOVES = []
+
+    class LightweightResidue():
+        def __init__(self, res):
+            self.res = res.get_resname()
+
+        def get_resname(self):
+            return self.res
+
+    def __init__(self, pickle_file, *args):
+        super().__init__(args)
+        self.pickle_file = pickle_file
+
+    def run(self, data):
+        with open(self.pickle_file, "wb") as pickle_fh:
+            pdbs = self.get_vals(data)
+            for residue, exception in self._residues(pdbs):
+                if exception:
+                    # FIXME: Need a better logging system
+                    print(exception, file=sys.stderr)
+                    continue
+
+                residue["residue"] = AngleExtractorPickle.LightweightResidue(
+                    residue["residue"])
+                pickle.dump(residue, pickle_fh)
+        return data
+
 
 class AssignRotamers(Component):
     """
