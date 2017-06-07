@@ -1,6 +1,6 @@
 """Components for running parts of hh-suite."""
 from phyre_engine.component import Component
-import phyre_engine.tools.hhsuite
+import phyre_engine.tools.hhsuite.tool as tools
 import phyre_engine.tools.hhsuite.parser as parser
 from tempfile import NamedTemporaryFile
 import Bio.SeqIO
@@ -48,7 +48,7 @@ class HHBlits(Component):
         with NamedTemporaryFile(suffix=".fasta") as query_file:
             msa_name = "query.a3m"
             Bio.SeqIO.write(sequence, query_file.name, "fasta")
-            hhblits = phyre_engine.tools.hhsuite.HHBlits(
+            hhblits = tools.HHBlits(
                     database=self._database, input=query_file.name,
                     output="report.hhr", oa3m=msa_name,
                     **self._args)
@@ -92,7 +92,7 @@ class HHSearch(Component):
         profile_msa = self.get_vals(data)
         atab_name = "hhsearch.atab"
         report_name = "hhsearch.hhr"
-        hhsearch = phyre_engine.tools.hhsuite.HHSearch(
+        hhsearch = tools.HHSearch(
                 database=self._database, input=profile_msa,
                 output=report_name, atab=atab_name,
                 **self._args)

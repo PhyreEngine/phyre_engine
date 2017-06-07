@@ -1,4 +1,4 @@
-import phyre_engine.tools.hhsuite as hh
+import phyre_engine.tools.hhsuite.tool as hh
 from phyre_engine.component import Component
 import copy
 import gzip
