@@ -19,19 +19,19 @@ class TestParallelComponent(unittest.TestCase):
 
     @unittest.skipUnless("QSUB_SCRATCH" in os.environ, "QSUB_SCRATCH undefined")
     def test_valid(self):
-       """Attempt to run a simple parallel task."""
-       scratch_dir = os.environ["QSUB_SCRATCH"]
-       task = MockComponent()
-       runner = ParallelComponent(task, 5, scratch_dir,
-               "in", "out", path_dirs = [top_dir])
+        """Attempt to run a simple parallel task."""
+        scratch_dir = os.environ["QSUB_SCRATCH"]
+        task = MockComponent()
+        runner = ParallelComponent(task, 5, scratch_dir,
+            "in", "out", path_dirs = [top_dir])
 
-       data = {"in": list(range(0, 20))}
-       results = runner.run(data)
-       self.assertIn("out", results, "'out' key added")
-       self.assertListEqual(
-               [x**2 for x in data["in"]],
-               results["out"],
-               "Results are as expected")
+        data = {"in": list(range(0, 20))}
+        results = runner.run(data)
+        self.assertIn("out", results, "'out' key added")
+        self.assertListEqual(
+           [x**2 for x in data["in"]],
+           results["out"],
+           "Results are as expected")
 
 
 if __name__ == "__main__":
