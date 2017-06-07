@@ -353,6 +353,8 @@ class CreateRotamerLibrary(Component):
 
 class IndependentRotamerAngles(Component):
     REQUIRED = ["residues", "rotamer_library"]
+    ADDS = []
+    REMOVES = []
 
     def collect_aas(self, residues):
         """Create dictionary of residues, indexed by residue type."""

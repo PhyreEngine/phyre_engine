@@ -114,6 +114,7 @@ class ReportParser(Component):
     #: :type hits: List of :class:`phyre_engine.tools.hhsuite.parser.Hit`
     #:      objects.
     ADDS = ["hits"]
+    REMOVES = []
 
     def run(self, data):
         """Parse report file and atab file into an array of hits."""

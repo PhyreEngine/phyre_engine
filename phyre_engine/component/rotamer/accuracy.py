@@ -78,6 +78,7 @@ models arrary will look like ``{..., "sidechain_accuracy": {...}}``.
 
 """
 
+# pylint: disable=abstract-method
 class SidechainMetric(Component):
     """
     Abstract base class implementing common methods for measuring side-chain

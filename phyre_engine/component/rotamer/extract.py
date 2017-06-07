@@ -10,6 +10,7 @@ from Bio.PDB import PDBParser
 import phyre_engine.tools.rotamer.rotamer as rotamer
 import pickle
 
+# pylint: disable=abstract-method
 class AngleExtractorBase(Component):
     """
     Extract φ, ψ and χ angles from all residues in a list of PDB files.

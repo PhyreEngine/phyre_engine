@@ -47,6 +47,9 @@ class DescribeTemplate(Component):
     :py:class:`Bio.PDB.SeqRecord` object pointed to by the ``sequence`` key of
     each template.
     """
+    REQUIRED = ["templates"]
+    ADDS = []
+    REMOVES = []
 
     def __init__(self, description_fn):
         """
