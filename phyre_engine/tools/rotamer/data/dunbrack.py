@@ -59,10 +59,10 @@ from ..angle_range import AngleRange
 from .generic import NUM_CHI_ANGLES
 
 FINAL_CHI_RANGE = {}
-for aa in ("ASN", "ASP", "GLN", "GLU", "PRO"):
-    FINAL_CHI_RANGE[aa] = AngleRange((0, 90), (270, 360))
-for aa in ("PHE", "TYR", "HIS"):
-    FINAL_CHI_RANGE[aa] = AngleRange((0, 150), (330, 360))
+for _aa in ("ASN", "ASP", "GLN", "GLU", "PRO"):
+    FINAL_CHI_RANGE[_aa] = AngleRange((0, 90), (270, 360))
+for _aa in ("PHE", "TYR", "HIS"):
+    FINAL_CHI_RANGE[_aa] = AngleRange((0, 150), (330, 360))
 
 # Mapping of Dunbrack's IDs (1-3) for rotameric chi angles to the corresponding
 # ranges
@@ -135,5 +135,5 @@ def init_rotamers(aa, key=None, value=None, index=0):
         value[index] = ang_range
         init_rotamers(aa, key, value, index + 1)
 
-for aa in ROTAMERS.keys():
-    init_rotamers(aa)
+for _aa in ROTAMERS.keys():
+    init_rotamers(_aa)

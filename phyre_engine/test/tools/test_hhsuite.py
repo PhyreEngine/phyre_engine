@@ -1,10 +1,9 @@
 import unittest
-import subprocess
 
-import phyre_engine.tools.hhsuite as hhsuite
+import phyre_engine.tools.hhsuite.tool as tools
 
 # Example tool for testing
-class ExampleTool(hhsuite.HHSuiteTool):
+class ExampleTool(tools.HHSuiteTool):
     flags = {
         "test1": "t",
         "test2": "test2",
@@ -64,7 +63,7 @@ class TestHHSuite(unittest.TestCase):
 
     def test_hhblits_cmd_line(self):
         """HHBlits sanity check"""
-        hhblits = hhsuite.HHBlits("test_in", database="test_db", mark=True)
+        hhblits = tools.HHBlits("test_in", database="test_db", mark=True)
         program = hhblits.command_line.pop(0)
         self.assertEqual(program, "hhblits", "correct program")
         self.verify_cmd_param(hhblits.command_line, "-i", "test_in")
@@ -73,7 +72,7 @@ class TestHHSuite(unittest.TestCase):
 
     def test_hhsearch_cmd_line(self):
         """HHSearch sanity check"""
-        hhsearch = hhsuite.HHSearch(
+        hhsearch = tools.HHSearch(
             "in_file", "database_file",
             output="test_out", oa3m="test_a3m")
         program = hhsearch.command_line.pop(0)
@@ -85,7 +84,7 @@ class TestHHSuite(unittest.TestCase):
 
     def test_hhmake_cmd_line(self):
         """HHMake sanity check"""
-        hhmake = hhsuite.HHMake(
+        hhmake = tools.HHMake(
             "input", output="test_out",
             verbose=3, cons=True)
         program = hhmake.command_line.pop(0)
@@ -97,7 +96,7 @@ class TestHHSuite(unittest.TestCase):
 
     def test_cstranslate_cmd_line(self):
         """cstranslate sanity check"""
-        cstranslate = hhsuite.CSTranslate(
+        cstranslate = tools.CSTranslate(
                 "in_file", "alpha",
                 pc_admix=0, binary=True)
         program = cstranslate.command_line.pop(0)
@@ -109,7 +108,7 @@ class TestHHSuite(unittest.TestCase):
 
     def test_ffindex_build_cmd_line(self):
         """Sanity check on ffindex_build command line."""
-        ffindex_build = hhsuite.FFIndexBuild("DATA", "INDEX", append=True)
+        ffindex_build = tools.FFIndexBuild("DATA", "INDEX", append=True)
         self.assertListEqual(
             ffindex_build.command_line,
             ["ffindex_build", "-a", "DATA", "INDEX"],

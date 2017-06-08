@@ -18,9 +18,9 @@ class SimplifySelector(Bio.PDB.Select):
     single chain, pass that chain to PDBIO.
     """
 
-    def accept_residue(self, res):
+    def accept_residue(self, residue):
         """Keep ATOM residues only."""
-        return res.get_id()[0] == ' '
+        return residue.get_id()[0] == ' '
 
     def accept_atom(self, atom):
         """Keep non-disordered atoms or the first encountered."""

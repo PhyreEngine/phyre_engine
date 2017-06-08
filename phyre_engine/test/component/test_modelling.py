@@ -1,12 +1,11 @@
 import os.path
 import unittest
-import tempfile
 import Bio.Seq
 import Bio.Alphabet.IUPAC
 import Bio.SeqUtils
 import phyre_engine.test
-from phyre_engine.component.modelling import HomologyModeller;
-from phyre_engine.tools.hhsuite.parser import Hit;
+from phyre_engine.component.modelling import HomologyModeller
+from phyre_engine.tools.hhsuite.parser import Hit
 
 DATA_DIR = os.path.join(os.path.dirname(phyre_engine.test.__file__), 'data')
 

@@ -4,12 +4,10 @@ import Bio.SeqUtils
 import Bio.PDB.Structure
 import Bio.PDB.Model
 import Bio.PDB.Chain
-import abc
 from Bio.PDB.Residue import Residue
 from Bio.PDB import MMCIFParser
 from Bio.PDB.MMCIF2Dict import MMCIF2Dict
 from phyre_engine.component import Component
-import phyre_engine.tools.hhsuite.parser as parser
 import os.path
 
 BACKBONE_ATOMS = {"N", "C", "CA", "O"} # Set of backbone atoms
@@ -99,8 +97,7 @@ class HomologyModeller(Component):
         model_structure.add(model_model)
 
         # Get mapping of simple 1-based index to full atom IDs
-        label_to_auth = self._auth_to_label_ids(mmcif_file, structure,
-                pdb_chain)
+        label_to_auth = self._auth_to_label_ids(mmcif_file, pdb_chain)
 
         for aln_pos in hit.aln:
             #indices i and j are the query and template indices
@@ -131,7 +128,7 @@ class HomologyModeller(Component):
         return model_structure
 
 
-    def _auth_to_label_ids(self, mmcif_file, structure, pdb_chain):
+    def _auth_to_label_ids(self, mmcif_file, pdb_chain):
         """
         Build a mapping of ``label_seq_id`` fields to ``auth_seq_id`` fields.
 
@@ -182,8 +179,12 @@ class HomologyModeller(Component):
 
             #Filter to only contain ATOM records from the first model with
             #the desired chain. Store the icode as well as the auth_seq_id
-            for id in zip(labels, auths, chains, model_nums, group, icodes):
-                if id[2] == pdb_chain and id[3] == "1" and id[4] == "ATOM":
-                    icode = id[5] if id[5] != "?" else " "
-                    label_to_auth[int(id[0])] = (' ', int(id[1]), icode)
+            generator = zip(labels, auths, chains, model_nums, group, icodes)
+            for res_id in generator:
+                if (res_id[2] == pdb_chain
+                    and res_id[3] == "1"
+                    and res_id[4] == "ATOM"):
+
+                    icode = res_id[5] if res_id[5] != "?" else " "
+                    label_to_auth[int(res_id[0])] = (' ', int(res_id[1]), icode)
         return label_to_auth

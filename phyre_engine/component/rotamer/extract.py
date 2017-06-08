@@ -7,10 +7,10 @@ import sys
 from phyre_engine.component import Component
 import Bio.PDB
 from Bio.PDB import PDBParser
-import phyre_engine.tools.rotamer as rotamer
-from phyre_engine.tools.rotamer import Rotamer
+import phyre_engine.tools.rotamer.rotamer as rotamer
 import pickle
 
+# pylint: disable=abstract-method
 class AngleExtractorBase(Component):
     """
     Extract φ, ψ and χ angles from all residues in a list of PDB files.
@@ -24,9 +24,9 @@ class AngleExtractorBase(Component):
     :vartype max_ca_distance: float
     """
 
-    max_ca_distance = 4.0;
+    max_ca_distance = 4.0
 
-    def __init__(self, symmetric_chis=set()):
+    def __init__(self, symmetric_chis=None):
         """
         :param set symmetric_chis: Set of amino acids for which the final
             rotamer should be considered symmetric. Symmetric rotamers are
@@ -41,7 +41,7 @@ class AngleExtractorBase(Component):
                symmetric final χ angles according to the definitions of
                Dunbrack (1997) or MolProbity.
         """
-        self.symmetric_chis = symmetric_chis
+        self.symmetric_chis = symmetric_chis if symmetric_chis else set()
 
     def _residue_triplets(self, residues):
         """
@@ -276,6 +276,9 @@ class AngleExtractorPickle(AngleExtractorBase):
 class AssignRotamers(Component):
     """
     For each residue in the ``residues`` list, assign a rotamer.
+
+    Requires the ``sidechain`` attribute to be present on each element of the
+    ``residues`` array.
     """
     REQUIRED = ["residues"]
     ADDS = []
@@ -301,6 +304,6 @@ class AssignRotamers(Component):
         Add a ``rotamer`` key to each residue.
         """
         for res in data["residues"]:
-            rotamer = Rotamer.find(res["sidechain"], self.rotamers)
-            res["rotamer"] = rotamer
+            res_rotamer = rotamer.Rotamer.find(res["sidechain"], self.rotamers)
+            res["rotamer"] = res_rotamer
         return data

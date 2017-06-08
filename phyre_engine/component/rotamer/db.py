@@ -199,7 +199,7 @@ class CreateRotamerLibrary(Component):
         self.concentrations = concentrations
 
     def adaptive_prob_density(self, phi, psi, residue_list, concentration):
-        """
+        r"""
         Calculate the adaptive probability density at a given φ, ψ point.
 
         Each residue in ``residue_list`` should adopt the same rotamer. This method
@@ -231,7 +231,7 @@ class CreateRotamerLibrary(Component):
                 scale_factor_array)
 
     def rotamer_prob_densities(self, phi, psi, rotamer_dict, concentration):
-        """
+        r"""
         Calculate probability densities for all rotamers.
 
         Calculates the probability density of seeing residues with backbone
@@ -254,7 +254,7 @@ class CreateRotamerLibrary(Component):
         return prob_densities
 
     def prob_of_rotamer(self, rotamer, rotamer_probs, prob_dens_dict):
-        """
+        r"""
         Calculate probability of rotamers at a particular (:math:`\phi, \psi`)
         angle.
 
@@ -302,7 +302,7 @@ class CreateRotamerLibrary(Component):
         return numerator / denominator
 
     def rotamer_probs(self, rotamer_dict, num_data_points):
-        """
+        r"""
         Calculate probability of this rotamer occurring.
 
         The probability :math:`P(r)` of rotamer `r` (for a particular amino) is
@@ -316,7 +316,7 @@ class CreateRotamerLibrary(Component):
         return {r: len(s) / num_data_points for r, s in rotamer_dict.items()}
 
     def run(self, data):
-        """
+        r"""
         Calculate probability of a residue adopting a particular rotamer at a
         range of :math:`\phi` and :math:`\psi` angles.
         """
@@ -353,6 +353,8 @@ class CreateRotamerLibrary(Component):
 
 class IndependentRotamerAngles(Component):
     REQUIRED = ["residues", "rotamer_library"]
+    ADDS = []
+    REMOVES = []
 
     def collect_aas(self, residues):
         """Create dictionary of residues, indexed by residue type."""
@@ -424,7 +426,7 @@ class CalculateRotamerAngles(Component):
             rotamer, residues,
             concentration, alpha,
             quadtree):
-        """
+        r"""
         Calculates query-dependent scale parameter at (``phi``, ``psi``).
 
         When calculating the mean χ angles of a rotamer at a particular (φ, ψ)
@@ -567,12 +569,12 @@ class CalculateRotamerAngles(Component):
                     for rotamer in rotamer_dict[aa].keys():
                         self._set_bin_mean(
                             rotamer_library, aa, partial_means,
-                            chi_index, rotamer, phi, psi)
+                            rotamer, phi, psi)
         return data
 
     def _set_bin_mean(
             self, rotamer_library, aa, partial_means,
-            chi_index, rotamer, phi, psi):
+            rotamer, phi, psi):
         """Set the mean of rotamer_library[aa][(phi, psi)][rotamer]."""
 
         chi_values = [None] * NUM_CHI_ANGLES[aa]

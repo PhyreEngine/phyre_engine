@@ -31,6 +31,9 @@ class HHSuiteTool:
     long_flag_prefix = "--"
     short_flag_prefix = "-"
 
+    # Flag mappings
+    flags = {}
+
     def __init__(self, program, *args, **flags):
         """Set up a tool with the given command-line flags."""
         self.program = program

@@ -3,9 +3,6 @@ import unittest
 import phyre_engine.conformation as conformation
 from Bio.PDB import PDBParser
 
-from Bio.PDB import PDBIO
-import sys
-
 class TestMutationSelectors(unittest.TestCase):
     """Test point mutation selectors"""
 

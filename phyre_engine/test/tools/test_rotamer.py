@@ -3,13 +3,12 @@ import math
 import os
 import unittest
 from pathlib import Path
-import tempfile
 import Bio.PDB
 
 import numpy as np
 
 import phyre_engine.test
-import phyre_engine.tools.rotamer as rot
+import phyre_engine.tools.rotamer.rotamer as rot
 from phyre_engine.tools.rotamer.angle_range import AngleRange
 from phyre_engine.tools.rotamer.data.molprobity import ROTAMERS, FINAL_CHI_RANGE
 from phyre_engine.tools.rotamer.kdtree import PeriodicKDTree

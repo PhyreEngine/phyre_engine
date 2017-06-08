@@ -13,7 +13,7 @@ import re
 from Bio.PDB.Residue import Residue
 
 from phyre_engine.component import Component
-from phyre_engine.tools.rotamer import Sidechain
+from phyre_engine.tools.rotamer.rotamer import Sidechain
 from phyre_engine.tools.rotamer.data.generic import NUM_CHI_ANGLES
 
 
@@ -36,7 +36,7 @@ class CsvParser(Component):
 
 
         :param dict mapping: Mapping of fields in the CSV file to the required
-            fields in each residue. The ``residue`` key defines the ID and type
+            fields in each residue. The ``residue`` key defines the ID and res_type
             of a :py:mod:`Bio.PDB.Residue`. See the example for details.
         :param dict final_chi_range: Allowed ranges of final χ angles. See
             :ref:`description-of-rotamer-variables` for definition.
@@ -96,9 +96,9 @@ class CsvParser(Component):
         self.csv_params = csv_params
 
         # Raise exception if the "residue" key is not present.
-        mapping["residue"]
-        mapping["residue"]["id"]
-        mapping["residue"]["resname"]
+        _ = mapping["residue"]
+        _ = mapping["residue"]["id"]
+        _ = mapping["residue"]["resname"]
 
         # Default keys for mapping
         if "phi" not in self.mapping:

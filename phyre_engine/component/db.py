@@ -1,24 +1,21 @@
-import phyre_engine.tools.hhsuite as hh
+import phyre_engine.tools.hhsuite.tool as hh
 from phyre_engine.component import Component
-from phyre_engine.conformation import ArbitraryMutationSelector
 import copy
 import gzip
 import pathlib
 import urllib.request
 import Bio.SeqUtils
 import Bio.SeqIO
-import glob
 import json
 import os
 import sys
 import subprocess
 import tempfile
 import fileinput
-import shutil
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
+import Bio.PDB
 from Bio.PDB import MMCIFParser, PDBParser
-from Bio.PDB import PDBIO
 from Bio.PDB.Chain import Chain
 from Bio.PDB.Residue import Residue
 from Bio.PDB.PDBExceptions import PDBConstructionException
@@ -50,6 +47,9 @@ class DescribeTemplate(Component):
     :py:class:`Bio.PDB.SeqRecord` object pointed to by the ``sequence`` key of
     each template.
     """
+    REQUIRED = ["templates"]
+    ADDS = []
+    REMOVES = []
 
     def __init__(self, description_fn):
         """
@@ -117,7 +117,7 @@ class RCSBClusterDownload(Component):
             of specifying an invalid threshold in the constructor.
         """
 
-        clus_file, headers = urllib.request.urlretrieve(
+        clus_file, _ = urllib.request.urlretrieve(
                 self.BASE_URL.format(self.threshold),
                 self.filename)
         data["cluster_file"] = clus_file
@@ -244,9 +244,9 @@ class ChainPDBBuilder(Component):
         # squawking an exception and then ignoring the template graceful.
         new_templates = []
         for template in templates:
-            id    = template["PDB"].lower()
+            pdb_id = template["PDB"].lower()
             chain = template["chain"]
-            middle = id[1:3].lower()
+            middle = pdb_id[1:3].lower()
 
             # Create dir in which to store pdb file
             pdb_dir = self.pdb_dir / middle
@@ -254,29 +254,30 @@ class ChainPDBBuilder(Component):
             pdb_dir.mkdir(exist_ok=True)
             map_dir.mkdir(exist_ok=True)
 
-            mmcif_file = self.mmcif_dir / middle / "{}.cif.gz".format(id)
+            mmcif_file = self.mmcif_dir / middle / "{}.cif.gz".format(pdb_id)
 
             # If the output files already exist, we can just read from them.
             try:
-                (pdb_files, map_files) = self.find_template_files(id, chain)
+                (pdb_files, map_files) = self.find_template_files(pdb_id, chain)
                 if pdb_files and map_files:
                     for pdb_file, map_file in zip(pdb_files, map_files):
                         new_template = copy.copy(template)
-                        self.read_chain(id, chain, new_template, pdb_file, map_file)
+                        self.read_chain(
+                            pdb_id, chain, new_template, pdb_file, map_file)
                         new_templates.append(new_template)
                 else:
                     extracted_templates = self.extract_chain(
-                        id, chain, template,
+                        pdb_id, chain, template,
                         mmcif_file)
                     new_templates.extend(extracted_templates)
             except PDBConstructionException as e:
                 # TODO: When we start to use a logging framework, log this error
                 # properly.
                 print(
-                    "Error parsing chain {} of {}".format(chain, id),
+                    "Error parsing chain {} of {}".format(chain, pdb_id),
                     file=sys.stderr)
             except Exception as e:
-                raise ChainExtractionError(id, chain) from e
+                raise ChainExtractionError(pdb_id, chain) from e
 
         data["templates"] = new_templates
         return data
@@ -348,7 +349,7 @@ class ChainPDBBuilder(Component):
 
 
     def extract_chain(
-            self, id, chain, template,
+            self, pdb_id, chain, template,
             mmcif_file):
         """
         Extract a chain from an MMCIF file.
@@ -360,7 +361,7 @@ class ChainPDBBuilder(Component):
         :return: A list of templates, shallow-copied from the original template,
             and with "sequence", "structure" and "map" keys added.
 
-        :param str id: PDB ID.
+        :param str pdb_id: PDB ID.
         :param str chain: PDB chain.
         :param str template: Dictionary describing template.
         :param pathlib.Path mmcif_file: Path object pointing to the MMCIF from
@@ -369,13 +370,13 @@ class ChainPDBBuilder(Component):
         mmcif_parser = MMCIFParser()
         pdbio = Bio.PDB.PDBIO()
 
-        id = id.lower()
-        middle = id[1:3]
+        pdb_id = pdb_id.lower()
+        middle = pdb_id[1:3]
         pdb_dir = self.pdb_dir / middle
         map_dir = self.map_dir / middle
 
         with gzip.open(str(mmcif_file), "rt") as mmcif_fh:
-            structure = mmcif_parser.get_structure(id, mmcif_fh)
+            structure = mmcif_parser.get_structure(pdb_id, mmcif_fh)
         struc_model = next(structure.get_models())
 
         templates = []
@@ -386,11 +387,11 @@ class ChainPDBBuilder(Component):
             struc_chain, res_map = self.sanitise_chain(conformation)
 
             if len(mutations) > 1:
-                pdb_file = pdb_dir / "{}_{}-{}.pdb".format(id, chain, index+1)
-                map_file = map_dir / "{}_{}-{}.json".format(id, chain, index+1)
+                pdb_file = pdb_dir / "{}_{}-{}.pdb".format(pdb_id, chain, index+1)
+                map_file = map_dir / "{}_{}-{}.json".format(pdb_id, chain, index+1)
             else:
-                pdb_file = pdb_dir / "{}_{}.pdb".format(id, chain)
-                map_file = map_dir / "{}_{}.json".format(id, chain)
+                pdb_file = pdb_dir / "{}_{}.pdb".format(pdb_id, chain)
+                map_file = map_dir / "{}_{}.json".format(pdb_id, chain)
 
             # Build mapping between sequence index and residue ID. This is just
             # an array of residue IDs that can be indexed in the same way as
@@ -410,7 +411,7 @@ class ChainPDBBuilder(Component):
 
             # Build a Bio.PDB.SeqRecord object containing this sequence.
             bio_seq = SeqRecord(
-                    id="{}_{}".format(id, chain),
+                    pdb_id="{}_{}".format(pdb_id, chain),
                     description="",
                     seq=Seq(pdb_seq)
             )
@@ -582,7 +583,7 @@ class HMMBuilder(Component):
             if (not hhm_file.exists()) or self.overwrite:
                 hhmake = hh.HHMake(
                     template["a3m"],
-                    output=hmm_file,
+                    output=hhm_file,
                     **self.hhmake_args
                 )
                 hhmake.run()
@@ -675,8 +676,8 @@ class DatabaseBuilder(Component):
         ff_dbs = {}
         db_prefix = pathlib.Path(self.basedir, self.db_prefix)
 
-        for type in to_collect:
-            db_name = pathlib.Path("{}_{}".format(str(db_prefix), type))
+        for file_type in to_collect:
+            db_name = pathlib.Path("{}_{}".format(str(db_prefix), file_type))
             ffindex = pathlib.Path("{}.ffindex".format(str(db_name)))
             ffdata = pathlib.Path("{}.ffdata".format(str(db_name)))
 
@@ -687,8 +688,8 @@ class DatabaseBuilder(Component):
                     ffdata.unlink()
 
             with tempfile.NamedTemporaryFile("w") as index:
-                # Write all files of type `type` to a temp file
-                for file in [template[type] for template in templates]:
+                # Write all files of file_type `file_type` to a temp file
+                for file in [template[file_type] for template in templates]:
                     print(file, file=index)
                 index.flush()
 
@@ -698,26 +699,27 @@ class DatabaseBuilder(Component):
                     ffdata, ffindex,
                     file_list=index.name,
                     **self.ffindex_args)
-                ff_dbs[type] = db_name
+                ffindex_builder.run()
+                ff_dbs[file_type] = db_name
 
             # Sort the indices
             ffindex_sorter = hh.FFIndexBuild(
-                "{}.ffdata".format(ff_dbs[type]),
-                "{}.ffindex".format(ff_dbs[type]),
+                "{}.ffdata".format(ff_dbs[file_type]),
+                "{}.ffindex".format(ff_dbs[file_type]),
                 append=True, sort=True,
                 **self.ffindex_args)
             ffindex_sorter.run()
 
         # Cut useless information from the indices of each file.
-        for type, ff_db in ff_dbs.items():
-            self._trim_index_names(templates, type, ff_db)
+        for ff_db in ff_dbs.values():
+            self._trim_index_names(ff_db)
 
         del data["templates"]
         data["database"] = str(db_prefix)
         return data
 
 
-    def _trim_index_names(self, templates, type, db):
+    def _trim_index_names(self, db):
         """Replace names of components in an ffindex with their stem.
 
         When we generate an index using ``ffindex_build``, the names of each
@@ -726,9 +728,6 @@ class DatabaseBuilder(Component):
         hhsearch, each name in the index must be consistent across database. To
         do that, we use the name of each template as the identifier.
         """
-
-        # Build a dictionary of file -> name
-        file_to_name = {t[type]: t["name"] for t in templates}
 
         index = "{}.ffindex".format(db)
         with fileinput.input(index, inplace=True) as fh:
