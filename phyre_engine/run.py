@@ -90,6 +90,14 @@ def init_logging(logging_dict):
     else:
         logging.config.dictConfig(default_log_config())
 
+def construct_yaml_tuple(self, node):
+    # Used to convert sequences from lists to tuples. Only applies to lists
+    # without any nested structures.
+    seq = self.construct_sequence(node)
+    if any(isinstance(e, (list, tuple, dict)) for e in seq):
+        return seq
+    return tuple(seq)
+
 def main():  # IGNORE:C0111
     '''Command line options.'''
 
@@ -101,6 +109,9 @@ def main():  # IGNORE:C0111
 
         # Parse pipeline descriptor from YAML file
         with open(args.pipeline, "r") as yml_in:
+            SafeLoader.add_constructor(
+                'tag:yaml.org,2002:seq',
+                construct_yaml_tuple)
             config = yaml.load(yml_in, SafeLoader)
 
         # Set up logging if a logging section was given in the pipeline

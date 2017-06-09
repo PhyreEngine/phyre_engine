@@ -106,10 +106,30 @@ class Pipeline:
 
 
     @staticmethod
-    def load_component(dotted_name, arg_list=None):
-        mod_name, cls_name = dotted_name.rsplit(".", maxsplit=1)
+    def _load_component(dotted_name, arg_list=None):
+        """
+        Load a component specified by either a dotted string or a module name
+        and dotted string.
+
+        The parameter ``dotted_name`` may be a tuple or a string. If it is a
+        tuple, then the first element is assumed to be a module and the second
+        element the class name. Nested classes are allowed.
+
+        If ``dotted_name`` is a string, it is assumed that the class name is the
+        final component and the module name everything before that. Nested
+        classes may not be used.
+        """
+
+        if isinstance(dotted_name, str):
+            mod_name, cls_name = dotted_name.rsplit(".", maxsplit=1)
+        else:
+            mod_name, cls_name = dotted_name
+
         module = importlib.import_module(mod_name)
-        component_cls = getattr(module, cls_name)
+        nested_cls_names = cls_name.split(".")
+        component_cls = getattr(module, nested_cls_names[0])
+        for nested_cls_name in nested_cls_names[1:]:
+            component_cls = getattr(component_cls, nested_cls_name)
 
         # Collect *args and **kwargs
         args = []
@@ -183,11 +203,11 @@ class Pipeline:
         component_descriptions = pipeline_dict.pop("components", [])
         components = []
         for description in component_descriptions:
-            if isinstance(description, str):
-                component = cls.load_component(description)
-            elif isinstance(description, dict):
+            if isinstance(description, dict):
                 for cls_name, arg_list in description.items():
-                    component = cls.load_component(cls_name, arg_list)
+                    component = cls._load_component(cls_name, arg_list)
+            else:
+                component = cls._load_component(description)
             components.append(component)
         return cls(components=components, **pipeline_dict)
 
