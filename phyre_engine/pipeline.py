@@ -1,6 +1,7 @@
 """Provides classes for building, checking and executing pipelines."""
 
 import copy
+import importlib
 
 class Pipeline:
     """Pipeline containing a list of components to be executed.
@@ -102,6 +103,94 @@ class Pipeline:
 
         if len(missing) > 0:
             raise Pipeline.ValidationError(component, missing, blob)
+
+
+    @staticmethod
+    def load_component(dotted_name, arg_list=None):
+        mod_name, cls_name = dotted_name.rsplit(".", maxsplit=1)
+        module = importlib.import_module(mod_name)
+        component_cls = getattr(module, cls_name)
+
+        # Collect *args and **kwargs
+        args = []
+        kwargs = {}
+        for arg in arg_list if arg_list else []:
+            if isinstance(arg, dict):
+                kwargs.update(arg)
+            else:
+                args.append(arg)
+        return component_cls(*args, **kwargs)
+
+    @classmethod
+    def load(cls, pipeline_dict):
+        """
+        Create a pipeline from a dictionary describing a pipeline.
+
+        The dictionary must contain the top-level field ``components``, which
+        should contain a list of strings giving the absolute name of each
+        component that should be loaded.
+
+        Alternatively, a component may be specified by a dictionary, in which
+        case each key of the dictionary is treated as a component name and the
+        values as arguments to be passed to the component constructor.
+
+        Any other arguments are passed to the constructor of the pipeline.
+
+        Consider the following ``pipeline_dict``:
+
+        .. highlight:: python
+
+            {
+                "checkpoint": "checkpoint_file.chk",
+                "start": {"abc": 123, "xyz":789},
+                "components": [
+                    "phyre_engine.component.dummy.Foo",
+                    "phyre_engine.component.dummy.Bar", {
+                        "phyre_engine.component.dummy.Baz": [
+                            "arg1", "arg2", {
+                                "named_arg1": "value1",
+                                "named_arg2": "value2",
+                            }
+                        ]
+                    },
+                    "phyre_engine.component.dummy.Qux",
+                ]
+            }
+
+        This will load a pipeline containing the components ``Foo``, ``Bar``,
+        ``Baz`` and ``Qux``, each from the ``phyre_engine.component.dummy``
+        package. The pipeline will be initialised with the argument
+        ``checkpoint="checkpoint_file.chk"`` and ``start={...}``.
+
+        The ``Foo``, ``Bar`` and ``Qux`` components will be intitialised with
+        a default empty constructor; the ``Baz`` component will be initialised
+        like so:
+
+        .. highlight:: python
+
+            phyre_engine.component.dummy.Baz(
+                "arg1", "arg2",
+                named_arg1="value1", named_arg2="value2")
+
+        .. warning::
+
+            Components specified as dictionaries should be specified with *one*
+            component per dictionary. Dictionaries do not preserve ordering, so
+            passing multiple components in a dictionary can easily break your
+            pipeline.
+
+        """
+        component_descriptions = pipeline_dict.pop("components", [])
+        components = []
+        for description in component_descriptions:
+            if isinstance(description, str):
+                component = cls.load_component(description)
+            elif isinstance(description, dict):
+                for cls_name, arg_list in description.items():
+                    component = cls.load_component(cls_name, arg_list)
+            components.append(component)
+        return cls(components=components, **pipeline_dict)
+
 
 
     class ValidationError(Exception):
