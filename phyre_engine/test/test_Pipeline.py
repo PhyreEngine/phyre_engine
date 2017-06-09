@@ -2,6 +2,15 @@ import unittest
 from phyre_engine.component import Component
 from phyre_engine import Pipeline
 
+class MockNonNestedComponent(Component):
+    """Non-nested component."""
+    REQUIRED = []
+    ADDS = []
+    REMOVES = []
+
+    def run(self, data):
+        return data
+
 class TestPipeline(unittest.TestCase):
     """Check that we can assemble, validate and execute pipelines."""
 
@@ -21,6 +30,11 @@ class TestPipeline(unittest.TestCase):
         REQUIRED = ["MCA_1"]
         ADDS = ["MCB_1"]
         REMOVES = ["MCA_1"]
+
+        def __init__(self, *args, **kwargs):
+            """Store args so they can be checked later."""
+            self.args = args
+            self.kwargs = kwargs
 
         def run(self, data):
             del data["MCA_1"]
@@ -89,3 +103,39 @@ class TestPipeline(unittest.TestCase):
             pipe.run()
         self.assertSetEqual(set(cm.exception.missing), set(["MCA_1"]))
         self.assertDictEqual({}, cm.exception.data)
+
+    def test_load_from_dict(self):
+        """Load a pipeline from a dictionary of components."""
+        def qualname_nested(cls):
+            return (cls.__module__, cls.__qualname__)
+        def qualname_nonnested(cls):
+            return "{}.{}".format(cls.__module__, cls.__qualname__)
+
+        dict_pipe = {
+            "start": {"abc": 123, "xyz": 789},
+            "components": [
+                qualname_nested(TestPipeline.MockComponentStart), {
+                    qualname_nested(TestPipeline.MockComponentMid): [
+                        "foo", "bar", {"baz":"qux"}
+                    ]
+                },
+                qualname_nonnested(MockNonNestedComponent)
+            ]
+        }
+        pipe = Pipeline.load(dict_pipe)
+        self.assertDictEqual(
+            pipe.start,
+            dict_pipe["start"],
+            "'Start' argument correctly passed to pipeline.")
+
+        self.assertIsInstance(
+            pipe.components[0],
+            TestPipeline.MockComponentStart)
+        self.assertIsInstance(
+            pipe.components[1],
+            TestPipeline.MockComponentMid)
+        self.assertIsInstance(
+            pipe.components[2],
+            MockNonNestedComponent)
+        self.assertTupleEqual(pipe.components[1].args, ("foo", "bar"))
+        self.assertDictEqual(pipe.components[1].kwargs, {"baz": "qux"})
