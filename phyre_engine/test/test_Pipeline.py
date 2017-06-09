@@ -1,6 +1,10 @@
 import unittest
 from phyre_engine.component import Component
 from phyre_engine import Pipeline
+import tempfile
+import pickle
+from phyre_engine.pipeline import Checkpoint
+import pathlib
 
 class MockNonNestedComponent(Component):
     """Non-nested component."""
@@ -139,3 +143,56 @@ class TestPipeline(unittest.TestCase):
             MockNonNestedComponent)
         self.assertTupleEqual(pipe.components[1].args, ("foo", "bar"))
         self.assertDictEqual(pipe.components[1].kwargs, {"baz": "qux"})
+
+    def test_checkpointing(self):
+        """Test that we can save and load checkpoints."""
+
+        start_cpt = TestPipeline.MockComponentStart()
+        mid_cpt = TestPipeline.MockComponentMid()
+        # Introduce a "bug" that we can try and fix.
+        def crash(_data):
+            raise RuntimeError("Bad things")
+        mid_cpt.run = crash
+
+        with tempfile.TemporaryDirectory() as tempdir:
+            check_file = pathlib.Path(tempdir, "checkpoint.chk")
+
+            pipe = Pipeline([
+                start_cpt,
+                mid_cpt,
+            ], checkpoint=check_file)
+
+            try:
+                pipe.run()
+            except RuntimeError:
+                pass
+
+            with check_file.open("rb") as check_in:
+                checkpoint = pickle.load(check_in)
+
+            self.assertEqual(
+                checkpoint.current_component, 1,
+                "Checkpoint points to correct component")
+            self.assertDictEqual(
+                {"MCA_1": "MCA_1", "MCA_2": "MCA_2"},
+                checkpoint.state,
+                "Checkpoint contains pipeline state")
+
+            # Alter state to verify component 0 wasn't re-run
+            checkpoint = Checkpoint(1, {"MCA_1": "foo", "MCA_2": "bar"})
+            with check_file.open("wb") as check_out:
+                checkpoint = pickle.dump(checkpoint, check_out)
+
+            # "Fix" pipeline
+            mid_cpt = TestPipeline.MockComponentMid()
+            pipe = Pipeline([
+                start_cpt,
+                mid_cpt,
+            ], checkpoint=check_file)
+            result = pipe.run()
+            with check_file.open("rb") as check_in:
+                checkpoint = pickle.load(check_in)
+
+            self.assertDictContainsSubset(
+                checkpoint.state, result,
+                "Pipeline didn't alter previously-run data")

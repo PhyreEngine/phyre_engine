@@ -2,6 +2,16 @@
 
 import copy
 import importlib
+from collections import namedtuple
+import pickle
+import pathlib
+
+#: Allows the state of the pipeline to be saved.
+#: :param int current_component: Index of the currently-running component. This
+#:     component will be started if the pipeline is resumed fromn this
+#:     checkpoint.
+#: :param dict state: Data in the pipeline.
+Checkpoint = namedtuple("Checkpoint", ["current_component", "state"])
 
 class Pipeline:
     """Pipeline containing a list of components to be executed.
@@ -32,12 +42,15 @@ class Pipeline:
     :param components: Optional list of component objects.
     :type components: List of :class:`phyre_engine.component.Component` objects
     :param dict start: Starting elements to include in the key-value map.
+    :param str checkpoint: Path of a checkpoint file in which to load and save
+        pipeline state.
     """
 
-    def __init__(self, components=None, start=None):
+    def __init__(self, components=None, start=None, checkpoint=None):
         """Initialise a new pipeline with an optional list of components."""
         self.components = components if components else []
         self.start = start if start else {}
+        self.checkpoint = checkpoint
 
     def validate(self):
         """Validate that the inputs and outptuts of each component match.
@@ -76,11 +89,25 @@ class Pipeline:
             promises and add a key that the next component requires.
         """
 
-        blob = copy.copy(self.start)
-        for cmpt in self.components:
-            self.validate_runtime(blob, cmpt)
-            blob = cmpt.run(blob)
-        return blob
+        checkpoint = None
+        if self.checkpoint is not None:
+            checkpoint_file = pathlib.Path(self.checkpoint)
+            if checkpoint_file.exists():
+                with checkpoint_file.open("rb") as check_in:
+                    checkpoint = pickle.load(check_in)
+
+        if checkpoint is None:
+            checkpoint = Checkpoint(0, copy.copy(self.start))
+
+        for cmpt in self.components[checkpoint.current_component:]:
+            self.validate_runtime(checkpoint.state, cmpt)
+            state = cmpt.run(checkpoint.state)
+            checkpoint = Checkpoint(checkpoint.current_component + 1, state)
+
+            if self.checkpoint is not None:
+                with checkpoint_file.open("wb") as check_out:
+                    pickle.dump(checkpoint, check_out)
+        return checkpoint.state
 
 
     def validate_runtime(self, blob, component):
