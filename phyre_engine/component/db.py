@@ -411,7 +411,7 @@ class ChainPDBBuilder(Component):
 
             # Build a Bio.PDB.SeqRecord object containing this sequence.
             bio_seq = SeqRecord(
-                    pdb_id="{}_{}".format(pdb_id, chain),
+                    id="{}_{}".format(pdb_id, chain),
                     description="",
                     seq=Seq(pdb_seq)
             )
