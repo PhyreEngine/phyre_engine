@@ -1,6 +1,17 @@
 """Provides classes for building, checking and executing pipelines."""
 
 import copy
+import importlib
+from collections import namedtuple
+import pickle
+import pathlib
+
+#: Allows the state of the pipeline to be saved.
+#: :param int current_component: Index of the currently-running component. This
+#:     component will be started if the pipeline is resumed fromn this
+#:     checkpoint.
+#: :param dict state: Data in the pipeline.
+Checkpoint = namedtuple("Checkpoint", ["current_component", "state"])
 
 class Pipeline:
     """Pipeline containing a list of components to be executed.
@@ -31,12 +42,15 @@ class Pipeline:
     :param components: Optional list of component objects.
     :type components: List of :class:`phyre_engine.component.Component` objects
     :param dict start: Starting elements to include in the key-value map.
+    :param str checkpoint: Path of a checkpoint file in which to load and save
+        pipeline state.
     """
 
-    def __init__(self, components=None, start=None):
+    def __init__(self, components=None, start=None, checkpoint=None):
         """Initialise a new pipeline with an optional list of components."""
         self.components = components if components else []
         self.start = start if start else {}
+        self.checkpoint = checkpoint
 
     def validate(self):
         """Validate that the inputs and outptuts of each component match.
@@ -75,11 +89,25 @@ class Pipeline:
             promises and add a key that the next component requires.
         """
 
-        blob = copy.copy(self.start)
-        for cmpt in self.components:
-            self.validate_runtime(blob, cmpt)
-            blob = cmpt.run(blob)
-        return blob
+        checkpoint = None
+        if self.checkpoint is not None:
+            checkpoint_file = pathlib.Path(self.checkpoint)
+            if checkpoint_file.exists():
+                with checkpoint_file.open("rb") as check_in:
+                    checkpoint = pickle.load(check_in)
+
+        if checkpoint is None:
+            checkpoint = Checkpoint(0, copy.copy(self.start))
+
+        for cmpt in self.components[checkpoint.current_component:]:
+            self.validate_runtime(checkpoint.state, cmpt)
+            state = cmpt.run(checkpoint.state)
+            checkpoint = Checkpoint(checkpoint.current_component + 1, state)
+
+            if self.checkpoint is not None:
+                with checkpoint_file.open("wb") as check_out:
+                    pickle.dump(checkpoint, check_out)
+        return checkpoint.state
 
 
     def validate_runtime(self, blob, component):
@@ -102,6 +130,114 @@ class Pipeline:
 
         if len(missing) > 0:
             raise Pipeline.ValidationError(component, missing, blob)
+
+
+    @staticmethod
+    def _load_component(dotted_name, arg_list=None):
+        """
+        Load a component specified by either a dotted string or a module name
+        and dotted string.
+
+        The parameter ``dotted_name`` may be a tuple or a string. If it is a
+        tuple, then the first element is assumed to be a module and the second
+        element the class name. Nested classes are allowed.
+
+        If ``dotted_name`` is a string, it is assumed that the class name is the
+        final component and the module name everything before that. Nested
+        classes may not be used.
+        """
+
+        if isinstance(dotted_name, str):
+            mod_name, cls_name = dotted_name.rsplit(".", maxsplit=1)
+        else:
+            mod_name, cls_name = dotted_name
+
+        module = importlib.import_module(mod_name)
+        nested_cls_names = cls_name.split(".")
+        component_cls = getattr(module, nested_cls_names[0])
+        for nested_cls_name in nested_cls_names[1:]:
+            component_cls = getattr(component_cls, nested_cls_name)
+
+        # Collect *args and **kwargs
+        args = []
+        kwargs = {}
+        for arg in arg_list if arg_list else []:
+            if isinstance(arg, dict):
+                kwargs.update(arg)
+            else:
+                args.append(arg)
+        return component_cls(*args, **kwargs)
+
+    @classmethod
+    def load(cls, pipeline_dict):
+        """
+        Create a pipeline from a dictionary describing a pipeline.
+
+        The dictionary must contain the top-level field ``components``, which
+        should contain a list of strings giving the absolute name of each
+        component that should be loaded.
+
+        Alternatively, a component may be specified by a dictionary, in which
+        case each key of the dictionary is treated as a component name and the
+        values as arguments to be passed to the component constructor.
+
+        Any other arguments are passed to the constructor of the pipeline.
+
+        Consider the following ``pipeline_dict``:
+
+        .. highlight:: python
+
+            {
+                "checkpoint": "checkpoint_file.chk",
+                "start": {"abc": 123, "xyz":789},
+                "components": [
+                    "phyre_engine.component.dummy.Foo",
+                    "phyre_engine.component.dummy.Bar", {
+                        "phyre_engine.component.dummy.Baz": [
+                            "arg1", "arg2", {
+                                "named_arg1": "value1",
+                                "named_arg2": "value2",
+                            }
+                        ]
+                    },
+                    "phyre_engine.component.dummy.Qux",
+                ]
+            }
+
+        This will load a pipeline containing the components ``Foo``, ``Bar``,
+        ``Baz`` and ``Qux``, each from the ``phyre_engine.component.dummy``
+        package. The pipeline will be initialised with the argument
+        ``checkpoint="checkpoint_file.chk"`` and ``start={...}``.
+
+        The ``Foo``, ``Bar`` and ``Qux`` components will be intitialised with
+        a default empty constructor; the ``Baz`` component will be initialised
+        like so:
+
+        .. highlight:: python
+
+            phyre_engine.component.dummy.Baz(
+                "arg1", "arg2",
+                named_arg1="value1", named_arg2="value2")
+
+        .. warning::
+
+            Components specified as dictionaries should be specified with *one*
+            component per dictionary. Dictionaries do not preserve ordering, so
+            passing multiple components in a dictionary can easily break your
+            pipeline.
+
+        """
+        component_descriptions = pipeline_dict.pop("components", [])
+        components = []
+        for description in component_descriptions:
+            if isinstance(description, dict):
+                for cls_name, arg_list in description.items():
+                    component = cls._load_component(cls_name, arg_list)
+            else:
+                component = cls._load_component(description)
+            components.append(component)
+        return cls(components=components, **pipeline_dict)
+
 
 
     class ValidationError(Exception):
