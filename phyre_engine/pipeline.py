@@ -82,7 +82,7 @@ class Pipeline:
                 if removed in keys:
                     keys.remove(removed)
 
-    def run(self):
+    def run(self, start_index=0):
         """Run this pipeline, executing each component in turn.
 
         :returns: Modified data dictionary, with results added by components.
@@ -99,7 +99,7 @@ class Pipeline:
                     checkpoint = pickle.load(check_in)
 
         if checkpoint is None:
-            checkpoint = Checkpoint(0, copy.copy(self.start))
+            checkpoint = Checkpoint(start_index, copy.copy(self.start))
 
         for cmpt in self.components[checkpoint.current_component:]:
             self.validate_runtime(checkpoint.state, cmpt)
