@@ -119,6 +119,7 @@ def main():  # IGNORE:C0111
 
         # Load a pipeline
         pipeline = Pipeline.load(config["pipeline"])
+        pipeline.run()
 
         return 0
     except KeyboardInterrupt:
