@@ -29,7 +29,7 @@ class HHBlits(Component):
         self._database = database
         self._args = args
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         """Build a sequence profile using hhblits.
 
         Reads a single sequence from the file with the path given by input.
@@ -83,7 +83,7 @@ class HHSearch(Component):
         self._database = database
         self._args = args
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         """Search a sequence profile against an hhsearch database.
 
         This component will not parse the output files.
@@ -116,7 +116,7 @@ class ReportParser(Component):
     ADDS = ["hits"]
     REMOVES = []
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         """Parse report file and atab file into an array of hits."""
 
         atab_file, report_file = self.get_vals(data)

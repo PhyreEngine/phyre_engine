@@ -12,7 +12,7 @@ class MockNonNestedComponent(Component):
     ADDS = []
     REMOVES = []
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         return data
 
 class TestPipeline(unittest.TestCase):
@@ -24,7 +24,7 @@ class TestPipeline(unittest.TestCase):
         ADDS = ["MCA_1", "MCA_2"]
         REMOVES = []
 
-        def run(self, data):
+        def run(self, data, config=None, pipeline=None):
             data["MCA_1"] = "MCA_1"
             data["MCA_2"] = "MCA_2"
             return data
@@ -40,7 +40,7 @@ class TestPipeline(unittest.TestCase):
             self.args = args
             self.kwargs = kwargs
 
-        def run(self, data):
+        def run(self, data, config=None, pipeline=None):
             del data["MCA_1"]
             data["MCB_1"] = "MCB_1"
             return data
@@ -51,7 +51,7 @@ class TestPipeline(unittest.TestCase):
         ADDS = ["MCA_1"]
         REMOVES = []
 
-        def run(self, data):
+        def run(self, data, config=None, pipeline=None):
             return data
 
     def test_valid(self):
@@ -150,7 +150,7 @@ class TestPipeline(unittest.TestCase):
         start_cpt = TestPipeline.MockComponentStart()
         mid_cpt = TestPipeline.MockComponentMid()
         # Introduce a "bug" that we can try and fix.
-        def crash(_data):
+        def crash(_data, _config, _pipeline):
             raise RuntimeError("Bad things")
         mid_cpt.run = crash
 

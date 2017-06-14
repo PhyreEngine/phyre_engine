@@ -12,7 +12,7 @@ class FastaInput(Component):
     ADDS     = ['sequence']
     REMOVES  = []
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         """Read the sequence from a FASTA file.
 
         Reads a single sequence from the file with the path given by input.
@@ -51,7 +51,7 @@ class MultipleFastaInput(Component):
     ADDS = ["templates"]
     REMOVES = []
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         """Read multiple sequences from a FASTA file."""
         input = self.get_vals(data)
         templates = []

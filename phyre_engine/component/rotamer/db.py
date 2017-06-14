@@ -23,7 +23,7 @@ class GroupRotamers(Component):
     ADDS = ["rotamer_dict"]
     REMOVES = []
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         """Collect residues into a group of rotamers."""
         residues = self.get_vals(data)
         rotamer_dict = {}
@@ -51,7 +51,7 @@ class RotamerScaleFactors(Component):
         self.concentration = concentration
         self.alpha = alpha
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         """
         Calculate pilot densities at each data point.
 
@@ -315,7 +315,7 @@ class CreateRotamerLibrary(Component):
         # Probability of each rotamer
         return {r: len(s) / num_data_points for r, s in rotamer_dict.items()}
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         r"""
         Calculate probability of a residue adopting a particular rotamer at a
         range of :math:`\phi` and :math:`\psi` angles.
@@ -379,7 +379,7 @@ class IndependentRotamerAngles(Component):
             rotamer_dict[rot].append(residue)
         return rotamer_dict
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         residues = data["residues"]
         rotamer_library = data["rotamer_library"]
 
@@ -529,7 +529,7 @@ class CalculateRotamerAngles(Component):
 
         return mean
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         all_residues, rotamer_dict, rotamer_library = self.get_vals(data)
 
         for aa, aa_residues in collect_aas(all_residues).items():
@@ -643,7 +643,7 @@ class WriteRotamerLibrary(Component):
         """
         self.output_file = output_file
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         rotamer_library = self.get_vals(data)
         with open(self.output_file, "w") as out_fh:
             for aa, aa_dict in rotamer_library.items():

@@ -11,7 +11,7 @@ class MockComponent(Component):
     ADDS = []
     REMOVES = []
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         data["out"] = [x**2 for x in data["in"]]
         return data
 

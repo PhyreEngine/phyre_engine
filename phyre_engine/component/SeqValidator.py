@@ -10,7 +10,7 @@ class SeqValidator(Component):
     ADDS     = []
     REMOVES  = []
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         """Validate the ``sequence`` key.
 
         The ``sequence`` key of ``data`` should be a ``Bio.SeqRecord``-like

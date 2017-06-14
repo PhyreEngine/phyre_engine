@@ -91,7 +91,7 @@ class ParallelComponent(Component):
         self.environment = environment if environment else {}
         self.qsub_flags = qsub_flags if environment else {}
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         """Submit this job to the queue system and wait until all tasks are
         complete. This method will submit an array job (``qsub -t``).
 

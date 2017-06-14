@@ -8,13 +8,13 @@ class TestComponent(unittest.TestCase):
         REQUIRED = ["a"]
         ADDS = []
         REMOVES = []
-        def run(self, data): pass
+        def run(self, data, config=None, pipeline=None): pass
 
     class MockComponentList(Component):
         REQUIRED = ["a", "b"]
         ADDS = []
         REMOVES = []
-        def run(self, data): pass
+        def run(self, data, config=None, pipeline=None): pass
 
     def test_get_vals(self):
         data = {"a":123, "b":456}

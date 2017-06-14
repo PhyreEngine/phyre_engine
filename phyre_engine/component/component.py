@@ -47,7 +47,7 @@ class Component(ABC):
             return [data[x] for x in type(self).REQUIRED]
 
     @abstractmethod
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         """Run this component.
 
         This method must be implemented by all subclasses of Component.
