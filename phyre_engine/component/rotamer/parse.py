@@ -108,7 +108,7 @@ class CsvParser(Component):
         if "chi" not in self.mapping:
             self.mapping["chi"] = ("chi1", "chi2", "chi3", "chi4")
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         """
         Parse a CSV file and add the ``residues`` key to `data`.
 

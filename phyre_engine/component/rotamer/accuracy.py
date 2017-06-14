@@ -215,7 +215,7 @@ class ConditionalAccuracy(SidechainAccuracy):
     ``sidechain_accuracy`` dictionary of each element of the ``models`` array.
     """
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         models = self.get_vals(data)
         for native, model, result in self._models(models):
             num_correct, num_incorrect = self._count_dicts()
@@ -243,7 +243,7 @@ class AbsoluteAccuracy(SidechainAccuracy):
     dictionary of each element of the ``models`` array.
     """
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         models = self.get_vals(data)
         for native, model, result in self._models(models):
             num_correct, num_incorrect = self._count_dicts()
@@ -293,7 +293,7 @@ class PerResidueRMSD(SidechainMetric):
             yield n_atm, m_atm
 
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         models = self.get_vals(data)
         for native, model, result in self._models(models):
             rmsds = {aa: []

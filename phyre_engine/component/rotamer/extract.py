@@ -185,7 +185,7 @@ class AngleExtractor(AngleExtractorBase):
     ADDS = ["residues"]
     REMOVES = ["pdbs"]
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         """
         For each residue in each PDB given in the ``pdbs`` array of `data`,
         extract all residues and calculate the phi, psi and chi angles (that is,
@@ -258,7 +258,7 @@ class AngleExtractorPickle(AngleExtractorBase):
         super().__init__(args)
         self.pickle_file = pickle_file
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         with open(self.pickle_file, "wb") as pickle_fh:
             pdbs = self.get_vals(data)
             for residue, exception in self._residues(pdbs):
@@ -299,7 +299,7 @@ class AssignRotamers(Component):
         """
         self.rotamers = rotamers
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         """
         Add a ``rotamer`` key to each residue.
         """

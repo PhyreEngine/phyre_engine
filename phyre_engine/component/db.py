@@ -33,7 +33,7 @@ class NameTemplate(Component):
         """
         self.name_fn = name_fn
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         templates = self.get_vals(data)
         for template in templates:
             template["name"] = self.name_fn(template)
@@ -58,7 +58,7 @@ class DescribeTemplate(Component):
         """
         self.description_fn = description_fn
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         templates = self.get_vals(data)
         for template in templates:
             template["sequence"].description = self.description_fn(template)
@@ -108,7 +108,7 @@ class RCSBClusterDownload(Component):
 
         self.filename = filename
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         """Download and parse the cluster file.
 
         :param data: Data carried through the pipeline.
@@ -145,7 +145,7 @@ class ClusterParser(Component):
     ADDS     = ['clusters']
     REMOVES  = []
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         """Download and parse the cluster file.
 
         :param data: Data carried through the pipeline.
@@ -178,7 +178,7 @@ class SimpleRepresentativePicker(Component):
     ADDS     = ['templates']
     REMOVES  = []
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         """Extract representatives."""
 
         clusters = self.get_vals(data)
@@ -235,7 +235,7 @@ class ChainPDBBuilder(Component):
         self.mutation_selector = mutation_selector
         self.microhet_selector = microhet_selector
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         """Run the component."""
         templates = self.get_vals(data)
 
@@ -499,7 +499,7 @@ class MSABuilder(Component):
         self.overwrite = overwrite
         self.basedir = pathlib.Path(basedir)
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         templates = self.get_vals(data)
 
         msa_path = self.basedir / "a3m"
@@ -539,7 +539,7 @@ class AddSecondaryStructure(Component):
     ADDS = []
     REMOVES = []
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         templates = self.get_vals(data)
 
         for template in templates:
@@ -570,7 +570,7 @@ class HMMBuilder(Component):
         self.basedir = pathlib.Path(basedir)
         self.hhmake_args = hhmake_args
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         templates = self.get_vals(data)
         hhm_path = self.basedir / "hhm"
         hhm_path.mkdir(exist_ok=True)
@@ -610,7 +610,7 @@ class CS219Builder(Component):
         self.basedir = pathlib.Path(basedir)
         self.cstranslate_args = cstranslate_args
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         hhlib = os.environ["HHLIB"]
 
         templates = self.get_vals(data)
@@ -664,7 +664,7 @@ class DatabaseBuilder(Component):
         self.basedir = basedir
         self.ffindex_args = ffindex_args
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         """Collect and index the files that form an hhsuite database."""
         templates = self.get_vals(data)
 

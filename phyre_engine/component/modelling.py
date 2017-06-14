@@ -33,7 +33,7 @@ class HomologyModeller(Component):
         """
         self.mmcif_dir = mmcif_dir
 
-    def run(self, data):
+    def run(self, data, config=None, pipeline=None):
         """
         Run the modeller.
         """

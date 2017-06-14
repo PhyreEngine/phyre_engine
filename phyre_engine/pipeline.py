@@ -46,11 +46,13 @@ class Pipeline:
         pipeline state.
     """
 
-    def __init__(self, components=None, start=None, checkpoint=None):
+    def __init__(self, components=None, start=None, checkpoint=None,
+                 config=None):
         """Initialise a new pipeline with an optional list of components."""
         self.components = components if components else []
         self.start = start if start else {}
         self.checkpoint = checkpoint
+        self.config = config
 
     def validate(self):
         """Validate that the inputs and outptuts of each component match.
@@ -101,7 +103,7 @@ class Pipeline:
 
         for cmpt in self.components[checkpoint.current_component:]:
             self.validate_runtime(checkpoint.state, cmpt)
-            state = cmpt.run(checkpoint.state)
+            state = cmpt.run(checkpoint.state, self.config, self)
             checkpoint = Checkpoint(checkpoint.current_component + 1, state)
 
             if self.checkpoint is not None:
