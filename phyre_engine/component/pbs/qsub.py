@@ -140,9 +140,9 @@ class Qsub(Component):
                 stdout=subprocess.PIPE,
                 universal_newlines=True)
 
-        stdout, _ = process.communicate()
-        job_id = stdout.rstrip("\n")
-        return job_id
+            stdout, _ = process.communicate()
+            job_id = stdout.rstrip("\n")
+            return job_id
 
     def _qsub_resume(self, num_jobs, job_id):
         resume_qsub_cmd = [
@@ -164,6 +164,6 @@ class Qsub(Component):
                 stdout=subprocess.PIPE,
                 universal_newlines=True)
 
-        stdout, _ = process.communicate()
-        job_id = stdout.rstrip("\n")
-        return job_id
+            stdout, _ = process.communicate()
+            job_id = stdout.rstrip("\n")
+            return job_id
