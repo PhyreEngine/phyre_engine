@@ -154,7 +154,7 @@ class Qsub(Component):
         with tempfile.NamedTemporaryFile("w") as jobfile:
             # Write jobscript to temp file and append it to the command line
             script = jobscript.ResumeScript(
-                num_jobs, self.storage_dir, self.slice_out)
+                num_jobs, self.slice_out, self.storage_dir)
             jobfile.write(str(script))
             jobfile.flush()
             resume_qsub_cmd.append(jobfile.name)
