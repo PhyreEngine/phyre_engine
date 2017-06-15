@@ -42,7 +42,7 @@ def main():  # IGNORE:C0111
         state = None
         for i in range(0, args.num_jobs):
             state_file = storage_dir / qsub.WORKER_STATE.format(i)
-            with open(state_file, "rb") as state_in:
+            with state_file.open("rb") as state_in:
                 sub_state = pickle.load(state_in)
                 if not isinstance(sub_state, qsub.CompletedState):
                     raise ValueError("No data in {}".format(state_file))
@@ -53,7 +53,7 @@ def main():  # IGNORE:C0111
                     state[args.join_var].extend(sub_state.data[args.join_var])
 
         # Get the pipeline to resume
-        with open(storage_dir / qsub.RESUME_PIPELINE, "rb") as pipe_in:
+        with (storage_dir / qsub.RESUME_PIPELINE).open("rb") as pipe_in:
             pipe_state = pickle.load(pipe_in)
             pipe_state.pipeline.start = state
             # Initialise loggers
