@@ -255,7 +255,7 @@ class AngleExtractorPickle(AngleExtractorBase):
             return self.res
 
     def __init__(self, pickle_file, *args):
-        super().__init__(args)
+        super().__init__(*args)
         self.pickle_file = pickle_file
 
     def run(self, data, config=None, pipeline=None):
