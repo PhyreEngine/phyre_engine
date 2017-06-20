@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import phyre_engine
 import collections
+from phyre_engine.pipeline import ExpectedExit
 
 r"""
 Components for running sub-pipelines on PBS nodes.
@@ -117,7 +118,9 @@ class Qsub(Component):
         num_jobs = self._slice_state(data, config)
         main_job_id = self._qsub_start(num_jobs)
         resume_job_id = self._qsub_resume(num_jobs, main_job_id)
-        raise StopIteration
+        raise ExpectedExit((
+            "Stopping master process and running worker job {}. Resuming as "
+            "PBS job {}.").format(main_job_id, resume_job_id))
 
     def _qsub_start(self, num_jobs):
         start_qsub_cmd = [
