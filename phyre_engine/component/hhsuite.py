@@ -4,8 +4,63 @@ import phyre_engine.tools.hhsuite.tool as tools
 import phyre_engine.tools.hhsuite.parser as parser
 from tempfile import NamedTemporaryFile
 import Bio.SeqIO
+import abc
+from phyre_engine.tools.util import TemporaryEnvironment
 
-class HHBlits(Component):
+class HHSuiteTool(Component, metaclass=abc.ABCMeta):
+    """
+    Base class for running hh-suite tools.
+
+    This class takes care of temporarily setting the ``HHLIB`` environment
+    variable before calling any executables, and extracting program names from
+    the pipeline configuration.
+
+    If it exists, this pipeline examines the ``hhsuite`` key of the pipeline
+    configuration for the following keys:
+
+    HHLIB:
+        The ``HHLIB`` environment variable will temporarily be set to this value
+        before any executables are called.
+
+    bin:
+        Directory containing hh-suite executables.
+
+    Subclasses must define the ``execute`` method, which takes the same
+    arguments as the ``run`` method in addition to a set of arbitrary keyword
+    arguments that should be passed to the constructor of the hhsuite tool.
+    """
+
+    def run(self, data, config=None, pipeline=None):
+        env_vars = {}
+        hhsuite_bin_path = None
+
+        if config is not None and "hhsuite" in config:
+            if "HHLIB" in config["hhsuite"]:
+                env_vars["HHLIB"] = config["hhsuite"]["HHLIB"]
+            if "bin" in config["hhsuite"]:
+                hhsuite_bin_path = config["hhsuite"]["bin"]
+
+        with TemporaryEnvironment(**env_vars):
+            self.execute(
+                data, config, pipeline,
+                hhsuite_bin_path=hhsuite_bin_path)
+
+    @abc.abstractmethod
+    def execute(self, data, config, pipeline, **args):
+        pass
+
+class PathError(Exception):
+    """
+    Raised when an invalid combination of paths is supplied in the pipeline
+    config and tool constructors.
+    """
+
+    MSG = "Could not combine the following paths: {}."
+
+    def __init__(self, *paths):
+        super().__init__(self.MSG.format(paths))
+
+class HHBlits(HHSuiteTool):
     """Build an MSA from a query sequence using hhblits.
 
     :param str database: Path to an hhblits database.
@@ -29,7 +84,7 @@ class HHBlits(Component):
         self._database = database
         self._args = args
 
-    def run(self, data, config=None, pipeline=None):
+    def execute(self, data, config=None, pipeline=None, **args):
         """Build a sequence profile using hhblits.
 
         Reads a single sequence from the file with the path given by input.
@@ -51,12 +106,12 @@ class HHBlits(Component):
             hhblits = tools.HHBlits(
                     database=self._database, input=query_file.name,
                     output="report.hhr", oa3m=msa_name,
-                    **self._args)
+                    **self._args, **args)
             hhblits.run()
             data["profile_msa"] = msa_name
             return data
 
-class HHSearch(Component):
+class HHSearch(HHSuiteTool):
     """Search a profile MSA against an hhsearch library.
 
     :param str database: Path to an hhsearch database.
@@ -83,7 +138,7 @@ class HHSearch(Component):
         self._database = database
         self._args = args
 
-    def run(self, data, config=None, pipeline=None):
+    def execute(self, data, config=None, pipeline=None, **args):
         """Search a sequence profile against an hhsearch database.
 
         This component will not parse the output files.
@@ -95,7 +150,7 @@ class HHSearch(Component):
         hhsearch = tools.HHSearch(
                 database=self._database, input=profile_msa,
                 output=report_name, atab=atab_name,
-                **self._args)
+                **self._args, **args)
         hhsearch.run()
         data["hhsearch_atab"] = atab_name
         data["hhsearch_report"] = report_name

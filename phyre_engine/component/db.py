@@ -19,6 +19,7 @@ from Bio.PDB import MMCIFParser, PDBParser
 from Bio.PDB.Chain import Chain
 from Bio.PDB.Residue import Residue
 from Bio.PDB.PDBExceptions import PDBConstructionException
+from phyre_engine.tools.util import TemporaryEnvironment
 
 class NameTemplate(Component):
     """
@@ -563,13 +564,13 @@ class MSABuilder(Component):
                 # No need to recreate
                 if (not msa_file.exists()) or self.overwrite:
                     Bio.SeqIO.write(sequence, query_file.name, "fasta")
-                    hhblits = hh.HHBlits(
-                            database=self.hhblits_db,
-                            input=query_file.name,
-                            output=hhr_file,
-                            oa3m=msa_file,
-                            **self.hhblits_args)
-                    hhblits.run()
+                    call_hhsuite_tool(
+                        hh.HHBlits, config,
+                        database=self.hhblits_db,
+                        input=query_file.name,
+                        output=hhr_file,
+                        oa3m=msa_file,
+                        **self.hhblits_args)
 
                 template["a3m"] = str(msa_file)
                 template["hhr"] = str(hhr_file)
@@ -587,9 +588,20 @@ class AddSecondaryStructure(Component):
 
         for template in templates:
             # Add secondary structure
-            hhlib = os.environ["HHLIB"]
-            addss_pl = pathlib.Path(hhlib, "scripts/addss.pl")
-            subprocess.run([str(addss_pl), "-i", template["a3m"]])
+
+            if "hhsuite" in config and "HHLIB" in config["hhsuite"]:
+                hhlib = config["hhsuite"]["HHLIB"]
+                addss_pl = pathlib.Path(hhlib, "scripts/addss.pl")
+                with TemporaryEnvironment(HHLIB=hhlib):
+                    subprocess.run([str(addss_pl), "-i", template["a3m"]])
+            else:
+                if "HHLIB" in os.environ:
+                    hhlib = os.environ["HHLIB"]
+                    addss_pl = pathlib.Path(hhlib, "scripts/addss.pl")
+                else:
+                    addss_pl = pathlib.Path("addss.pl")
+                subprocess.run([str(addss_pl), "-i", template["a3m"]])
+
         return data
 
 class HMMBuilder(Component):
@@ -624,12 +636,12 @@ class HMMBuilder(Component):
             hhm_file = hhm_path / hhm_name
 
             if (not hhm_file.exists()) or self.overwrite:
-                hhmake = hh.HHMake(
+                call_hhsuite_tool(
+                    hh.HHMake,
+                    config,
                     template["a3m"],
                     output=hhm_file,
-                    **self.hhmake_args
-                )
-                hhmake.run()
+                    **self.hhmake_args)
             template["hhm"] = str(hhm_file)
         return data
 
@@ -654,7 +666,10 @@ class CS219Builder(Component):
         self.cstranslate_args = cstranslate_args
 
     def run(self, data, config=None, pipeline=None):
-        hhlib = os.environ["HHLIB"]
+        if "hhsuite" in config and "HHLIB" in config["hhsuite"]:
+            hhlib = config["hhsuite"]["HHLIB"]
+        else:
+            hhlib = os.environ["HHLIB"]
 
         templates = self.get_vals(data)
         cs219_path = self.basedir / "cs219"
@@ -667,16 +682,15 @@ class CS219Builder(Component):
 
             if (not cs219_file.exists()) or self.overwrite:
                 cs_args = {
-                    "-A": pathlib.Path(hhlib, "data/cs219.lib"),
+                    "alphabet": pathlib.Path(hhlib, "data/cs219.lib"),
                     "-D": pathlib.Path(hhlib, "data/context_data.lib"),
                     "-x": 0.3, "-c": 4, "-b": True,
                     "-I": "a3m",
-                    "-i": template["a3m"],
+                    "infile": template["a3m"],
                     "-o": cs219_file
                 }
                 cs_args.update(self.cstranslate_args)
-                cstranslate = hh.CSTranslate(**cs_args)
-                cstranslate.run()
+                call_hhsuite_tool(hh.CSTranslate, config, **cs_args)
             template["cs219"] = str(cs219_file)
         return data
 
@@ -738,20 +752,22 @@ class DatabaseBuilder(Component):
 
                 # Run ffindex_build using the the temp file as the list of files
                 # to incude in the DB.
-                ffindex_builder = hh.FFIndexBuild(
-                    ffdata, ffindex,
+                call_hhsuite_tool(
+                    hh.FFIndexBuild,
+                    config,
+                    str(ffdata), str(ffindex),
                     file_list=index.name,
                     **self.ffindex_args)
-                ffindex_builder.run()
                 ff_dbs[file_type] = db_name
 
             # Sort the indices
-            ffindex_sorter = hh.FFIndexBuild(
+            call_hhsuite_tool(
+                hh.FFIndexBuild,
+                config,
                 "{}.ffdata".format(ff_dbs[file_type]),
                 "{}.ffindex".format(ff_dbs[file_type]),
                 append=True, sort=True,
                 **self.ffindex_args)
-            ffindex_sorter.run()
 
         # Cut useless information from the indices of each file.
         for ff_db in ff_dbs.values():
@@ -778,3 +794,26 @@ class DatabaseBuilder(Component):
                 fields = line.split("\t")
                 fields[0] = pathlib.PurePath(fields[0]).stem
                 print("\t".join(fields), end="")
+
+
+def call_hhsuite_tool(tool_class, config, *args, **kwargs):
+    """
+    Used to call a generic hhsuite tool using the pipeline configuration.
+
+    This function will set up the HHLIB environment variable if it is given in
+    the ``hhsuite`` mapping of the pipeline configuration, and will set the
+    ``hhsuite_bin_dir`` parameter of the tool constructors if the ``bin``
+    parameter is set.
+    """
+    env_vars = {}
+    hhsuite_bin_dir = None
+
+    if "hhsuite" in config:
+        if "HHLIB" in config["hhsuite"]:
+            env_vars["HHLIB"] = config["hhsuite"]["HHLIB"]
+        if "bin" in config["hhsuite"]:
+            hhsuite_bin_dir = config["hhsuite"]["bin"]
+
+    with TemporaryEnvironment(**env_vars):
+        tool = tool_class(hhsuite_bin_dir=hhsuite_bin_dir, *args, **kwargs)
+        tool.run()
