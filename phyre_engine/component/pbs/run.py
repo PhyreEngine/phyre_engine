@@ -35,12 +35,11 @@ def main():  # IGNORE:C0111
             state = pickle.load(state_fh)
 
             # Initialise loggers
-            if "logging" in state.config:
-                logging.config.dictConfig(state.config["logging"])
+            if "logging" in state.pipeline.config:
+                logging.config.dictConfig(state.pipeline.config["logging"])
             else:
                 logging.config.dictConfig(phyre_engine.run.default_log_config())
 
-            state.pipeline.start = state.data
             data = state.pipeline.run()
             state_fh.seek(0)
             state_fh.truncate()

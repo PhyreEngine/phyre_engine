@@ -21,8 +21,7 @@ resume.
 """
 
 #: Sub-pipeline and data slice used by each worker.
-SubPipeline = collections.namedtuple(
-    "SubPipeline", ["data", "config", "pipeline"])
+SubPipeline = collections.namedtuple("SubPipeline", ["pipeline"])
 
 #: Used to save data when a worker is complete
 CompletedState = collections.namedtuple(
@@ -89,8 +88,11 @@ class Qsub(Component):
             state[self.slice_in] = data_slice
 
             with Path(self.storage_dir, file_name).open("wb") as state_out:
-                sub_pipe = SubPipeline(state, config, self.sub_pipeline)
-                pickle.dump(sub_pipe, state_out)
+                sub_pipe = copy.copy(self.sub_pipeline)
+                sub_pipe.config = config
+                sub_pipe.start = state
+
+                pickle.dump(SubPipeline(sub_pipe), state_out)
         return num_jobs
 
     def _save_pipeline(self, config, pipeline):
