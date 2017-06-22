@@ -45,7 +45,7 @@ class Qsub(Component):
 
     def __init__(
             self, slice_in, slice_out, max_jobs, storage_dir, sub_pipeline,
-            name="phyre_engine", log_config=None):
+            name="phyre_engine", log_config=None, qsub_args=None):
 
         self.slice_in = slice_in
         self.slice_out = slice_out
@@ -53,6 +53,7 @@ class Qsub(Component):
         self.storage_dir = Path(storage_dir)
         self.name = name
         self.log_config = log_config
+        self.qsub_args = qsub_args
 
         if not isinstance(sub_pipeline, phyre_engine.Pipeline):
             sub_pipeline = phyre_engine.Pipeline.load(sub_pipeline)
@@ -133,6 +134,8 @@ class Qsub(Component):
             "-d", os.getcwd(),
             "-N", self.name,
         ]
+        start_qsub_cmd.extend(self.qsub_args)
+
         with tempfile.NamedTemporaryFile("w") as jobfile:
             # Write jobscript to temp file and append it to the command line
             script = jobscript.StartScript(self.storage_dir)
@@ -156,6 +159,8 @@ class Qsub(Component):
             "-N", "{}-resume".format(self.name),
             "-W", "depend=afteranyarray:{0}".format(job_id),
         ]
+        resume_qsub_cmd.extend(self.qsub_args)
+
         with tempfile.NamedTemporaryFile("w") as jobfile:
             # Write jobscript to temp file and append it to the command line
             script = jobscript.ResumeScript(
