@@ -37,16 +37,19 @@ class JobScript:
 
 class StartScript(JobScript):
     MODULE = "phyre_engine.component.pbs.run"
-    RUN_COMMAND = (
-        "'{python}' -m{module} "
-        '"{storage}/state-${{PBS_ARRAYID}}.pickle"')
+    RUN_COMMAND = "'{python}' -m{module} {pickle}"
+
+    def __init__(self, storage, pickle, *args, **kwargs):
+        super().__init__(storage, *args, **kwargs)
+        self.pickle = pickle
 
     def __str__(self):
         script = super().__str__()
         script += self.RUN_COMMAND.format(
             python=self.python,
             module=self.MODULE,
-            storage=self.storage)
+            storage=self.storage,
+            pickle=self.pickle)
         return script
 
 class ResumeScript(JobScript):

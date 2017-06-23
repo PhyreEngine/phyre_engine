@@ -10,6 +10,8 @@ import tempfile
 import phyre_engine
 import collections
 from phyre_engine.pipeline import ExpectedExit
+import xml.etree.ElementTree as ET
+import sys
 
 r"""
 Components for running sub-pipelines on PBS nodes.
@@ -137,8 +139,12 @@ class Qsub(Component):
         start_qsub_cmd.extend(self.qsub_args)
 
         with tempfile.NamedTemporaryFile("w") as jobfile:
-            # Write jobscript to temp file and append it to the command line
-            script = jobscript.StartScript(self.storage_dir)
+            # Write jobscript to temp file and append it to the command line.
+            # The pickle file contains the shell variable $PBS_ARRAYID.
+            pickle_file =  '"{storage}/state-${{PBS_ARRAYID}}.pickle"'.format(
+                storage=str(self.storage_dir))
+
+            script = jobscript.StartScript(self.storage_dir, pickle_file)
             jobfile.write(str(script))
             jobfile.flush()
             start_qsub_cmd.append(jobfile.name)
@@ -171,6 +177,102 @@ class Qsub(Component):
 
             process = subprocess.Popen(
                 resume_qsub_cmd,
+                stdout=subprocess.PIPE,
+                universal_newlines=True)
+
+            stdout, _ = process.communicate()
+            job_id = stdout.rstrip("\n")
+            return job_id
+
+class ContactNodes(Component):
+    ADDS = []
+    REQUIRED = []
+    REMOVES = []
+
+    def __init__(
+            self, storage_dir, sub_pipeline, nodes=None,
+            name="phyre_engine", log_config=None, qsub_args=None):
+
+        self.storage_dir = Path(storage_dir)
+        self.name = name
+        self.log_config = log_config
+        self.qsub_args = qsub_args
+
+        if nodes is None:
+            nodes = self._online_nodes()
+        self.nodes = nodes
+
+        if not isinstance(sub_pipeline, phyre_engine.Pipeline):
+            sub_pipeline = phyre_engine.Pipeline.load(sub_pipeline)
+        self.sub_pipeline = sub_pipeline
+
+    def run(self, data, config=None, pipeline=None):
+        for node in self.nodes:
+            serialised_state = self._save_pipeline(node, data, config)
+            self._qsub_start(serialised_state, node)
+        return data
+
+    @staticmethod
+    def _online_nodes():
+        """
+        Find online nodes using pbsnodes. Get XML output from pbsnodes and find
+        all those nodes that are not either down or offline.
+        """
+        pbs_result = subprocess.run(
+            ["pbsnodes", "-x"],
+            check=True, stdout=subprocess.PIPE)
+        xml_tree = ET.fromstring(pbs_result.stdout.decode(sys.stdout.encoding))
+        nodes = []
+        for node in xml_tree.findall("./Node"):
+            name = node.find("name").text
+            states = set(node.find("state").text.split(","))
+            if "offline" not in states and "down" not in states:
+                nodes.append(name)
+        return nodes
+
+
+    def _save_pipeline(self, node, data, config):
+        """
+        Save the current pipeline to a pickle named after the node that we are
+        going to be contacting.
+        """
+
+        file_name = "state-{}".format(node)
+
+        # Overwrite the logging section of the pipeline config if it is set
+        config = copy.copy(config)
+        if self.log_config is not None:
+            config["logging"] = self.log_config
+
+        pickle_path = Path(self.storage_dir, file_name)
+        with pickle_path.open("wb") as state_out:
+            sub_pipe = copy.copy(self.sub_pipeline)
+            sub_pipe.config = config
+            sub_pipe.start = data
+
+            pickle.dump(SubPipeline(sub_pipe), state_out)
+        return pickle_path
+
+    def _qsub_start(self, pickled_state, node):
+        start_qsub_cmd = [
+            "qsub",
+            "-o", str(self.storage_dir),
+            "-e", str(self.storage_dir),
+            "-d", os.getcwd(),
+            "-N", self.name,
+            "-lnodes={}".format(node)
+        ]
+        start_qsub_cmd.extend(self.qsub_args)
+
+        with tempfile.NamedTemporaryFile("w") as jobfile:
+            # Write jobscript to temp file and append it to the command line
+            script = jobscript.StartScript(self.storage_dir, pickled_state)
+            jobfile.write(str(script))
+            jobfile.flush()
+            start_qsub_cmd.append(jobfile.name)
+
+            process = subprocess.Popen(
+                start_qsub_cmd,
                 stdout=subprocess.PIPE,
                 universal_newlines=True)
 
