@@ -18,6 +18,9 @@ try:
 except ImportError:
     from yaml import SafeLoader
 
+# : Value of the "source" key in elements of ``update_required``.
+HTTP_SOURCE = "HTTP"
+
 class Check(Component):
     """
     When run, this tool will retrieve the version of tool ``name`` from the
@@ -40,6 +43,9 @@ class Check(Component):
 
     new_version:
         The new version number of the software.
+
+    source:
+        The data source. In this case, "HTTP".
 
     :param str name: Name of the tool to be downloaded.
     :param str version_db: Path of a YAML file containing tool versions.
@@ -188,7 +194,8 @@ class Check(Component):
             "name": self.name,
             "new_version": new_version,
             "archive_name": archive_name,
-            "archive_url": download_url
+            "archive_url": download_url,
+            "source": HTTP_SOURCE
         })
         return data
 
@@ -238,6 +245,9 @@ class Get(Component):
 
     def run(self, data, config=None, pipeline=None):
         for tool in data["update_required"]:
+            if tool["source"] != HTTP_SOURCE:
+                continue
+
             tool["archive_path"] = self.get_archive(
                 tool["archive_name"], tool["archive_url"])
             tool["archive_dir"] = Path(self.download_dir)
