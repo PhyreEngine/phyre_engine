@@ -61,6 +61,9 @@ class Build(Component):
         """Execute build commands for tool."""
         # Start executing build commands.
         name = tool["name"]
+        if name not in self.build_commands:
+            return
+
         for cmd in self.build_commands[name]:
             formatted_cmd = cmd.format(**{k: str(v) for k, v in tool.items()})
             log().info("Running `%s' for tool `%s'", formatted_cmd, name)
