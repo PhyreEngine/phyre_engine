@@ -13,30 +13,42 @@ from html.parser import HTMLParser
 from . errors import UpdateError
 
 import yaml
-import subprocess
 try:
-    from yaml import CSafeLoader as SafeLoader, CSafeDumper as SafeDumper
+    from yaml import CSafeLoader as SafeLoader
 except ImportError:
-    from yaml import SafeLoader, SafeDumper
+    from yaml import SafeLoader
 
-class HTTPUpdater(Component):
+class Check(Component):
     """
+    When run, this tool will retrieve the version of tool ``name`` from the
+    YAML file ``version_db``. It will then check ``download_page`` for a link
+    with a destination matching ``link_regex``. If the named capture ``version``
+    is different to the version number retrieved from ``version_db``, an element
+    is added to the ``update_required`` element of the pipeline state.
+
+    Each element of the ``update_required`` list will be a dictionary containing
+    the following elements:
+
+    name:
+        The name of the software.
+
+    archive_url:
+        The URL of the archive to download.
+
+    archive_name:
+        The name of the archive file (e.g ``foo-3.14.tar.gz``).
+
+    new_version:
+        The new version number of the software.
+
     :param str name: Name of the tool to be downloaded.
     :param str version_db: Path of a YAML file containing tool versions.
-    :param str download_dir: Directory in which to save the archive of the tool.
-    :param str install_dir: Directory into which the tool will be installed.
     :param str download_page: URL of the page containing links to download the
         tool.
     :param str link_regex: Regular expression matching the URL of the download
         link itself. The regex must contain the ``version`` named capture.
-    :param list[str] build_commands: List of shell commands that will be applied
-        to build the tool.
-
-    .. warning::
-        Commands are executed with a shell. You should *never* supply build
-        commands from untrusted sources.
     """
-    ADDS = []
+    ADDS = ["update_required"]
     REMOVES = []
     REQUIRED = []
 
@@ -72,7 +84,7 @@ class HTTPUpdater(Component):
                 if ("http-equiv" in attrs and "content" in attrs
                         and attrs["http-equiv"] == "content-type"):
 
-                    charset = HTTPUpdater.parse_charset(attrs["content"])
+                    charset = parse_charset(attrs["content"])
                     if charset is not None:
                         self.callback(charset)
                 elif "charset" in attrs:
@@ -81,17 +93,11 @@ class HTTPUpdater(Component):
         def error(self, message):
             print(message)
 
-    def __init__(
-            self, name, version_db, download_dir, install_dir,
-            download_page, link_regex, build_commands):
+    def __init__(self, name, version_db, download_page, link_regex):
         self.name = name
         self.version_db = Path(version_db)
-        self.download_dir = Path(download_dir)
-        self.install_dir = Path(install_dir)
         self.download_page = download_page
         self.link_regex = re.compile(link_regex)
-        self.build_commands = build_commands
-
 
     def read_current_version(self):
         """
@@ -111,7 +117,7 @@ class HTTPUpdater(Component):
         # Pick a content type
         charset = "UTF-8"
         if "Content-Type" in headers:
-            charset = self.parse_charset(headers["Content-Type"])
+            charset = parse_charset(headers["Content-Type"])
         else:
             def setter(ch):
                 nonlocal charset
@@ -164,66 +170,12 @@ class HTTPUpdater(Component):
 
         return new_version, archive_name, download_url
 
-
-    def get_archive(self, archive_name, download_url):
-        """
-        Retrieve the archive containing the software.
-
-        :param archive_name: :py:class:`pathlib.Path` pointing to the location
-            in which the archive will be saved.
-        :param download_url: String containing the full URL of the archive.
-        """
-        with (self.download_dir / archive_name).open("wb") as archive_out:
-            with urllib.request.urlopen(download_url) as url_in:
-                archive_out.write(url_in.read())
-
-    def build(self, new_version, archive_name):
-        """
-        Execute all build commands. The following keys may be used in each
-        command with standard python string formatting:
-
-        archive:
-            Name (without directories) of the saved archive.
-
-        download_dir:
-            Path of the download directory (passed as ``download_dir`` to the
-            constructor).
-
-        install_dir:
-            Directory in which to install the software (the ``install_dir``
-            argument to the constructor).
-
-        .. note::
-            Python string formatting is applied to each command, so if you wish
-            to use a brace (``{`` or ``}``), you must double them, so ``{``
-            would become ``{{``.
-
-        .. warning::
-            Commands are executed with a shell. You should *never* supply build
-            commands from untrusted sources.
-
-        """
-        # Start executing build commands.
-        for cmd in self.build_commands:
-            formatted_cmd = cmd.format(version=new_version,
-                archive=archive_name,
-                download_dir=str(self.download_dir),
-                install_dir=str(self.install_dir))
-            print(formatted_cmd)
-            subprocess.run([formatted_cmd], shell=True, check=True)
-
-
-    def update_db(self, new_version):
-        """Update the version database with the new version."""
-        with self.version_db.open("r+") as db_fh:
-            version_db = yaml.load(db_fh, SafeLoader)
-            if version_db is None:
-                version_db = {}
-            version_db[self.name] = new_version
-            db_fh.truncate()
-            yaml.dump(version_db, db_fh, SafeDumper, default_flow_style=False)
-
     def run(self, data, config=None, pipeline=None):
+        # Later components probably require this even if it is empty, so set it
+        # even if the software versions are equal.
+        if "update_required" not in data:
+            data["update_required"] = []
+
         current_ver = self.read_current_version()
         page = self.read_download_page()
         new_version, archive_name, download_url = self.find_download_link(page)
@@ -232,16 +184,68 @@ class HTTPUpdater(Component):
         if current_ver is not None and new_version == current_ver:
             return data
 
-        self.get_archive(archive_name, download_url)
-        self.build(new_version, archive_name)
-        self.update_db(new_version)
-
+        data["update_required"].append({
+            "name": self.name,
+            "new_version": new_version,
+            "archive_name": archive_name,
+            "archive_url": download_url
+        })
         return data
 
+class Get(Component):
+    """
+    This class is responsible for downloading any archives found by 
+    :py:class`~.HTTPChecker`. It examines all elements of the
+    ``update_required`` list in the pipeline state and downloads each archive to
+    the directory ``download_dir``.
 
-    @staticmethod
-    def parse_charset(content_type_header):
-        match = re.search(r"charset=(\S+)", content_type_header)
-        if match is not None:
-            return match.group(1)
-        return None
+    The following key is added to each component of each element in the
+    ``update_required`` list:
+
+    archive_path:
+        :py:class:`pathlilb.Path` object pointing to the downloaded archive.
+
+    archive_dir:
+        :py:class:`pathlib.Path` object pointing to the directory containing the
+        downloaded archive.
+
+    :param str download_dir: Directory into which archives will be downloaded.
+    """
+    ADDS = []
+    REQUIRED = ["update_required"]
+    REMOVES = []
+
+    def __init__(self, download_dir):
+        self.download_dir = Path(download_dir)
+
+    def get_archive(self, archive_name, download_url):
+        """
+        Retrieve the archive containing the software.
+
+        :param archive_name: :py:class:`pathlib.Path` pointing to the location
+            in which the archive will be saved.
+        :param download_url: String containing the full URL of the archive.
+
+        :return: Archive path.
+        :rtype: :py:class:`pathlib.Path` object.
+        """
+        archive_path = self.download_dir / archive_name
+        with archive_path.open("wb") as archive_out:
+            with urllib.request.urlopen(download_url) as url_in:
+                archive_out.write(url_in.read())
+        return archive_path
+
+
+    def run(self, data, config=None, pipeline=None):
+        for tool in data["update_required"]:
+            tool["archive_path"] = self.get_archive(
+                tool["archive_name"], tool["archive_url"])
+            tool["archive_dir"] = Path(self.download_dir)
+        return data
+
+def parse_charset(content_type_header):
+    """Parse a content-type header and return only the charset."""
+    match = re.search(r"charset=(\S+)", content_type_header)
+    if match is not None:
+        return match.group(1)
+    return None

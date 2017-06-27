@@ -1,2 +1,2 @@
-from phyre_engine.component.update import http
+from . build import Build, ChangeVersion
 from . errors import UpdateError
