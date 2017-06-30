@@ -57,9 +57,9 @@ class Check(Component):
     REQUIRED = []
 
     _GIT_FETCH = ["fetch", "origin"]
-    _GIT_DIFF = ["diff", "--quiet", "HEAD", "origin/master"]
+    _GIT_DIFF = ["diff", "--quiet", "master", "origin/master"]
     _GIT_GET_HEAD = ["rev-list", "--max-count=1", "--abbrev-commit",
-                     "HEAD", "origin/master"]
+                     "master", "origin/master"]
 
     _NOT_FOUND_ERR = (
         "Source directory {src_dir} does not exist. You must clone and "
