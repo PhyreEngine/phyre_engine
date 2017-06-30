@@ -99,7 +99,8 @@ class ChangeVersion(Component):
             if version_db is None:
                 version_db = {}
             for tool in tools:
-                version_db[tool["name"]] = tool["new_version"]
+                version_db[tool["name"]] = str(tool["new_version"])
+            db_fh.seek(0)
             db_fh.truncate()
             yaml.dump(version_db, db_fh, SafeDumper, default_flow_style=False)
 
