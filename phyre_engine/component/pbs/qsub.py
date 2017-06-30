@@ -185,6 +185,26 @@ class Qsub(Component):
             return job_id
 
 class ContactNodes(Component):
+    """
+    Run a pipeline on several nodes in parallel.
+
+    This component operates similarly to the :py:class:`.Qsub` component, but
+    rather than slicing pipeline data and running multiple copies of the same
+    pipeline on arbitrary nodes assigned by the queueing system, it runs
+    multiple copies of the same pipeline with the *same* data separately on
+    every node it can find.
+
+    :param str storage_dir: Directory in which to store pipeline states.
+    :param sub_pipeline: Pipeline to run. Can either be an instance of
+        :py:class:`phyre_engine.Pipeline` or a dictionary, in which case the
+        pipeline is loaded via :py:meth:`phyre_engine.Pipeline.load`.
+    :param list nodes: List of node hostnames. By default, this component will
+        contact all nodes found by the ``pbsnodes`` command.
+    :param str name: Name of each job, passed to qsub as the ``-N`` parameter.
+    :param dict log_config: Optional log configuration for each worker.
+    :param list qsub_args: Optional extra arguments to pass to qsub.
+    """
+
     ADDS = []
     REQUIRED = []
     REMOVES = []
