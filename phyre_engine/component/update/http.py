@@ -6,6 +6,7 @@ number is not equal to a previously-downloaded version number, then a
 customisable series of build commands is run.
 """
 from phyre_engine.component.component import Component
+from distutils.version import LooseVersion
 from pathlib import Path
 import urllib.request
 import re
@@ -74,7 +75,7 @@ class Check(Component):
                 if "href" in attr_dict:
                     match = self.regex.search(attr_dict["href"])
                     if match:
-                        self.callback(match)
+                        self.callback(attr_dict["href"], match)
 
         def error(self, message):
             print(message)
@@ -157,14 +158,16 @@ class Check(Component):
         """
         # Look for the download link
         download_matches = []
-        def appender(match):
-            download_matches.append(match)
+        def appender(href, match):
+            download_matches.append((href, match))
         self._LinkParser(self.link_regex, appender).feed(page)
         if len(download_matches) != 1:
-            raise UpdateError("One matching download link required: {}".format(
-                download_matches))
-        download_url = download_matches[0].group(0)
-        new_version = download_matches[0].group("version")
+            download_matches.sort(
+                key=lambda v: LooseVersion(v[1].group("version")),
+                reverse=True)
+
+        download_url = download_matches[0][0]
+        new_version = download_matches[0][1].group("version")
 
         # Get the name of the archive file to save
         parsed_url = urllib.parse.urlparse(download_url)
