@@ -18,6 +18,16 @@ class MockNonNestedComponent(Component):
 class TestPipeline(unittest.TestCase):
     """Check that we can assemble, validate and execute pipelines."""
 
+    @staticmethod
+    def qualname_nested(cls):
+        """Utility method to get the qualified name of a nested class."""
+        return (cls.__module__, cls.__qualname__)
+
+    @staticmethod
+    def qualname_nonnested(cls):
+        """Utility method to get the qualified name of a non-nested class."""
+        return "{}.{}".format(cls.__module__, cls.__qualname__)
+
     class MockComponentStart(Component):
         """Seed a couple of input elements."""
         REQUIRED = []
@@ -34,6 +44,9 @@ class TestPipeline(unittest.TestCase):
         REQUIRED = ["MCA_1"]
         ADDS = ["MCB_1"]
         REMOVES = ["MCA_1"]
+
+        # Read a config section for this one
+        CONFIG_SECTION = "mid"
 
         def __init__(self, *args, **kwargs):
             """Store args so they can be checked later."""
@@ -110,20 +123,16 @@ class TestPipeline(unittest.TestCase):
 
     def test_load_from_dict(self):
         """Load a pipeline from a dictionary of components."""
-        def qualname_nested(cls):
-            return (cls.__module__, cls.__qualname__)
-        def qualname_nonnested(cls):
-            return "{}.{}".format(cls.__module__, cls.__qualname__)
 
         dict_pipe = {
             "start": {"abc": 123, "xyz": 789},
             "components": [
-                qualname_nested(TestPipeline.MockComponentStart), {
-                    qualname_nested(TestPipeline.MockComponentMid): [
+                self.qualname_nested(TestPipeline.MockComponentStart), {
+                    self.qualname_nested(TestPipeline.MockComponentMid): [
                         "foo", "bar", {"baz":"qux"}
                     ]
                 },
-                qualname_nonnested(MockNonNestedComponent)
+                self.qualname_nonnested(MockNonNestedComponent)
             ]
         }
         pipe = Pipeline.load(dict_pipe)
@@ -196,3 +205,17 @@ class TestPipeline(unittest.TestCase):
             self.assertDictContainsSubset(
                 checkpoint.state, result,
                 "Pipeline didn't alter previously-run data")
+
+    def test_global_config(self):
+        """Check we correctly pass config values to constructors."""
+        dict_pipe = {
+            "config": {"mid": {"foo": 1, "bar": 2}},
+            "components": [
+                {self.qualname_nested(TestPipeline.MockComponentMid): [{"bar": 3}]}
+            ]
+        }
+        pipe = Pipeline.load(dict_pipe)
+        self.assertDictEqual(
+            pipe.components[0].kwargs,
+            {"foo": 1, "bar": 3},
+            "Read arguments from config but allowed overriding")

@@ -135,7 +135,7 @@ class Pipeline:
 
 
     @staticmethod
-    def _load_component(dotted_name, arg_list=None):
+    def _load_component(dotted_name, arg_list, config):
         """
         Load a component specified by either a dotted string or a module name
         and dotted string.
@@ -163,6 +163,10 @@ class Pipeline:
         # Collect *args and **kwargs
         args = []
         kwargs = {}
+
+        if component_cls.CONFIG_SECTION is not None:
+            kwargs.update(config.get(component_cls.CONFIG_SECTION, {}))
+
         for arg in arg_list if arg_list else []:
             if isinstance(arg, dict):
                 kwargs.update(arg)
@@ -221,6 +225,12 @@ class Pipeline:
                 "arg1", "arg2",
                 named_arg1="value1", named_arg2="value2")
 
+        If the :py:attr:`phyre_engine.component.Component.CONFIG_SECTION` class
+        variable of a component is not ``None``, then the corresponding section
+        of the pipeline configuration is passed into the constructor of the
+        component. Explicitly-supplied arguments will override the arguments
+        from the configuration.
+
         .. warning::
 
             Components specified as dictionaries should be specified with *one*
@@ -229,14 +239,15 @@ class Pipeline:
             pipeline.
 
         """
+        config = pipeline_dict.get("config", {})
         component_descriptions = pipeline_dict.pop("components", [])
         components = []
         for description in component_descriptions:
             if isinstance(description, dict):
                 for cls_name, arg_list in description.items():
-                    component = cls._load_component(cls_name, arg_list)
+                    component = cls._load_component(cls_name, arg_list, config)
             else:
-                component = cls._load_component(description)
+                component = cls._load_component(description, None, config)
             components.append(component)
         return cls(components=components, **pipeline_dict)
 
