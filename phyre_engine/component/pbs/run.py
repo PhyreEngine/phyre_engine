@@ -4,7 +4,8 @@
 phyre_engine.component.pbs.run -- Run a sub-pipeline on a worker node
 
 This script is used to run a portion of pipeline on a worker node. It should
-only be called automatically by the phyre_engine.component.pbs.qsub.Qsub class.
+only be called automatically by classes in the phyre_engine.component.pbs.qsub
+module.
 '''
 
 import sys
