@@ -53,6 +53,7 @@ class Check(Component):
         tool.
     :param str link_regex: Regular expression matching the URL of the download
         link itself. The regex must contain the ``version`` named capture.
+    :param bool force: Always act as though an update is available.
     """
     ADDS = ["update_required"]
     REMOVES = []
@@ -99,11 +100,12 @@ class Check(Component):
         def error(self, message):
             print(message)
 
-    def __init__(self, name, version_db, download_page, link_regex):
+    def __init__(self, name, version_db, download_page, link_regex, force=False):
         self.name = name
         self.version_db = Path(version_db)
         self.download_page = download_page
         self.link_regex = re.compile(link_regex)
+        self.force = force
 
     def read_current_version(self):
         """
@@ -187,7 +189,8 @@ class Check(Component):
         new_version, archive_name, download_url = self.find_download_link(page)
 
         # Don't do anything if the version is the same
-        if current_ver is not None and new_version == current_ver:
+        if ((current_ver is not None and new_version == current_ver)
+                and not self.force):
             return data
 
         data["update_required"].append({

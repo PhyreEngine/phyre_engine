@@ -39,6 +39,7 @@ class Check(Component):
     :param str name: Name of the software.
     :param str repo_dir: Source directory containing git repository.
     :param str git: Git executable.
+    :param bool force: Always act as though an update is available.
 
     .. note::
 
@@ -64,10 +65,11 @@ class Check(Component):
         "Source directory {src_dir} does not exist. You must clone and "
         "configure the repository before it can be updated by this component.")
 
-    def __init__(self, name, src_dir, git="git"):
+    def __init__(self, name, src_dir, git="git", force=False):
         self.name = name
         self.src_dir = Path(src_dir)
         self.git = git
+        self.force = force
 
     def run(self, data, config=None, pipeline=None):
         """
@@ -82,7 +84,7 @@ class Check(Component):
             data["update_required"] = []
 
         new_commit = self.check()
-        if new_commit is not None:
+        if self.force or new_commit is not None:
             data["update_required"].append({
                 "new_version": new_commit,
                 "name": self.name,
