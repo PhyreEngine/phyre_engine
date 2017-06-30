@@ -13,7 +13,7 @@ import logging.config
 import sys
 
 from argparse import ArgumentParser, Action
-from phyre_engine.pipeline import Pipeline, ExpectedExit
+from phyre_engine.pipeline import Pipeline
 
 try:
     # Use libyaml if it is available
@@ -127,14 +127,7 @@ def main():  # IGNORE:C0111
 
         # Load a pipeline
         pipeline = Pipeline.load(config["pipeline"])
-        try:
-            pipeline.run()
-        except ExpectedExit:
-            # This can happen when a component needs to do intricate things to
-            # the pipeline, such as stopping it and restarting it on a worker
-            # node.
-            # FIXME: Log ExpectedExit message
-            return 0
+        pipeline.run()
 
         return 0
     except KeyboardInterrupt:

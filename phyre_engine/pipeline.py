@@ -266,9 +266,3 @@ class Pipeline:
             self.component = component
             self.missing = missing
             self.data = data if data else {}
-
-class ExpectedExit(Exception):
-    """
-    Raised to signal that the pipeline should stop without an error.
-    """
-    pass
