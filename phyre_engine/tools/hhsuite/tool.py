@@ -1,5 +1,6 @@
 """Module containing classes for running hh-suite tools."""
 import subprocess
+from pathlib import Path
 
 class HHSuiteTool:
     """Base class for hh-suite tools responsible for running processes.
@@ -34,11 +35,17 @@ class HHSuiteTool:
     # Flag mappings
     flags = {}
 
-    def __init__(self, program, *args, **flags):
+    def __init__(self, program, hhsuite_bin_dir=None, *args, **flags):
         """Set up a tool with the given command-line flags."""
         self.program = program
+        self.hhsuite_bin_dir = hhsuite_bin_dir
+
         long_flags = flags
-        self.command_line = [self.program]
+        if self.hhsuite_bin_dir is not None:
+            self.command_line = [str(Path(hhsuite_bin_dir, program))]
+        else:
+            self.command_line = [program]
+
         self._map_flags(long_flags)
         self.command_line.extend(args)
 
@@ -232,4 +239,7 @@ class FFIndexBuild(HHSuiteTool):
 
     def __init__(self, data, index, program="ffindex_build", **flags):
         """Set up ffindex_build command line."""
-        super().__init__(program, data, index, **flags)
+        super().__init__(
+            program,
+            flags.pop("hhsuite_bin_dir", None),
+            data, index, **flags)

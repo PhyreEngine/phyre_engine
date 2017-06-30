@@ -85,10 +85,10 @@ def dummy_pipeline():
     }
 
 def init_logging(logging_dict):
-    if logging_dict is not None:
-        logging.config.dictConfig(logging_dict)
-    else:
-        logging.config.dictConfig(default_log_config())
+    if logging_dict is None:
+        logging_dict = default_log_config()
+    logging.config.dictConfig(logging_dict)
+    return logging_dict
 
 def construct_yaml_tuple(self, node):
     # Used to convert sequences from lists to tuples. Only applies to lists
@@ -115,7 +115,15 @@ def main():  # IGNORE:C0111
             config = yaml.load(yml_in, SafeLoader)
 
         # Set up logging if a logging section was given in the pipeline
-        init_logging(config.get("logging", None))
+        log_conf = init_logging(config.get("logging", None))
+
+
+        # We want to pass the logging config into the pipeline config if it is
+        # not already set.
+        if "config" not in config["pipeline"]:
+            config["pipeline"]["config"] = {}
+        if "logging" not in config["pipeline"]["config"]:
+            config["pipeline"]["config"]["logging"] = log_conf
 
         # Load a pipeline
         pipeline = Pipeline.load(config["pipeline"])
