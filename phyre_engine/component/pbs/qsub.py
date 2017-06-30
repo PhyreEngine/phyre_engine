@@ -36,10 +36,6 @@ SubPipeline = collections.namedtuple("SubPipeline", ["pipeline"])
 CompletedState = collections.namedtuple(
     "CompletedState", ["data"])
 
-#: Save the current pipeline and index to resume after workers are complete.
-PipeState = collections.namedtuple(
-    "PipeState", ["pipeline", "pipeline_index", "config"])
-
 # File name templates
 WORKER_STATE = "state-{}.pickle"
 RESUME_PIPELINE = "pipeline.pickle"
