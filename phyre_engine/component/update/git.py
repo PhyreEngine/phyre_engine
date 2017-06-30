@@ -118,20 +118,15 @@ class Get(Component):
     """
     Update git repositories.
 
-    :param bool stash: If true, stash changes before merge and then reapply
-        them.
     :param str git: Git executable.
     """
     ADDS = []
     REMOVES = []
     REQUIRED = ["update_required"]
 
-    _GIT_STASH_PUSH = ["stash"]
-    _GIT_STASH_POP = ["stash", "pop"]
     _GIT_MERGE = ["merge", "origin/HEAD"]
 
-    def __init__(self, stash=True, git="git"):
-        self.stash = stash
+    def __init__(self, git="git"):
         self.git = git
 
     def run(self, data, config=None, pipeline=None):
@@ -140,13 +135,7 @@ class Get(Component):
                 continue
 
             with chdir(tool["repo_dir"]):
-                if self.stash:
-                    subprocess.run(
-                        [self.git] + self._GIT_STASH_PUSH,
-                        check=True)
                 subprocess.run([self.git] + self._GIT_MERGE, check=True)
-                if self.stash:
-                    subprocess.run([self.git] + self._GIT_STASH_POP, check=True)
         return data
 
 @contextlib.contextmanager
