@@ -178,10 +178,10 @@ class UpdateConfigFile(Component):
 
     def run(self, data, config=None, pipeline=None):
         # Read the existing config, then mutate it as we iterate over tools
-        with self.config_file.open("r") as conf_in:
-            config = yaml.load(conf_in, SafeLoader)
-        if config is None:
-            config = {}
+        config = {}
+        if self.config_file.exists():
+            with self.config_file.open("r") as conf_in:
+                config = yaml.load(conf_in, SafeLoader)
 
         for tool in data["update_required"]:
             name = tool["name"]
