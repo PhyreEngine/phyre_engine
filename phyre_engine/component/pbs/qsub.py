@@ -207,6 +207,8 @@ class Slice(BaseQsub):
     ADDS = ["qsub_jobs"]
     REMOVES = []
 
+    CONFIG_SECTION = "qsub"
+
     # We write file names formatted like this
     _STATE_WRITE_NAME = "state-{slice_index}.pickle"
 
@@ -299,6 +301,8 @@ class ContactNodes(BaseQsub):
     ADDS = ["qsub_jobs"]
     REQUIRED = []
     REMOVES = []
+
+    CONFIG_SECTION = "qsub"
 
     # Name of the pickle that we write and that is read on a worker node
     _PICKLE_NAME = "state-{node}.pickle"
@@ -485,6 +489,8 @@ class Detach(BaseQsub):
     REQUIRED = []
     ADDS = []
     REMOVES = []
+
+    CONFIG_SECTION = "qsub"
 
     _PICKLE_NAME = "detached.pickle"
 

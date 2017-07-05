@@ -19,6 +19,14 @@ class Component(ABC):
     def REMOVES(self):
         pass
 
+    #: A string specifying a configuration section, or ``None`` if no external
+    #: configuration is used.
+    #:
+    #: All members of the corresponding pipeline configuration section will be
+    #: passed into the component constructor. Explicitly-set values will
+    #: override values from the pipeline configuration.
+    CONFIG_SECTION = None
+
     def get_vals(self, data):
         """Get all required values from a key-value mapping.
 
