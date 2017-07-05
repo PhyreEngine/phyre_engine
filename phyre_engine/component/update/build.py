@@ -197,7 +197,7 @@ class UpdateConfigFile(Component):
 
         # Write config file
         with self.config_file.open("w") as conf_out:
-            yaml.dump(config, conf_out, SafeDumper)
+            yaml.dump(config, conf_out, SafeDumper, default_flow_style=False)
 
         return data
 
