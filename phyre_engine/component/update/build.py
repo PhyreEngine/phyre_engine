@@ -2,6 +2,7 @@ from phyre_engine.component.component import Component
 import logging
 import subprocess
 from pathlib import Path
+import collections.abc
 
 import yaml
 try:
@@ -108,3 +109,107 @@ class ChangeVersion(Component):
         self.update_db(data["update_required"])
         del data["update_required"]
         return data
+
+class UpdateConfigFile(Component):
+    """
+    Update a configuration file for each element of the pipeline's
+    ``update_required`` element.
+
+    The configuration file is assumed to be a YAML file. Each element in the
+    pipeline state's ``update_required`` list is examined and the fields
+    specified in the constructor's ``update_fields`` parameter are updated.
+
+    For example, the pipeline state may look like this:
+
+    ::
+        state = {
+            # Unrelated pipeline state...
+            update_required: [
+                {"name": "foo", "new_version": "1.2", "install_dir": "/opt"}
+                # Any other tools
+            ]
+        }
+
+    An :py:class:`~.UpdateConfigFile` object may be created to update the
+    details of the ``foo`` tool in ``config.yml``:
+
+    ::
+        update_cfg = UpdateConfigFile(
+            "config.yml", {
+                "foo": {
+                    "dirs": {
+                        "bin": "{install_dir}/foo_tool/{new_version}/bin",
+                        "lib": "{install_dir}/foo_tool/{new_version}/lib"
+                    },
+                    "version": "{new_version}"
+                }
+            })
+
+    When the :py:meth:`~.run` method of ``update_cfg`` is called, it will update
+    the file ``config.yml`` to contain the following:
+
+    .. code-block:: yaml
+        # Definitions for other tools...
+        foo:
+            dirs:
+                bin: /opt/foo_tool/1.2/bin
+                lib: /opt/foo_tool/1.2/lib
+            version: 1.2
+            # Any remaining data for "foo" with different keys.
+
+    Any strings supplied in the ``update_fields`` data structure will have
+    python's string formatting applied. The available values will be the
+    contents of the matching element of the ``update_required`` pipeline field.
+
+    .. warning::
+
+        Because each string in the ``update_fields`` section is processed by
+        python's string formatting, you *must* escape any literal braces by
+        doubling them: ``{{hello world}}`` will be escaped to ``{hello world}``
+        in the output file.
+    """
+    ADDS = []
+    REMOVES = []
+    REQUIRED = ["update_required"]
+
+    def __init__(self, config_file, update_fields):
+        self.config_file = Path(config_file)
+        self.update_fields = update_fields
+
+    def run(self, data, config=None, pipeline=None):
+        # Read the existing config, then mutate it as we iterate over tools
+        config = {}
+        if self.config_file.exists():
+            with self.config_file.open("r") as conf_in:
+                config = yaml.load(conf_in, SafeLoader)
+
+        for tool in data["update_required"]:
+            name = tool["name"]
+            if name in self.update_fields:
+                formatted = _format_nested_strings(
+                    self.update_fields[name],
+                    tool)
+                # Set the section if it doesn't exist or is not a map
+                if name not in config or not isinstance(config[name], dict):
+                    config[name] = formatted
+                else:
+                    config[name].update(formatted)
+
+        # Write config file
+        with self.config_file.open("w") as conf_out:
+            yaml.dump(config, conf_out, SafeDumper, default_flow_style=False)
+
+        return data
+
+def _format_nested_strings(fields, replacements):
+    """Find all string values and format them with kwargs."""
+
+    if isinstance(fields, str):
+        fields = fields.format(**replacements)
+    elif isinstance(fields, dict):
+        # Call to list() because we are going to mutating "fields"
+        for k, v in list(fields.items()):
+            fields[k] = _format_nested_strings(v, replacements)
+    elif isinstance(fields, collections.abc.Iterable):
+        fields = [_format_nested_strings(v, replacements) for v in fields]
+    return fields
