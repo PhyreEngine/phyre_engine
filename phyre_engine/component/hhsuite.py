@@ -210,11 +210,12 @@ class ReportParser(Component):
     """Parse hhsearch reports."""
 
 
-    #: :param str hhsearch_atab: Location of a file produced by the ``-atab``
+    #: :param str atab: Location of a file produced by the ``-atab``
     #:      option of hhsearch.
-    #: :param str hhsearch_report: Location of a report file produced by
+    #: :param str report: Location of a report file produced by
     #:      hhsearch(``-o`` option).
-    REQUIRED = ["hhsearch_atab", "hhsearch_report"]
+    REQUIRED = ["atab", "report"]
+
     #: :param hits: Hits parsed from report.
     #: :type hits: List of :class:`phyre_engine.tools.hhsuite.parser.Hit`
     #:      objects.
