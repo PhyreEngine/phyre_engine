@@ -230,12 +230,12 @@ class ReportParser(Component):
         #Parse report files to get hits, then combine the hits so that we have
         #the summary information and alignments in the same hit.
         report = parser.Report(report_file)
-        atab   = parser.Tabular(atab_file)
+        atab = parser.Tabular(atab_file)
         hits = []
-        for r, a in zip(report.hits, atab.hits):
+        for report_hit, atab_hit in zip(report.hits, atab.hits):
             hit = parser.Hit()
-            hit.info = r.info
-            hit.aln  = a.aln
+            hit.info = report_hit.info
+            hit.aln = atab_hit.aln
             hits.append(hit)
 
         data["hits"] = hits
