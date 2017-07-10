@@ -1,5 +1,7 @@
 """Module containing wrappers for running hh-suite tools."""
 from phyre_engine.tools.external import ExternalTool
+import subprocess
+import os
 
 #: Wrapper for the hhblits tool included within the hh-suite package.
 #:
@@ -107,3 +109,17 @@ ffindex_build = ExternalTool(
         "file_list": "f",
         "sort_file": "s",
     })
+
+def run(command, *args, HHLIB=None, **kwargs):
+    """
+    Convenience function to execute a tool from hh-suite.
+
+    This function simply passes all arguments to :py:func:`subprocess.run`, with
+    the exception of the ``env`` parameter. If ``HHLIB`` is passed to this
+    function, then the ``HHLIB`` environment variable is overriden.
+    """
+    env = None
+    if HHLIB is not None:
+        env = os.environ.copy()
+        env["HHLIB"] = HHLIB
+    subprocess.run(command, *args, env=env, **kwargs)
