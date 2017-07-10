@@ -88,10 +88,10 @@ cstranslate = ExternalTool()
 #: :param bool append: (``-a``) Append files/indexes, also needed for sorting
 #:     an already existing ffindex.
 #:
-#: :param str data_file_2: (``-d``) A second ffindex data file for
+#: :param str ffdata_file: (``-d``) A second ffindex data file for
 #:     inserting/appending.
 #:
-#: :param str index_file_2: (``-i``) A second ffindex index file for
+#: :param str ffindex_file: (``-i``) A second ffindex index file for
 #:     inserting/appending.
 #:
 #: :param str file_list: (``-f``) File containing a list of file names, one per
@@ -102,8 +102,8 @@ cstranslate = ExternalTool()
 ffindex_build = ExternalTool(
     flag_map = {
         "append": "a",
-        "data_file_2": "d",
-        "index_file_2": "i",
+        "ffdata_file": "d",
+        "ffindex_file": "i",
         "file_list": "f",
         "sort_file": "s",
     })
