@@ -88,6 +88,7 @@ class ExternalTool:
         options = options if options is not None else {}
 
         command_line = []
+        positional = [str(arg) for arg in positional]
 
         # Executable name
         if isinstance(executable, str):
@@ -104,6 +105,7 @@ class ExternalTool:
             optional_args.append(self._remap_flag(flag))
 
         for flag, value in options.items():
+            value = str(value)
             flag = self._remap_flag(flag)
             if self.join_options:
                 optional_args.append(self.join_options.join([flag, value]))
