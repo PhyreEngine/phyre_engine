@@ -2,159 +2,209 @@
 from phyre_engine.component import Component
 import phyre_engine.tools.hhsuite.tool as tools
 import phyre_engine.tools.hhsuite.parser as parser
-from tempfile import NamedTemporaryFile
+
 import Bio.SeqIO
-import abc
-from phyre_engine.tools.util import TemporaryEnvironment
+from enum import Enum
+import os
+import subprocess
+import contextlib
+import tempfile
+import re
 
-class HHSuiteTool(Component, metaclass=abc.ABCMeta):
+class QueryType(Enum):
     """
-    Base class for running hh-suite tools.
+    The different query types that may be read by classes in this module.
 
-    This class takes care of temporarily setting the ``HHLIB`` environment
-    variable before calling any executables, and extracting program names from
-    the pipeline configuration.
-
-    If it exists, this pipeline examines the ``hhsuite`` key of the pipeline
-    configuration for the following keys:
-
-    HHLIB:
-        The ``HHLIB`` environment variable will temporarily be set to this value
-        before any executables are called.
-
-    bin:
-        Directory containing hh-suite executables.
-
-    Subclasses must define the ``execute`` method, which takes the same
-    arguments as the ``run`` method in addition to a set of arbitrary keyword
-    arguments that should be passed to the constructor of the hhsuite tool.
+    An enumeration value from this object may be passed as the ``input_type``
+    parameter to some of the classes in this module. The corresponding key from
+    the pipeline state is then treated as the query (the ``-i`` flag for most
+    hh-suite tools).
     """
 
-    def run(self, data, config=None, pipeline=None):
-        env_vars = {}
-        hhsuite_bin_path = None
+    #: Pass the file pointed to by the ``input`` key of the pipeline state
+    #: directly to the ``-i`` key.
+    FILE = "input"
 
-        if config is not None and "hhsuite" in config:
-            if "HHLIB" in config["hhsuite"]:
-                env_vars["HHLIB"] = config["hhsuite"]["HHLIB"]
-            if "bin" in config["hhsuite"]:
-                hhsuite_bin_path = config["hhsuite"]["bin"]
+    #: Write the :py:class:`Bio.Seq.SeqRecord` object pointed to by the
+    #: ``sequence`` key of the pipeline state to a temporary file and use that
+    #: as the query sequence.
+    SEQUENCE = "sequence"
 
-        with TemporaryEnvironment(**env_vars):
-            self.execute(
-                data, config, pipeline,
-                hhsuite_bin_path=hhsuite_bin_path)
+    #: Use the multiple sequence alignment saved in the file named by the
+    #: ``msa`` key as input.
+    MSA = "msa"
 
-    @abc.abstractmethod
-    def execute(self, data, config, pipeline, **args):
-        pass
+    #: Use the HMM pointed in the file named by the ``hmm`` key as input.
+    HMM = "hmm"
 
-class PathError(Exception):
+class HHSuiteTool(Component):  #pylint: disable=abstract-method
     """
-    Raised when an invalid combination of paths is supplied in the pipeline
-    config and tool constructors.
+    Base class for HH-Suite tools.
+
+    :param tuple(str, phyre_engine.tools.external.ExternalTool): Name and
+        callable for generating command-line arguments.
+    :param list[str] flags: List of flags without values to pass to tool.
+    :param dict[str, str] options: Flags with values to pass to the tool.
+    :param str bin_dir: Optional directory containing executable.
+    :param str HHLIB: Optional HHLIB environment variable.
+    :param QueryType input_type: Query type.
     """
+    def __init__(self, tool, flags, options, bin_dir, HHLIB, input_type):
+        self.name, self.tool = tool
+        self.flags = flags
+        self.options = options
+        self.bin_dir = bin_dir
+        self.HHLIB = HHLIB
+        self.input_type = QueryType(input_type)
 
-    MSG = "Could not combine the following paths: {}."
+    @contextlib.contextmanager
+    def set_input(self, data):
+        """
+        Context manager used to set the ``input`` (``-i``) flag for hh-suite
+        tools. This will write a temporary file if necessary.
+        """
+        temp_query = None
+        try:
+            if "input" not in self.options and "i" not in self.options:
+                options = self.options.copy()
+                if self.input_type == QueryType.SEQUENCE:
+                    # Write temporary file and set option
+                    temp_query = tempfile.NamedTemporaryFile(
+                        "w", prefix="query-", suffix=".fasta")
+                    Bio.SeqIO.write(
+                        data[self.input_type.value], temp_query, "fasta")
+                    temp_query.flush()
+                    options["input"] = temp_query.name
+                    yield options
+                else:
+                    options["input"] = str(data[self.input_type.value])
+                    yield options
+            else:
+                yield self.options
+        finally:
+            if temp_query is not None:
+                temp_query.close()
 
-    def __init__(self, *paths):
-        super().__init__(self.MSG.format(paths))
+    def _find_option(self, regex):
+        """
+        Find an option in ``self.options`` matching the regex. Returns the value
+        of the matching option, or ``None`` if the option was not found.
+        """
+        compiled_regex = re.compile(regex)
+        for key, value in self.options.items():
+            if compiled_regex.search(key):
+                return value
+        return None
+
+
+    def set_output_key(self, data):
+        """
+        Set keys in the pipeline state depending on the options supplied to
+        hhblits. The following keys may be set:
+
+        ``msa``
+            Set if the ``oa3m`` option is supplied.
+
+        ``report``
+            Set if the ``output`` (``-o``) option is supplied.
+
+        ``atab``
+            Set if the ``atab`` option is supplied.
+        """
+        msa = self._find_option(r"^-?oa3m$")
+        report = self._find_option(r"^(?:-?o|output)$")
+        atab = self._find_option(r"^-?atab$")
+
+        if msa: data["msa"] = msa
+        if report: data["report"] = report
+        if atab: data["atab"] = atab
+
+        return data
+
+    def execute(self, data):
+        """
+        Execute tool, writing query sequence to temporary file if
+        necessary.
+        """
+        with self.set_input(data) as options:
+            cmd_line = self.tool(
+                (self.bin_dir, self.name),
+                positional=None,
+                flags=self.flags,
+                options=options)
+
+            # Set HHLIB environment variable if provided. Emulate default
+            # behaviour by inheriting system environment.
+            env = None
+            if self.HHLIB is not None:
+                env = os.environ
+                env["HHLIB"] = str(self.HHLIB)
+
+            subprocess.run(cmd_line, env=env, check=True)
 
 class HHBlits(HHSuiteTool):
-    """Build an MSA from a query sequence using hhblits.
+    """
+    Run hhblits. This can be used to generate an MSA from a query sequence or
+    to search a fold library given an MSA.
 
     :param str database: Path to an hhblits database.
-    :param \\**args: Extra arguments to pass to hhblits.
-
-    .. seealso::
-        - :class:`phyre_engine.tools.hhsuite.HHBlits`:
-            Class responsible for actually running hhblits.
+    :param *args: Flags to pass to hhblits (e.g. ``all`` to pass the ``-all``
+        option).
+    :param **kwargs: Flag/option pairs to pass to hhblits (e.g. ``n=3`` to pass
+        the option ``-n 3`` to hhblits).
+    :param str bin_dir: Directory containing the hh-suite binaries.
+    :param str HHLIB: Set the ``HHLIB`` environment variable to this value
+        before calling hhblits.
+    :param QueryType input_type: Input type.
     """
 
-    #: :param sequence: Input sequence to hhblits.
-    #: :type sequence: :class:`Bio.SeqRecord`
-    REQUIRED = ['sequence']
-    #: :param profile_msa: File name of profile MSA (in a3m format).
-    #: :type profile_msa: str
-    ADDS     = ['profile_msa']
-    REMOVES  = []
+    REQUIRED = []
+    ADDS = []
+    REMOVES = []
 
-    def __init__(self, database, **args):
-        """Create a new component for running hhblits."""
-        self._database = database
-        self._args = args
+    def __init__(
+            self, database, *args, bin_dir=None, HHLIB=None,
+            input_type=QueryType.SEQUENCE, **kwargs):
 
-    def execute(self, data, config=None, pipeline=None, **args):
-        """Build a sequence profile using hhblits.
+        kwargs["database"] = database
+        super().__init__(
+            ("hhblits", tools.hhblits),
+            args, kwargs, bin_dir, HHLIB, input_type)
 
-        Reads a single sequence from the file with the path given by input.
-        If the file can not be read or contains multiple sequences an exception
-        will be thrown.
 
-        :param dict data: Key-value mapping of data.
-
-        :returns:
-            Key-value mapping of data with a ``profile_msa`` attribute added
-            containing the file name of the MSA generated by hhblits.
-        """
-
-        #Write the query sequence to a temporary file and run hhblits
-        sequence = self.get_vals(data)
-        with NamedTemporaryFile(suffix=".fasta") as query_file:
-            msa_name = "query.a3m"
-            Bio.SeqIO.write(sequence, query_file.name, "fasta")
-            hhblits = tools.HHBlits(
-                    database=self._database, input=query_file.name,
-                    output="report.hhr", oa3m=msa_name,
-                    **self._args, **args)
-            hhblits.run()
-            data["profile_msa"] = msa_name
-            return data
+    def run(self, data, config=None, pipeline=None):
+        """Build a sequence profile using hhblits."""
+        super().execute(data)
+        return self.set_output_key(data)
 
 class HHSearch(HHSuiteTool):
-    """Search a profile MSA against an hhsearch library.
-
-    :param str database: Path to an hhsearch database.
-    :param \\**args: Extra arguments to pass to hhsearch.
+    """
+    Run hhsearch to match a query profile (or HMM) against a database of
+    profiles.
 
     .. seealso::
-        :class:`phyre_engine.tools.hhsuite.HHSearch`: Class responsible for
-            actually running hhsearch.
+
+        `~.HHBlits`
+            For parameters.
     """
 
-    #: :param str profile_msa: File name of an MSA in a format understood by
-    #:      hhsearch.
-    REQUIRED = ['profile_msa']
-    #: :param str hhsearch_atab:
-    #:     File name of a file containing all alignments in tabular format
-    #:     (``-atab`` option of hhsearch).
-    #: :param str hhseearch_report:
-    #:     File name of the hhsearch report file (``-o`` option of hhsearch).
-    ADDS     = ['hhsearch_atab', 'hhsearch_report']
-    REMOVES  = []
+    REQUIRED = []
+    ADDS = []
+    REMOVES = []
 
-    def __init__(self, database, **args):
-        """Create a new component for running hhsearch."""
-        self._database = database
-        self._args = args
+    def __init__(
+            self, database, *args, bin_dir=None, HHLIB=None,
+            input_type=QueryType.MSA, **kwargs):
 
-    def execute(self, data, config=None, pipeline=None, **args):
-        """Search a sequence profile against an hhsearch database.
+        kwargs["database"] = database
+        super().__init__(
+            ("hhsearch", tools.hhsearch),
+            args, kwargs, bin_dir, HHLIB, input_type)
 
-        This component will not parse the output files.
-        """
-
-        profile_msa = self.get_vals(data)
-        atab_name = "hhsearch.atab"
-        report_name = "hhsearch.hhr"
-        hhsearch = tools.HHSearch(
-                database=self._database, input=profile_msa,
-                output=report_name, atab=atab_name,
-                **self._args, **args)
-        hhsearch.run()
-        data["hhsearch_atab"] = atab_name
-        data["hhsearch_report"] = report_name
-        return data
+    def run(self, data, config=None, pipeline=None):
+        """Search a profile database using hhsearch."""
+        super().execute(data)
+        return self.set_output_key(data)
 
 class ReportParser(Component):
     """Parse hhsearch reports."""
