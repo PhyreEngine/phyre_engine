@@ -2,7 +2,7 @@ import json
 import os
 import tempfile
 import unittest
-import phyre_engine.component.db as db
+import phyre_engine.component.db.db as db
 import phyre_engine.conformation as conformation
 from Bio.PDB import PDBParser
 from pathlib import Path
