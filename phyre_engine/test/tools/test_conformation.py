@@ -18,22 +18,6 @@ ATOM     25  CA BLYS A   3       7.674  14.952  23.095  0.50 60.74           C
         with io.StringIO(self.MUTATED_PDB) as string_fh:
             self.pdb = PDBParser().get_structure("3jqh", string_fh)
 
-    def test_arbitrary(self):
-        """Test ArbitraryMutationSelector."""
-        selector = conformation.ArbitraryMutationSelector()
-        conf = selector.select(self.pdb[0]["A"])[0]
-
-        self.assertEqual(len(list(conf.get_residues())), 3, "Got 3 residues.")
-        # Check all residues are ordered
-        for residue in conf:
-            self.assertTrue(
-                residue.is_disordered() != 2,
-                "All residues ordered")
-            self.assertEqual(
-                len(list(residue.get_atom())),
-                1,
-                "Residue contains 1 atom")
-
     def test_all(self):
         """Test AllMutationSelector."""
         selector = conformation.AllMutationSelector()
@@ -92,14 +76,6 @@ ATOM     37  NZ BLYS A   3       8.293   9.541  19.864  0.50 65.48           N
                     atom.is_disordered(),
                     0,
                     "Atom is not disordered.")
-
-    def test_arbitrary(self):
-        """Test ArbitraryConformationSelector."""
-        with io.StringIO(self.MUTATED_PDB) as string_fh:
-            pdb = PDBParser().get_structure("3jqh", string_fh)
-            selector = conformation.ArbitraryConformationSelector()
-            conf = selector.select(pdb[0]["A"])
-            self._verify_num_elements(conf)
 
     def test_population(self):
         """Test PopulationConformationSelector."""

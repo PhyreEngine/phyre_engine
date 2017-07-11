@@ -63,36 +63,6 @@ class MutationSelector(ABC):
         return sanitised_res
 
 
-class ArbitraryMutationSelector(MutationSelector):
-    """Given a structure with point mutations, select an arbitrary sequence."""
-
-    def __init__(self, conformation=None):
-        """Initialise a new selector.
-
-        @param str conformation: If supplied, this conformation will be chosen
-            if it is available. If the specified conformation does not exist, a
-            ValueError exception will be raised. If not supplied, then an
-            arbitrary conformation will be chosen.
-        """
-        self.conformation = conformation
-
-    def select(self, chain):
-        """Select the first conformation encountered."""
-        new_chain = Chain(chain.get_id())
-
-        for residue in chain:
-            # is_disordered() == 2 for point mutations.
-            # is_disordered() == 1 if residue contains disordered atoms
-            if residue.is_disordered() == 2:
-                if self.conformation:
-                    first_res = residue.disordered_get(self.conformation)
-                else:
-                    first_res = residue.disordered_get_list()[0]
-                new_chain.add(self.clean_residue(first_res))
-            else:
-                new_chain.add(residue)
-        return (new_chain, )
-
 class AllMutationSelector(MutationSelector):
     """Given a structure with point mutations, split it into separate
     sequences."""
@@ -164,48 +134,6 @@ class MicroConformationSelector(ABC):
         This method must return a single `Bio.PDB.Chain.Chain` object.
         """
         pass
-
-class ArbitraryConformationSelector(MicroConformationSelector):
-    """Select a single, arbitrary, conformation."""
-
-    def __init__(self, conformation=None):
-        """Initialise a new selector.
-
-        @param str conformation: If supplied, this conformation will be chosen
-            if it is available. If the specified conformation does not exist, a
-            ValueError exception will be raised. If not supplied, then an
-            arbitrary conformation will be chosen.
-        """
-        self.conformation = conformation
-
-    def select(self, chain):
-        """Pick an arbitrary conformation."""
-
-        sanitised_chain = Chain(chain.get_id())
-        for res in chain:
-            sanitised_res = Residue(
-                res.get_id(),
-                res.get_resname(),
-                res.get_segid())
-
-            for atom in res:
-                if not atom.is_disordered():
-                    # Keep atoms without alternate locations
-                    sanitised_res.add(atom)
-                else:
-                    # Keep the first conformation
-                    if self.conformation:
-                        conformation = atom.disordered_get(self.conformation)
-                    else:
-                        conformation = atom.disordered_get_list()[0]
-
-                    # Ugly hack here. We need to flip the disordered flag, or
-                    # PDBIO will complain when we try to write this atom.
-                    conformation.disordered_flag = 0
-                    conformation.set_altloc(' ')
-                    sanitised_res.add(conformation)
-            sanitised_chain.add(sanitised_res)
-        return sanitised_chain
 
 class PopulationConformationSelector(MicroConformationSelector):
     """Select the single most populated conformation.
