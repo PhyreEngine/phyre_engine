@@ -107,6 +107,8 @@ class PopulationConformationSelector(ConformationSelector):
         "O": 2,
     }
 
+class PopulationMicroHetSelector(PopulationConformationSelector):
+
     def score_conformations(self, residue):
         """Assign scores to conformations, and return the ID of the
         top-ranked conformation.

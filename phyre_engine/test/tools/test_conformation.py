@@ -2,6 +2,7 @@ import io
 import unittest
 import phyre_engine.tools.conformation as conformation
 from Bio.PDB import PDBParser
+from phyre_engine.tools.conformation import PopulationConformationSelector
 
 class TestMutationSelectors(unittest.TestCase):
     """Test point mutation selectors"""
@@ -55,13 +56,13 @@ ATOM     37  NZ BLYS A   3       8.293   9.541  19.864  0.50 65.48           N
                     "Atom is not disordered.")
 
     def test_population(self):
-        """Test PopulationConformationSelector."""
+        """Test PopulationMicroHetSelector."""
 
         # We should get conformation A, because it has a lower cumulative B
         # factor.
         with io.StringIO(self.MUTATED_PDB) as string_fh:
             pdb = PDBParser().get_structure("3jqh", string_fh)
-            selector = conformation.PopulationConformationSelector()
+            selector = conformation.PopulationMicroHetSelector()
             conf = selector.select(pdb[0]["A"])
             self._verify_num_elements(conf)
             # Verify that this is conformation A
@@ -77,7 +78,7 @@ ATOM     37  NZ BLYS A   3       8.293   9.541  19.864  0.50 65.48           N
 
         with io.StringIO(no_ca_a) as string_fh:
             pdb = PDBParser().get_structure("3jqh", string_fh)
-            selector = conformation.PopulationConformationSelector()
+            selector = conformation.PopulationMicroHetSelector()
             conf = selector.select(pdb[0]["A"])
             self._verify_num_elements(conf)
             # Verify that this is conformation B
@@ -90,7 +91,7 @@ ATOM     37  NZ BLYS A   3       8.293   9.541  19.864  0.50 65.48           N
         with io.StringIO(self.MUTATED_PDB) as string_fh:
             pdb = PDBParser().get_structure("3jqh", string_fh)
             pdb[0]["A"][3]["CA"].disordered_get("A").set_occupancy(0.49)
-            selector = conformation.PopulationConformationSelector()
+            selector = conformation.PopulationMicroHetSelector()
             conf = selector.select(pdb[0]["A"])
             self._verify_num_elements(conf)
             # Verify that this is conformation B
@@ -103,7 +104,7 @@ ATOM     37  NZ BLYS A   3       8.293   9.541  19.864  0.50 65.48           N
         with io.StringIO(self.MUTATED_PDB) as string_fh:
             pdb = PDBParser().get_structure("3jqh", string_fh)
             pdb[0]["A"][3]["CA"].disordered_get("A").set_bfactor(70.74)
-            selector = conformation.PopulationConformationSelector()
+            selector = conformation.PopulationMicroHetSelector()
             conf = selector.select(pdb[0]["A"])
             self._verify_num_elements(conf)
             # Verify that this is conformation B
