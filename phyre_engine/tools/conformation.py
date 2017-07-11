@@ -149,17 +149,28 @@ class PopulationConformationSelector(ConformationSelector):
                     and self.b_factor == other.b_factor)
 
         def __repr__(self):
-            return "<{name}({population}, {occupancy}, {b_factor})>".format(
+            return ("<{name}("
+                    "{population}, {occupancy:.1f}, {b_factor:.1f})>").format(
                 name=type(self).__name__,
                 population=self.population,
                 occupancy=self.occupancy,
                 b_factor=self.b_factor)
 
 class PopulationMicroHetSelector(PopulationConformationSelector):
+    """
+    For each residue, extract the most populated conformation, breaking ties
+    on occupancy and then b-factor.
+
+    .. seealso::
+
+        :py:class:`phyre_engine.tools.conformation.PopulationConformationSelector`
+
+            For a description of the selection algorithm.
+    """
 
     def score_conformations(self, residue):
-        """Assign scores to conformations, and return the ID of the
-        top-ranked conformation.
+        """Assign scores to conformations, and return a tuple containing the ID
+        and score of the top-ranked conformation.
 
         :param Bio.PDB.Residue residue: Residue from which conformations are
             scored.
@@ -168,40 +179,21 @@ class PopulationMicroHetSelector(PopulationConformationSelector):
         # Build a list of all conformations.
         conformations = {}
         for atom in residue:
-            if atom.is_disordered():
-                weight = self.SCORES.get(atom.get_id(), 1)
+            if atom.is_disordered() and atom.get_id() in self.SCORES:
+                weight = self.SCORES[atom.get_id()]
                 for conf in atom.disordered_get_id_list():
-                    # Set initial value for each conformation
+                    # Set zero for this conformation
                     if conf not in conformations:
-                        conformations[conf] = {
-                            "conformation": conf,
-                            "population": 0,
-                            "occupancy": 0,
-                            "b_factors": 0,
-                        }
+                        conformations[conf] = self.ConformationScore()
+
                     conf_atom = atom.disordered_get(conf)
-                    conformations[conf]["population"] += weight
-                    conformations[conf]["occupancy"] += conf_atom.get_occupancy()
-                    conformations[conf]["b_factors"] += conf_atom.get_bfactor()
+                    conformations[conf] += self.ConformationScore(
+                        weight,
+                        conf_atom.get_occupancy(),
+                        conf_atom.get_bfactor())
 
-        # Take advantage of python's stable sorting to do a three-layer sort.
-        # First, by b_factors, then occupancy then population. We want an
-        # ascending sort on b_factors (lower == better), descending on occupancy
-        # (higher == better) and descending on population.
-        sorted_conf = sorted(
-            conformations.values(),
-            key=lambda c: c["b_factors"])
-        sorted_conf = sorted(
-            sorted_conf,
-            key=lambda c: c["occupancy"],
-            reverse=True)
-        sorted_conf = sorted(
-            sorted_conf,
-            key=lambda c: c["population"],
-            reverse=True)
-
-        chosen = sorted_conf[0]["conformation"]
-        return chosen
+        sorted_confs = sorted(conformations.items(), key=lambda c: c[1])
+        return sorted_confs[-1]
 
     def select(self, chain):
         """Pick the most-populated conformation."""
@@ -209,7 +201,8 @@ class PopulationMicroHetSelector(PopulationConformationSelector):
         sanitised_chain = Chain(chain.get_id())
         for res in chain:
             if res.is_disordered() == 1:
-                chosen = self.score_conformations(res)
+                chosen, score = self.score_conformations(res)
+
                 sanitised_res = Residue(
                     res.get_id(),
                     res.get_resname(),
@@ -222,11 +215,7 @@ class PopulationMicroHetSelector(PopulationConformationSelector):
                     else:
                         # Keep the first conformation
                         conformation = atom.disordered_get(chosen)
-                        # Ugly hack here. We need to flip the disordered flag, or
-                        # PDBIO will complain when we try to write this atom.
-                        conformation.disordered_flag = 0
-                        conformation.set_altloc(' ')
-                        sanitised_res.add(conformation)
+                        sanitised_res.add(self.clean_atom(conformation))
                 sanitised_chain.add(sanitised_res)
             else:
                 sanitised_chain.add(res)
