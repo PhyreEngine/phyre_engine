@@ -1,6 +1,6 @@
 import io
 import unittest
-import phyre_engine.conformation as conformation
+import phyre_engine.tools.conformation as conformation
 from Bio.PDB import PDBParser
 
 class TestMutationSelectors(unittest.TestCase):
