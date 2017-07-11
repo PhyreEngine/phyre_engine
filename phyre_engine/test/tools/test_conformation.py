@@ -55,6 +55,55 @@ ATOM     37  NZ BLYS A   3       8.293   9.541  19.864  0.50 65.48           N
                     0,
                     "Atom is not disordered.")
 
+    def _compare_scores(self, scores1, scores2, message):
+        """
+        Check various operators for ConformationScores.
+
+        The first parameter *must* be less than the second. Each parameter
+        should be a tuple of values that will be passed to the
+        :py:class:`phyre_engine.tools.conformation.PopulationConfirmationSelector.ConformationScore`
+        constructor.
+        """
+
+        # Alias for shorter class name
+        Score = PopulationConformationSelector.ConformationScore
+        conf_scores1 = Score(*scores1)
+        conf_scores2 = Score(*scores2)
+
+        # For constructing diagnostic messages
+        def _msg(operator):
+            return "{}: {} operator".format(message, operator)
+
+        self.assertLess(conf_scores1, conf_scores2, _msg("<"))
+        self.assertLessEqual(conf_scores1, conf_scores2, _msg("<="))
+        self.assertGreater(conf_scores2, conf_scores1, _msg(">"))
+        self.assertGreaterEqual(conf_scores2, conf_scores1, _msg(">="))
+        self.assertNotEqual(conf_scores1, conf_scores2, _msg("!="))
+        self.assertEqual(conf_scores1, Score(*scores1), _msg("=="))
+        self.assertEqual(conf_scores2, Score(*scores2), _msg("=="))
+
+        # Try and sort each score, and check that the first score is less than
+        # the second
+        sorted_scores = sorted([conf_scores1, conf_scores2])
+        self.assertLess(
+            sorted_scores[0],
+            sorted_scores[1],
+            "{}: sorting".format(message))
+
+    def test_conformation_sort(self):
+        """Test comparison and sorting of ConformationScore objects."""
+        self._compare_scores((1, 2, 3), (2, 2, 3), "Different population")
+        self._compare_scores((1, 1, 3), (1, 2, 3), "Different occupancy")
+        self._compare_scores((1, 2, 4), (1, 2, 3), "Different b-factor")
+
+    def test_conformation_add(self):
+        """Ensure that addition of ComparisonScore objects works properly."""
+        Score = PopulationConformationSelector.ConformationScore
+        self.assertEqual(
+            Score(1, 2, 3) + Score(1, 2, 3),
+            Score(2, 4, 6),
+            "Add two scores together")
+
     def test_population(self):
         """Test PopulationMicroHetSelector."""
 

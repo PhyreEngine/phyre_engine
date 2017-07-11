@@ -6,6 +6,7 @@ use.
 from abc import ABC, abstractmethod
 from Bio.PDB.Chain import Chain
 from Bio.PDB.Residue import Residue
+import functools
 
 class ConformationSelector(ABC):
     """
@@ -106,6 +107,53 @@ class PopulationConformationSelector(ConformationSelector):
         "C": 2,
         "O": 2,
     }
+
+    @functools.total_ordering
+    class ConformationScore:
+        """
+        Describes the score of a given conformation, including weighted atomic
+        population, cumulative occupancy and cumulative b-factor.
+
+        Objects of this class are comparable and sortable. An object is greater
+        than another if it has a higher overall score. Scores are compared first
+        by population, then ties are broken by occupancy and then b-factor.
+        """
+
+        __slots__ = ["population", "occupancy", "b_factor"]
+
+        def __init__(self, population=0, occupancy=0, b_factor=0):
+            self.population = population
+            self.occupancy = occupancy
+            self.b_factor = b_factor
+
+        def __add__(self, other):
+            return self.__class__(
+                self.population + other.population,
+                self.occupancy + other.occupancy,
+                self.b_factor + other.b_factor)
+
+        def __gt__(self, other):
+            if self.population > other.population:
+                return True
+            elif self.population == other.population:
+                if self.occupancy > other.occupancy:
+                    return True
+                elif self.occupancy == other.occupancy:
+                    if self.b_factor < other.b_factor:
+                        return True
+            return False
+
+        def __eq__(self, other):
+            return (self.population == other.population
+                    and self.occupancy == other.occupancy
+                    and self.b_factor == other.b_factor)
+
+        def __repr__(self):
+            return "<{name}({population}, {occupancy}, {b_factor})>".format(
+                name=type(self).__name__,
+                population=self.population,
+                occupancy=self.occupancy,
+                b_factor=self.b_factor)
 
 class PopulationMicroHetSelector(PopulationConformationSelector):
 
