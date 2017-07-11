@@ -220,3 +220,51 @@ class PopulationMicroHetSelector(PopulationConformationSelector):
             else:
                 sanitised_chain.add(res)
         return sanitised_chain
+
+class PopulationMutationSelector(PopulationConformationSelector):
+    """
+    For each point mutation in a PDB structure that is represented by an
+    alternative location field, pick the mutation with the highest weighted
+    population, breaking ties on occupancy and then b-factor.
+
+    .. seealso::
+
+        :py:class:`phyre_engine.tools.conformation.PopulationConformationSelector`
+
+            For a description of the selection algorithm.
+    """
+
+
+    def score_conformations(self, residue):
+        """
+        Returns a sorted list of tuples containing conformation IDs and scores.
+        """
+        conformations = {}
+        for conf in residue.disordered_get_id_list():
+            if conf not in conformations:
+                conformations[conf] = self.ConformationScore()
+
+            conf_res = residue.disordered_get(conf)
+            for atom in conf_res:
+                if atom.get_id() in self.SCORES:
+                    conformations[conf] += self.ConformationScore(
+                        self.SCORES[atom.get_id()],
+                        atom.get_occupancy(),
+                        atom.get_bfactor())
+
+        sorted_confs = sorted(conformations.items(), key=lambda c: c[1])
+        return sorted_confs[-1]
+
+
+    def select(self, chain):
+        """Pick the most-populated conformation."""
+
+        sanitised_chain = Chain(chain.get_id())
+        for res in chain:
+            if res.is_disordered() == 2:
+                chosen, score = self.score_conformations(res)
+                conf_res = res.disordered_get(chosen)
+                sanitised_chain.add(self.clean_residue(conf_res))
+            else:
+                sanitised_chain.add(res)  #
+        return sanitised_chain

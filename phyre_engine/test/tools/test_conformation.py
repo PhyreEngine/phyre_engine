@@ -2,7 +2,9 @@ import io
 import unittest
 import phyre_engine.tools.conformation as conformation
 from Bio.PDB import PDBParser
-from phyre_engine.tools.conformation import PopulationConformationSelector
+from phyre_engine.tools.conformation import (PopulationConformationSelector,
+                                             PopulationMutationSelector)
+import Bio.PDB.Atom
 
 class TestMutationSelectors(unittest.TestCase):
     """Test point mutation selectors"""
@@ -18,6 +20,26 @@ ATOM     25  CA BLYS A   3       7.674  14.952  23.095  0.50 60.74           C
     def setUp(self):
         with io.StringIO(self.MUTATED_PDB) as string_fh:
             self.pdb = PDBParser().get_structure("3jqh", string_fh)
+
+    def test_population(self):
+        sel = PopulationMutationSelector()
+        sanitised = sel.select(self.pdb[0]["A"])
+
+        # We should have chosen the proline, because it has the highest
+        # occupancy
+        self.assertEqual(sanitised[1].get_resname(), "PRO", "Highest occupancy")
+
+        # This should not have affected the disordered status of the lysine
+        self.assertTrue(sanitised[3].is_disordered(), "LYS still disordered")
+
+        # If we add a CB atom to the SER, it should increase the population and
+        # we should select it.
+        add_cb = Bio.PDB.Atom.DisorderedAtom("CB")
+        add_cb.disordered_add(
+            Bio.PDB.Atom.Atom("CB", [0] * 3, 65, 0.5, "B", "CB", 3, "C"))
+        self.pdb[0]["A"][1].disordered_get("SER").add(add_cb)
+        sanitised = sel.select(self.pdb[0]["A"])
+        self.assertEqual(sanitised[1].get_resname(), "SER", "Highest weight")
 
 class TestMicroConformationSelectors(unittest.TestCase):
     """Test microheterogeneity selectors."""
