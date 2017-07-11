@@ -7,18 +7,25 @@ from abc import ABC, abstractmethod
 from Bio.PDB.Chain import Chain
 from Bio.PDB.Residue import Residue
 
-class MutationSelector(ABC):
+class ConformationSelector(ABC):
     """
-    Interface defining residue-level conformation selectors.
+    Interface defining conformation selectors.
 
     Structures submitted to the PDB may contain point mutations. For example,
     the first residue of structure ``3jqh`` appears as both a proline and a
     serine. The mutations are chosen according the "alternate location" field of
     a PDB file (the ``_atom_site.label_alt_id`` field of an mmCIF file).
 
-    This abstract base class defines the interface of "mutation selector"
+    Structures in the PDB can also exhibit microheterogeneity; that is,
+    individual atoms within each residue may be found at different locations.
+    Heterogenous atoms are assigned different "alternate location" identifiers,
+    and the "occupancy" field gives the probability of observing either
+    conformation.
+
+    This abstract base class defines the interface of "conformation selector"
     classes, which are are responsible for selecting the sequence and structure
-    of structures with point mutations.
+    of structures with point mutations and/or microheterogeneity. Subclasses
+    must override the :py:meth:`.select` method.
     """
 
 
@@ -27,9 +34,9 @@ class MutationSelector(ABC):
         """
         Method called to select a single residue-level conformation.
 
-        This method must return a tuple of ``Bio.PDB.Chain.Chain`` objects. It
-        is considered acceptable to return *multiple* objects, corresponding to
-        each sequence.
+        This method must return a single :py:class:`Bio.PDB.Chain.Chain` object.
+        The returned chain may include multiple conformations, in which case it
+        should be further processed.
         """
         pass
 
@@ -43,9 +50,9 @@ class MutationSelector(ABC):
         available, those atoms cannot actually be disordered. This method will
         convert those atoms into Atom objects.
 
-        @param Bio.PDB.Residue.Residue residue: Residue object.
-        @return: A cleaned residue object
-        @rtype: `Bio.PDB.Residue.Residue`
+        :param Bio.PDB.Residue.Residue residue: Residue object.
+        :return: A cleaned residue object
+        :rtype: :py:class:`Bio.PDB.Residue.Residue`
         """
         sanitised_res = Residue(
             residue.get_id(),
@@ -62,31 +69,22 @@ class MutationSelector(ABC):
             sanitised_res.add(atom)
         return sanitised_res
 
-class MicroConformationSelector(ABC):
-    """
-    Interface defining selectors for structures with microheterogeneity.
-
-    Structures in the PDB can exhibit microheterogeneity; that is, individual
-    atoms within each residue may be found at different locations. Heterogenous
-    atoms are assigned different "alternate location" identifiers, and the
-    "occupancy" field gives the probability of observing either conformation.
-
-    This abstract base class defines the interface of "microconformation selector"
-    classes, which are are responsible for selecting which conformations are
-    chosen as templates.
-    """
-
-
-    @abstractmethod
-    def select(self, chain):
+    def clean_atom(self, atom):
         """
-        Method called to select a single conformation.
+        Convert a disordered atom to a non-disordered atom.
 
-        This method must return a single `Bio.PDB.Chain.Chain` object.
+        This method sets the alternate location field of the atom to a space,
+        and sets the ``disordered_flag`` property to zero.
+
+        :param Bio.PDB.Atom.Atom atom: Atom to clean.
+        :return: A cleaned atom object.
+        :rtype: :py:class`Bio.PDB.Atom.Atom`
         """
-        pass
+        atom.disordered_flag = 0
+        atom.set_altloc(' ')
+        return atom
 
-class PopulationConformationSelector(MicroConformationSelector):
+class PopulationConformationSelector(ConformationSelector):
     """Select the single most populated conformation.
 
     Each conformation is assigned a score according to the atoms it contains.
