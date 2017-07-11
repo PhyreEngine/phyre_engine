@@ -18,29 +18,6 @@ ATOM     25  CA BLYS A   3       7.674  14.952  23.095  0.50 60.74           C
         with io.StringIO(self.MUTATED_PDB) as string_fh:
             self.pdb = PDBParser().get_structure("3jqh", string_fh)
 
-    def test_all(self):
-        """Test AllMutationSelector."""
-        selector = conformation.AllMutationSelector()
-        all_confs = selector.select(self.pdb[0]["A"])
-
-        self.assertEqual(len(all_confs), 2, "Got two conformations.")
-
-        for conf in all_confs:
-            self.assertEqual(
-                len(list(conf.get_residues())),
-                3,
-                "Got 3 residues for conformation 1.")
-
-            # Check all residues are ordered
-            for residue in conf:
-                self.assertTrue(
-                    residue.is_disordered() != 2,
-                    "All residues ordered")
-                self.assertEqual(
-                    len(list(residue.get_atom())),
-                    1,
-                    "Residue contains 1 atom")
-
 class TestMicroConformationSelectors(unittest.TestCase):
     """Test microheterogeneity selectors."""
 

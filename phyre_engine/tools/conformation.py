@@ -62,55 +62,6 @@ class MutationSelector(ABC):
             sanitised_res.add(atom)
         return sanitised_res
 
-
-class AllMutationSelector(MutationSelector):
-    """Given a structure with point mutations, split it into separate
-    sequences."""
-
-    def select(self, chain):
-        """
-        Split a structure on point mutations.
-
-        If a structure contains a point mutation, this selector will split it
-        into two structures, one for each sequences.
-
-        @param Bio.PDB.Chain chain: Chain on which to operate.
-        @raises TooManyMutationsError: When more than two mutations are present.
-        """
-
-        # First, count the number of mutations
-        mutation_conformations = set()
-        for residue in chain:
-            if residue.is_disordered() == 2:
-                for conformation in residue.disordered_get_id_list():
-                    mutation_conformations.add(conformation)
-        if len(mutation_conformations) > 2:
-            raise TooManyMutationsError(len(mutation_conformations))
-
-        # Build a chain for each conformation:
-        confs = {c: Chain(chain.get_id()) for c in mutation_conformations}
-        for residue in chain:
-            if residue.is_disordered() == 2:
-                for conformation in residue.disordered_get_id_list():
-                    conf_res = residue.disordered_get(conformation)
-                    conf_res.disordered = 0
-                    confs[conformation].add(self.clean_residue(conf_res))
-            else:
-                for chain in confs.values():
-                    chain.add(residue)
-        return tuple(confs.values())
-
-class TooManyMutationsError(Exception):
-    """Error thrown when a structure contains too many mutations."""
-
-    def __init__(self, num_mutations):
-        """Initialise a new error.
-
-        @param int new_mutations: Number of mutations found.
-        """
-        msg = "Found too many ({}) mutations".format(num_mutations)
-        super().__init__(msg)
-
 class MicroConformationSelector(ABC):
     """
     Interface defining selectors for structures with microheterogeneity.
