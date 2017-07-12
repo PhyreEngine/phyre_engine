@@ -6,7 +6,10 @@ use.
 from abc import ABC, abstractmethod
 from Bio.PDB.Chain import Chain
 from Bio.PDB.Residue import Residue
+import logging
 import functools
+
+log = lambda: logging.getLogger(__name__)
 
 class ConformationSelector(ABC):
     """
@@ -193,6 +196,10 @@ class PopulationMicroHetSelector(PopulationConformationSelector):
                         conf_atom.get_bfactor())
 
         sorted_confs = sorted(conformations.items(), key=lambda c: c[1])
+        for conf, score in sorted_confs:
+            log().debug(
+                "Score of conformation %s of residue %s: %s",
+                conf, residue.get_full_id(), score)
         return sorted_confs[-1]
 
     def select(self, chain):
@@ -202,6 +209,9 @@ class PopulationMicroHetSelector(PopulationConformationSelector):
         for res in chain:
             if res.is_disordered() == 1:
                 chosen, score = self.score_conformations(res)
+                log().info(
+                    "Chose conformation %s of residue %s (score: %s)",
+                    chosen, res.get_full_id(), score)
 
                 sanitised_res = Residue(
                     res.get_id(),
@@ -253,6 +263,10 @@ class PopulationMutationSelector(PopulationConformationSelector):
                         atom.get_bfactor())
 
         sorted_confs = sorted(conformations.items(), key=lambda c: c[1])
+        for conf, score in sorted_confs:
+            log().debug(
+                "Score of conformation %s of residue %s: %s",
+                conf, residue.get_full_id(), score)
         return sorted_confs[-1]
 
 
@@ -263,6 +277,10 @@ class PopulationMutationSelector(PopulationConformationSelector):
         for res in chain:
             if res.is_disordered() == 2:
                 chosen, score = self.score_conformations(res)
+                log().info(
+                    "Chose conformation %s of residue %s (score: %s",
+                    chosen, res.get_full_id(), score)
+
                 conf_res = res.disordered_get(chosen)
                 sanitised_chain.add(self.clean_residue(conf_res))
             else:
