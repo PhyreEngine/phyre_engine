@@ -1,10 +1,12 @@
 from phyre_engine.component import Component
 import copy
+from enum import Enum
 import gzip
 import pathlib
 import Bio.SeqUtils
 import json
 import sys
+import urllib.request
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 import Bio.PDB
@@ -12,6 +14,55 @@ from Bio.PDB import MMCIFParser, PDBParser
 from Bio.PDB.Chain import Chain
 from Bio.PDB.Residue import Residue
 from Bio.PDB.PDBExceptions import PDBConstructionException
+
+class StructureType(Enum):
+    PDB = "pdb"
+    MMCIF = "cif"
+
+class StructureRetriever(Component):
+    """
+    Downloads a structure from the RCSB, saving it with the usual naming
+    convention in a specified base directory.
+
+    For example, if the PDB file ``4hhb.pdb`` is to be downloaded, it will be
+    saved in a directory underneath the base directory as ``hh/4hhb.pdb``. The
+    type of file to be downloaded can be set using the ``struc_type`` parameter
+    of the constructor.
+
+    The files to be downloaded will be determined by the ``PDB`` key of each
+    element in the ``templates`` list in the pipeline state.
+
+    :param .StructureType struc_type: Type of file to download.
+    :param str base_dir: Base directory in which to save PDB files.
+    """
+
+    REQUIRED = ["templates"]
+    ADDS = []
+    REMOVES = []
+
+    #: URL template from which files are retrieved.
+    URL = "https://files.rcsb.org/download/{PDB}.{type}.gz"
+
+    def __init__(self, struc_type, base_dir="."):
+        self.struc_type = StructureType(struc_type)
+        self.base_dir = pathlib.Path(base_dir)
+
+    def run(self, data, config=None, pipeline=None):
+        """Run component."""
+        templates = self.get_vals(data)
+        for template in templates:
+            url = self.URL.format(
+                PDB=template["PDB"].lower(),
+                type=self.struc_type.value)
+
+            path = pdb_path(
+                template["PDB"],
+                ".{}.gz".format(self.struc_type.value),
+                base_dir=self.base_dir)
+            path.parent.mkdir(parents=True, exist_ok=True)
+
+            urllib.request.urlretrieve(url, str(path))
+        return data
 
 class ChainPDBBuilder(Component):
     """For each structure, extract that chain to a PDB file file
@@ -289,3 +340,43 @@ class ChainExtractionError(Exception):
     ERR_MSG = "Error extracting chain {} from structure {}"
     def __init__(self, structure, chain):
         super().__init__(self.ERR_MSG.format(chain, structure))
+
+def pdb_path(pdb_name, suffix, chain_id=None, base_dir=None):
+    """
+    Gives the directory in which to save a PDB or MMCIF file.
+
+    If the ``base_dir`` parameter is supplied, paths are given relative to the
+    base directory. If the ``chain_id`` is not supplied, then the path of the
+    PDB file ``1xyz.pdb`` will be ``xy/1xyz.pdb``. If the ``chain_id`` is
+    supplied, then the PDB ID is a separate trailing subdirectory and the chain
+    ID is appended before any file extensions.
+
+    :param str pdb_name: Four-letter PDB identifier.
+    :param str suffix: Suffix to use (``.pdb`` is probably useful).
+    :param str chain_id: Optional chain ID. If supplied, it is assumed that
+        chains are stored in separate files, in a subdirectory named after the
+        PDB ID.
+    :param str base_dir: Optional base directory.
+
+    :return: The path of the PDB file.
+    :rtype: Object from :py:mod:`pathlib`.
+
+    >>> from phyre_engine.component.db.db import pdb_path
+    >>> pdb_path("1ABC", ".pdb")
+    PosixPath("ab/1abc.pdb")
+    >>> pdb_path("1ABC", ".cif.gz", "A")
+    PosixPath("ab/1abc/1abc_A.cif.gz")
+    >>> pdb_path("1ABC", ".cif.gz", "A", "/cif/dir")
+    PosixPath("/cif/dir/ab/1abc/1abc_A.cif.gz")
+    """
+
+    middle = pdb_name[1:3].lower()
+    pdb_id = pdb_name.lower()
+
+    root = pathlib.Path(base_dir) if base_dir is not None else pathlib.Path(".")
+    root = root / middle
+    if chain_id is not None:
+        root = root / pdb_id / "{}_{}{}".format(pdb_id, chain_id, suffix)
+    else:
+        root = root / "{}{}".format(pdb_id, suffix)
+    return root

@@ -99,6 +99,54 @@ class TestSimpleRepresentativePicker(unittest.TestCase):
                     {"PDB": "4LCD", "chain": "E"}
                 ], "Correctly picked representatives")
 
+class TestStructureRetriever(unittest.TestCase):
+    """Test STructureRetriever component."""
+    _PIPE_STATE = {"templates": [
+        {"PDB": "12as"},
+        {"PDB": "4HHB"}
+    ]}
+
+    def test_retrieve(self):
+        """Try and download some files."""
+        types = ("pdb", "cif", db.StructureType.PDB, db.StructureType.MMCIF)
+
+        for struc_type in types:
+            with self.subTest("Getting structure", type=struc_type):
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    retriever = db.StructureRetriever(struc_type, tmpdir)
+                    retriever.run(self._PIPE_STATE)
+
+                    if isinstance(struc_type, str):
+                        suffix = struc_type
+                    else:
+                        suffix = struc_type.value
+
+                    pdb_12as = Path(tmpdir, "2a/12as.{}.gz".format(suffix))
+                    pdb_4hhb = Path(tmpdir, "hh/4hhb.{}.gz".format(suffix))
+                    self.assertTrue(
+                        pdb_12as.exists(),
+                        "{!s} should exist".format(pdb_12as))
+                    self.assertTrue(
+                        pdb_4hhb.exists(),
+                        "{!s} should exist".format(pdb_4hhb))
+
+class TestFunctions(unittest.TestCase):
+    """Test utility functions."""
+
+    def test_pdb_path(self):
+        """Test that our PDB path function works."""
+        self.assertEqual(
+            db.pdb_path("1ABC", ".pdb.gz"),
+            Path("ab/1abc.pdb.gz"))
+
+        self.assertEqual(
+            db.pdb_path("1AbC", ".cif"),
+            Path("ab/1abc.cif"))
+
+        self.assertEqual(
+            db.pdb_path("1abC", ".cif.gz", "A"),
+            Path("ab/1abc/1abc_A.cif.gz"))
+
 class TestChainPDBBuilder(unittest.TestCase):
     """Test ChainPDBBuilder class"""
 
