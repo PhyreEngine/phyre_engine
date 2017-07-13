@@ -51,12 +51,34 @@ def requireFields(fields, parents=None):
                 foo: true
                 bar: "Hello world"
 
-    :param list[str] fields: List of fields that must be defined.
+    Fields may be specified in any of the following ways:
+
+    Single field
+        A single string ``foo`` is interpreted identically to ``[foo]``; that
+        is, it must be present and be ``True`` when coerced to a ``bool``.
+
+    List of fields
+        A list of fields ``[x, y, z]`` is interpreted identically to the dict
+        ``{x: bool, y: bool, z: bool}``. That is, each field must be present
+        and ``True`` when coerced to a ``bool``.
+
+    Dictionary of fields and validators
+        In the most general case, a dictionary of field names and validation
+        functions (or any callable) may be passed. Each field must be present
+        and the result of the validation function must be ``True``.
+
+    :param dict[str, callable] fields: List of fields that must be defined.
     :param list[str] parents: Section of the configuration in which fields must
         be present.
     """
     if config is None:
         return unittest.skip("Test requires configuration to be set")
+
+    # Convert single fields to a dict
+    if isinstance(fields, str):
+        fields = {fields: bool}
+    elif isinstance(fields, list):
+        fields = {f: bool for f in fields}
 
     parents = parents if parents is not None else []
 
@@ -69,9 +91,12 @@ def requireFields(fields, parents=None):
                     sec=parent,
                     previous=parents[0:i]))
         config_section = config_section[parent]
-    for field in fields:
+    for field, validator in fields.items():
         if field not in config_section:
             return unittest.skip("Field {field} not found".format(field=field))
+        if not validator(config_section[field]):
+            return unittest.skip("Validation of {field} failed".format(
+                field=field))
 
     # pylint: disable=missing-docstring
     def decorator(obj):

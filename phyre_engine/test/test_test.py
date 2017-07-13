@@ -79,6 +79,9 @@ class TestRequireFields(unittest.TestCase):
     if the configuration is missing or the required fields are missing.
     """
 
+    def _dummy(self):
+        pass
+
     def setUp(self):
         """Clean config before tests and set some values to look up."""
         phyre_engine.test.config = None
@@ -127,6 +130,39 @@ class TestRequireFields(unittest.TestCase):
         self.assertRaises(
             unittest.SkipTest, dummy_fail_missing,
             "Test skipped when missing sections")
+
+    def test_single_field(self):
+        """Single fields should be treated like a list of length 1."""
+
+        phyre_engine.test.config = _SAMPLE_CONFIG
+        self.assertRaises(
+            unittest.SkipTest,
+            phyre_engine.test.requireFields("bad", _SECTIONS)(self._dummy),
+            "Skip when a single bad field is passed")
+        try:
+            phyre_engine.test.requireFields("foo", _SECTIONS)(self._dummy)
+        except unittest.SkipTest:
+            self.fail("Should not have skipped.")
+
+    def test_validator_dict(self):
+        """We should be able to pass a dict of field names and validators."""
+
+        phyre_engine.test.config = _SAMPLE_CONFIG
+
+        # For brevity's sake
+        deco = phyre_engine.test.requireFields
+        bad_fields = {"foo": bool, "bar": lambda v: len(v) > 5}
+        good_fields = {"foo": bool, "bar": lambda v: len(v) < 5}
+
+        self.assertRaises(
+            unittest.SkipTest,
+            deco(bad_fields, _SECTIONS)(self._dummy),
+            "Skip when a validator fails")
+
+        try:
+            phyre_engine.test.requireFields(good_fields, _SECTIONS)(self._dummy)
+        except unittest.SkipTest:
+            self.fail("Should not have skipped.")
 
 class TestWithMissingConfig(unittest.TestCase):
     """
