@@ -177,53 +177,79 @@ class TestWithConfig(unittest.TestCase):
         """This should not run because section "qux" is not in config."""
         self.fail("This should have been skipped.")
 
-phyre_engine.test.config = None
-@phyre_engine.test.requireConfig
-class TestRequireConfigClassSkipped(unittest.TestCase):
-    """@requireConfig should skip this class because config is None."""
+class TestClassDecorators(unittest.TestCase):
 
-    def test_skipped(self):
-        """We should have been skipped."""
-        self.fail()
+    phyre_engine.test.config = None
+    @phyre_engine.test.requireConfig
+    class TestRequireConfigClassSkipped(unittest.TestCase):
+        """@requireConfig should skip this class because config is None."""
 
-@phyre_engine.test.requireFields(_FIELDS, _SECTIONS)
-class TestRequireFieldsClassSkipped(unittest.TestCase):
-    """@requireFields should skip this class because config is None."""
+        def runTest(self):
+            """We should have been skipped."""
+            self.fail()
 
-    def test_skipped(self):
-        """We should have been skipped."""
-        self.fail()
+    @phyre_engine.test.requireFields(_FIELDS, _SECTIONS)
+    class TestRequireFieldsClassSkipped(unittest.TestCase):
+        """@requireFields should skip this class because config is None."""
 
-phyre_engine.test.config = {}
-@phyre_engine.test.requireConfig
-class TestRequireConfigClassNotSkipped(unittest.TestCase):
-    """This class should NOT be skipped because the config is not None."""
+        def runTest(self):
+            """We should have been skipped."""
+            self.fail()
 
-    def test_not_skipped(self):
-        """Class not skipped."""
-        pass
+    phyre_engine.test.config = {}
+    @phyre_engine.test.requireConfig
+    class TestRequireConfigClassNotSkipped(unittest.TestCase):
+        """This class should NOT be skipped because the config is not None."""
 
-phyre_engine.test.config = _SAMPLE_CONFIG
-@phyre_engine.test.requireFields(_FIELDS, _SECTIONS)
-class TestRequireFieldsClassNotSkipped(unittest.TestCase):
-    """@requireFields should NOT skip this class."""
+        def runTest(self):
+            """Class not skipped."""
+            pass
 
-    def test_skipped(self):
-        """Class not skipped."""
-        pass
+    phyre_engine.test.config = _SAMPLE_CONFIG
+    @phyre_engine.test.requireFields(_FIELDS, _SECTIONS)
+    class TestRequireFieldsClassNotSkipped(unittest.TestCase):
+        """@requireFields should NOT skip this class."""
 
-@phyre_engine.test.requireFields(_FIELDS + ["qux"], _SECTIONS)
-class TestRequireFieldsClassSkippedWithInvalidFields(unittest.TestCase):
-    """@requireFields should skip this class because of invalid fields."""
+        def runTest(self):
+            """Class not skipped."""
+            pass
 
-    def test_skipped(self):
-        """We should have been skipped."""
-        self.fail()
+    @phyre_engine.test.requireFields(_FIELDS + ["qux"], _SECTIONS)
+    class TestRequireFieldsClassSkippedWithInvalidFields(unittest.TestCase):
+        """@requireFields should skip this class because of invalid fields."""
 
-@phyre_engine.test.requireFields(_FIELDS, _SECTIONS + ["qux"])
-class TestRequireFieldsClassSkippedWithInvalidSections(unittest.TestCase):
-    """@requireFields should skip this class because of invalid sections."""
+        def runTest(self):
+            """We should have been skipped."""
+            self.fail()
 
-    def test_skipped(self):
-        """We should have been skipped."""
-        self.fail()
+    @phyre_engine.test.requireFields(_FIELDS, _SECTIONS + ["qux"])
+    class TestRequireFieldsClassSkippedWithInvalidSections(unittest.TestCase):
+        """@requireFields should skip this class because of invalid sections."""
+
+        def runTest(self):
+            """We should have been skipped."""
+            self.fail()
+
+    # Mapping of test classes to a boolean indicating whether they should be
+    # skipped (True) or not (False).
+    _TESTS = {
+        TestRequireConfigClassSkipped: True,
+        TestRequireFieldsClassSkipped: True,
+        TestRequireConfigClassNotSkipped: False,
+        TestRequireFieldsClassNotSkipped: False,
+        TestRequireFieldsClassSkippedWithInvalidFields: True,
+        TestRequireFieldsClassSkippedWithInvalidSections: True,
+    }
+
+    def test_class_decorators(self):
+        """Test class decorators."""
+        result = unittest.TestResult()
+        suite = unittest.TestSuite()
+        for test in self._TESTS:
+            suite.addTest(test())
+        suite.run(result)
+
+        self.assertEqual(result.testsRun, len(self._TESTS))
+        for test, reason in result.skipped:
+            with self.subTest("Skipped test", test=test, reason=reason):
+                self.assertTrue(self._TESTS[type(test)])
