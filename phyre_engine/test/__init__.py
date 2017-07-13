@@ -74,9 +74,11 @@ def requireFields(fields, parents=None):
             return unittest.skip("Field {field} not found".format(field=field))
 
     # pylint: disable=missing-docstring
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            return func(*args, **kwargs)
-        return wrapper
+    def decorator(obj):
+        if not isinstance(obj, type):
+            @functools.wraps(obj)
+            def wrapper(*args, **kwargs):
+                return obj(*args, **kwargs)
+            return wrapper
+        return obj
     return decorator
