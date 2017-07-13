@@ -46,7 +46,6 @@ class NameTemplate(Component):
             "split": self.split,
         }
 
-        splitter = None
         if isinstance(name_fn, str):
             # Raise error if unsupported
             if name_fn not in BUILTIN_SPLITTERS:
