@@ -4,7 +4,10 @@ import gzip
 import pathlib
 import json
 import urllib.request
+import Bio.Seq
+import Bio.SeqIO
 import Bio.PDB
+import Bio.Alphabet.IUPAC
 from Bio.PDB.Chain import Chain
 from Bio.PDB.Residue import Residue
 import contextlib
@@ -174,6 +177,32 @@ class ChainPDBBuilder(Component):
             sanitised_chain.add(sanitised_res)
         return mapping, sanitised_chain
 
+class PDBSequence(Component):
+    """
+    Read a sequence from a list of ATOM records for each template by parsing the
+    PDB chain from each template.
+
+    The templates must have the ``structure`` key defined, pointing to a PDB
+    file from which ATOM records will be parsed. This component adds the
+    ``sequence`` key to each element of the ``templates`` list in the pipeline
+    state. The value of the ``sequence`` field will be a
+    :py:class:`Bio.SeqIO.SeqRecord.SeqRecord` object.
+    """
+
+    ADDS = []
+    REMOVES = []
+    REQUIRED = ["templates"]
+
+    def run(self, data, config=None, pipeline=None):
+        templates = self.get_vals(data)
+
+        parser = Bio.PDB.PDBParser()
+        for template in templates:
+            structure = parser.get_structure("", template["structure"])
+            chain = list(structure[0].get_chains())[0]
+            template["sequence"], _ = atom_seq(chain)
+        return data
+
 @contextlib.contextmanager
 def open_pdb(path):
     """
@@ -248,3 +277,28 @@ def _chunk_string(string, size):
     """Split string into equal length chunks. Used for dumping JSON data into
     the REMARK section."""
     return (string[i:i + size] for i in range(0, len(string), size))
+
+def atom_seq(chain):
+    """
+    Return the amino acid sequence of ``chain``, along with a list of
+    :py:class:`Bio.PDB.Residue.Residue` objects corresponding to the chosen
+    sequence.
+
+    This function does the following filtering:
+
+    1. Discards all HETATMs.
+    2. Discards everything but the standard 20 amino acids.
+    3. Discard all residues without a CA atom defined.
+
+    This is intended to be the canonical source of a PDB structure's sequence.
+    """
+
+    sequence = ""
+    residues = []
+    for res in chain:
+        if (res.get_id()[0] == ' '
+                and Bio.PDB.Polypeptide.is_aa(res, True)
+                and "CA" in res):
+            sequence += Bio.PDB.Polypeptide.three_to_one(res.get_resname())
+            residues.append(res)
+    return Bio.Seq.Seq(sequence, Bio.Alphabet.IUPAC.IUPACProtein), residues

@@ -7,6 +7,15 @@ import phyre_engine.test.data
 from pathlib import Path
 import shutil
 import Bio.SeqIO
+import Bio.PDB
+import io
+
+_ATOM_SEQ_TEST_PDB = (
+    "HETATM    1  CA  FOO A   1      11.751  37.846  29.016  1.00 44.65\n"
+    "ATOM      2  CA  ALA A   2      12.501  39.048  28.539  1.00 30.68\n"
+    "ATOM      3  C   ALA A   2      13.740  38.628  27.754  1.00 24.74\n"
+    "ATOM      4  CB  GLU A   3      14.207  37.495  27.890  1.00 25.59\n"
+    "ATOM      5  CA  GLY A   4      14.207  37.495  27.890  1.00 25.59\n")
 
 class TestStructureRetriever(unittest.TestCase):
     """Test STructureRetriever component."""
@@ -82,6 +91,17 @@ class TestFunctions(unittest.TestCase):
         pdb_path = db.pdb_path("4n6v", ".cif.gz", base_dir=self.mmcif_dir)
         with db.open_pdb(pdb_path) as pdb_in:
             self.assertGreater(len(pdb_in.readlines()), 0)
+
+    def test_atom_seq(self):
+        """Get atom sequence from a PDB file."""
+        with io.StringIO(_ATOM_SEQ_TEST_PDB) as pdb_in:
+            structure = Bio.PDB.PDBParser().get_structure("test", pdb_in)
+            seq, res = db.atom_seq(structure[0]["A"])
+            self.assertEqual(
+                str(seq), "AG",
+                "Filter HETATMs and residues without a CA atom")
+            self.assertEqual(res[0].get_id(), (' ', 2, ' '))
+            self.assertEqual(res[1].get_id(), (' ', 4, ' '))
 
 
 class TestChainPDBBuilder(unittest.TestCase):
@@ -159,6 +179,23 @@ class TestChainPDBBuilder(unittest.TestCase):
                 str(Bio.SeqIO.read(pdb_in, "pdb-atom").seq),
                 self._12ASA_SEQ[0:-1],
                 "Atom sequence matches read sequence")
+
+class TestPDBSequence(unittest.TestCase):
+    """Tests for the PDBSequence component."""
+
+    def test_sequence(self):
+        """Sequence should match atom_seq function."""
+
+        with tempfile.NamedTemporaryFile("w") as pdb_fh:
+            pdb_fh.write(_ATOM_SEQ_TEST_PDB)
+            pdb_fh.flush()
+            seq_parser = db.PDBSequence()
+            results = seq_parser.run({
+                "templates": [{"structure": pdb_fh.name}]
+            })
+            self.assertEqual(
+                str(results["templates"][0]["sequence"]), "AG",
+                "Sequence read correctly")
 
 if __name__ == "__main__":
     unittest.main()
