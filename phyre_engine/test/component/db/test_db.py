@@ -3,10 +3,10 @@ import os
 import tempfile
 import unittest
 import phyre_engine.component.db.db as db
-import phyre_engine.conformation as conformation
 import phyre_engine.test.data
-from Bio.PDB import PDBParser
 from pathlib import Path
+import shutil
+import Bio.SeqIO
 
 class TestStructureRetriever(unittest.TestCase):
     """Test STructureRetriever component."""
@@ -87,91 +87,78 @@ class TestFunctions(unittest.TestCase):
 class TestChainPDBBuilder(unittest.TestCase):
     """Test ChainPDBBuilder class"""
 
-    @unittest.skipUnless("MMCIF" in os.environ, "MMCIF env var not set")
+    _12ASA_SEQ = (
+        "AYIAKQRQISFVKSHFSRQLEERLGLIEVQAPILSRVGDGTQDNLSGAEK"
+        "AVQVKVKALPDAQFEVVHSLAKWKRQTLGQHDFSAGEGLYTHMKALRPDE"
+        "DRLSPLHSVYVDQWDWERVMGDGERQFSTLKSTVEAIWAGIKATEAAVSE"
+        "EFGLAPFLPDQIHFVHSQELLSRYPDLDAKGRERAIAKDLGAVFLVGIGG"
+        "KLSDGHRHDVRAPDYDDWSTPSELGHAGLNGDILVWNPVLEDAFELSSMG"
+        "IRVDADTLKHQLALTGDEDRLELEWHQALLRGEMPQTIGGGIGQSRLTML"
+        "LLQLPHIGQVQAGVWPAAVRESVPSLLN")
+
+    def setUp(self):
+        """Create a temporary directory for tests to use."""
+        self.tmpdir = Path(tempfile.mkdtemp("-test", "chain-"))
+        self.mmcif_dir = Path(phyre_engine.test.data.__file__).parent / "mmcif"
+
+    def tearDown(self):
+        """Remove temporary directory."""
+        shutil.rmtree(str(self.tmpdir))
+
     def test_build(self):
-        """Try and extract a chain"""
-        with tempfile.TemporaryDirectory() as base_dir:
-            out_dir = Path(base_dir, "pdb")
-            map_dir = Path(base_dir, "map")
+        """
+        Try and extract a chain. Test that the extracted chain exists and that
+        it contains REMARK 149 and ATOM lines matching the required sequence.
+        """
+        pdb_dir = self.tmpdir
 
-            out_dir.mkdir(exist_ok=True)
-            map_dir.mkdir(exist_ok=True)
+        builder = db.ChainPDBBuilder(str(self.mmcif_dir), str(pdb_dir))
+        results = builder.run({"templates": [{"PDB": "12as", "chain": "A"}]})
 
-            builder = db.ChainPDBBuilder(
-                os.environ["MMCIF"],
-                out_dir, map_dir,
-                conformation.ArbitraryMutationSelector(),
-                conformation.ArbitraryConformationSelector())
-            results = builder.run({"templates": [{"PDB": "12as", "chain": "A"}]})
+        pdb_12as_A_path = Path(results["templates"][0]["structure"])
+        self.assertTrue(
+            pdb_12as_A_path.exists(),
+            "PDB file containing chain was created.")
 
-            self.assertTrue(Path(out_dir, "2a").exists(), "Created 2a subdir")
-            self.assertTrue(
-                Path(out_dir, "2a/12as_A.pdb").exists(),
-                "Created 12as_A"
-            )
-            self.assertTrue(Path(map_dir, "2a").exists(), "Created 2a map dir")
-            self.assertTrue(
-                Path(map_dir, "2a/12as_A.json").exists(),
-                "Created 12as_A map"
-            )
+        with pdb_12as_A_path.open("r") as pdb_in:
             self.assertEqual(
-                results["templates"][0]["sequence"].seq, (
-                "AYIAKQRQISFVKSHFSRQLEERLGLIEVQAPILSRVGDGTQDNLSGAEK"
-                "AVQVKVKALPDAQFEVVHSLAKWKRQTLGQHDFSAGEGLYTHMKALRPDE"
-                "DRLSPLHSVYVDQWDWERVMGDGERQFSTLKSTVEAIWAGIKATEAAVSE"
-                "EFGLAPFLPDQIHFVHSQELLSRYPDLDAKGRERAIAKDLGAVFLVGIGG"
-                "KLSDGHRHDVRAPDYDDWSTPSELGHAGLNGDILVWNPVLEDAFELSSMG"
-                "IRVDADTLKHQLALTGDEDRLELEWHQALLRGEMPQTIGGGIGQSRLTML"
-                "LLQLPHIGQVQAGVWPAAVRESVPSLL"),
-                "Got correct sequence")
+                str(Bio.SeqIO.read(pdb_in, "pdb-atom").seq), self._12ASA_SEQ,
+                "Atom sequence matches read sequence")
 
-            # Try and read the map file
-            with results["templates"][0]["map"].open("r") as map_fh:
-                res_map = json.load(map_fh)
-            self.assertEqual(res_map[0][0], " ", "Residue 1 het flag")
-            self.assertEqual(res_map[0][1], 4,   "Residue 1 ID")
-            self.assertEqual(res_map[0][2], " ", "Residue 1 icode")
+        with pdb_12as_A_path.open("r") as pdb_in:
+            json_str = ""
+            for line in pdb_in:
+                if not line.startswith("REMARK 149"):
+                    continue
+                json_str += line.replace("REMARK 149 ", "").rstrip()
+            mapping = json.loads(json_str)
+            map_dict = {m[0]: tuple(m[1]) for m in mapping}
+            self.assertEqual(map_dict[1], (' ', 4, ' '))
 
-    @unittest.skipUnless("MMCIF" in os.environ, "MMCIF env var not set")
-    def test_disordered_build(self):
-        """Try and extract a chain for a structure with disordered atoms."""
-        with tempfile.TemporaryDirectory() as base_dir:
-            out_dir = Path(base_dir, "pdb")
-            map_dir = Path(base_dir, "map")
 
-            out_dir.mkdir(exist_ok=True)
-            map_dir.mkdir(exist_ok=True)
+    def test_build_with_selectors(self):
+        """Write a structure with an active conformation selector."""
+        class FilterHetatms:
+            def select(self, chain):
+                for res in list(chain.get_residues()):
+                    if res.get_id()[0] != ' ':
+                        del chain[res.get_id()]
+                return chain
 
-            builder = db.ChainPDBBuilder(
-                os.environ["MMCIF"],
-                out_dir, map_dir,
-                conformation.ArbitraryMutationSelector(),
-                conformation.ArbitraryConformationSelector())
-            results = builder.run({"templates": [{"PDB": "4n6v", "chain": "0"}]})
+        pdb_dir = self.tmpdir
 
-            with results["templates"][0]["structure"].open("r") as pdb_fh:
-                structure = PDBParser().get_structure("result", pdb_fh)
-                chain = next(structure.get_models())[' ']
+        builder = db.ChainPDBBuilder(
+            str(self.mmcif_dir), str(pdb_dir),
+            conf_sel=[FilterHetatms()])
+        results = builder.run({"templates": [{"PDB": "12as", "chain": "A"}]})
 
-            self.assertAlmostEqual(
-                chain[1]['N'].get_coord()[0], -5.252,
-                3, "X coord of residue 1 correct")
-            self.assertAlmostEqual(
-                chain[1]['N'].get_coord()[1], -0.725,
-                3, "Y coord of residue 1 correct")
-            self.assertAlmostEqual(
-                chain[1]['N'].get_coord()[2], 4.200,
-                3, "Z coord of residue 1 correct")
-
-            self.assertAlmostEqual(
-                chain[30]['CA'].get_coord()[0], -31.521,
-                3, "X coord of residue 30 correct")
-            self.assertAlmostEqual(
-                chain[30]['CA'].get_coord()[1], -2.596,
-                3, "Y coord of residue 30 correct")
-            self.assertAlmostEqual(
-                chain[30]['CA'].get_coord()[2], 2.172,
-                3, "Z coord of residue 30 correct")
+        with Path(results["templates"][0]["structure"]).open("r") as pdb_in:
+            # Results should match the same sequence without the terminating
+            # residue, which is marked as a HETATM.
+            self.assertEqual(
+                str(Bio.SeqIO.read(pdb_in, "pdb-atom").seq),
+                self._12ASA_SEQ[0:-1],
+                "Atom sequence matches read sequence")
 
 def skipUnlessEnv(*env):
     for e in env:
