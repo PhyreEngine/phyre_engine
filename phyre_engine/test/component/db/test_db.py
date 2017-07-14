@@ -160,59 +160,5 @@ class TestChainPDBBuilder(unittest.TestCase):
                 self._12ASA_SEQ[0:-1],
                 "Atom sequence matches read sequence")
 
-def skipUnlessEnv(*env):
-    for e in env:
-        if not e in os.environ:
-            return unittest.skip("Environment variable {} required.".format(e))
-    return lambda func: func
-
-class TestSimpleDBPipeline(unittest.TestCase):
-    """Try and run a pipeline to build a simple hhblits db."""
-
-    @skipUnlessEnv("HHLIB", "MMCIF", "HHBLITS_DB")
-    def test_pipeline(self):
-        """Build and run a pipeline."""
-
-        with tempfile.TemporaryDirectory() as pdb_dir, \
-                tempfile.TemporaryDirectory() as database_dir, \
-                tempfile.TemporaryDirectory() as map_dir:
-
-            pipeline = [
-                db.ChainPDBBuilder(
-                    os.environ["MMCIF"],
-                    pdb_dir, map_dir,
-                    conformation.ArbitraryMutationSelector(),
-                    conformation.ArbitraryConformationSelector("A")),
-                db.MSABuilder(
-                    os.environ["HHBLITS_DB"],
-                    basedir=database_dir, cpu="23"),
-                db.AddSecondaryStructure(),
-                db.HMMBuilder(basedir=database_dir),
-                db.CS219Builder(basedir=database_dir),
-            ]
-            data = {
-                "templates":[
-                    {"PDB": "12AS", "chain": "A"},
-                    {"PDB": "3NGG", "chain": "A"},
-                ]
-            }
-            for component in pipeline:
-                data = component.run(data)
-
-            db_builder = db.DatabaseBuilder(
-                "test_prefix", overwrite=True,
-                basedir=database_dir)
-
-            results = db_builder.run(data)
-            self.assertIn("database", results, "database key added")
-            for file_type in ("a3m", "hhm", "cs219"):
-                db_prefix = "{}_{}".format(results["database"], file_type)
-                self.assertTrue(
-                    Path("{}.ffindex".format(db_prefix)).exists(),
-                    "ffindex file exists")
-                self.assertTrue(
-                    Path("{}.ffdata".format(db_prefix)).exists(),
-                    "ffdata file exists")
-
 if __name__ == "__main__":
     unittest.main()
