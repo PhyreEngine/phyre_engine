@@ -4,6 +4,7 @@ import tempfile
 import unittest
 import phyre_engine.component.db.db as db
 import phyre_engine.conformation as conformation
+import phyre_engine.test.data
 from Bio.PDB import PDBParser
 from pathlib import Path
 
@@ -41,6 +42,9 @@ class TestStructureRetriever(unittest.TestCase):
 class TestFunctions(unittest.TestCase):
     """Test utility functions."""
 
+    def setUp(self):
+        self.mmcif_dir = Path(phyre_engine.test.data.__file__).parent / "mmcif"
+
     def test_pdb_path(self):
         """Test that our PDB path function works."""
         self.assertEqual(
@@ -54,6 +58,31 @@ class TestFunctions(unittest.TestCase):
         self.assertEqual(
             db.pdb_path("1abC", ".cif.gz", "A"),
             Path("ab/1abc/1abc_A.cif.gz"))
+
+    def test_find_pdb(self):
+        """Test "find_pdb" function to find a structure."""
+        self.assertEqual(
+            db.find_pdb("12as", base_dir=self.mmcif_dir),
+            self.mmcif_dir / "2a/12as.cif")
+
+        self.assertEqual(
+            db.find_pdb("4n6v", base_dir=self.mmcif_dir),
+            self.mmcif_dir / "n6/4n6v.cif.gz")
+
+        self.assertIsNone(db.find_pdb("1abc"))
+
+    def test_open_pdb_uncompressed(self):
+        """Open an uncompressed mmcif file."""
+        pdb_path = db.pdb_path("12as", ".cif", base_dir=self.mmcif_dir)
+        with db.open_pdb(pdb_path) as pdb_in:
+            self.assertGreater(len(pdb_in.readlines()), 0)
+
+    def test_open_pdb_compressed(self):
+        """Open a compressed mmcif file."""
+        pdb_path = db.pdb_path("4n6v", ".cif.gz", base_dir=self.mmcif_dir)
+        with db.open_pdb(pdb_path) as pdb_in:
+            self.assertGreater(len(pdb_in.readlines()), 0)
+
 
 class TestChainPDBBuilder(unittest.TestCase):
     """Test ChainPDBBuilder class"""

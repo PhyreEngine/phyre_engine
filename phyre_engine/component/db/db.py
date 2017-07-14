@@ -14,10 +14,14 @@ from Bio.PDB import MMCIFParser, PDBParser
 from Bio.PDB.Chain import Chain
 from Bio.PDB.Residue import Residue
 from Bio.PDB.PDBExceptions import PDBConstructionException
+import contextlib
 
 class StructureType(Enum):
     PDB = "pdb"
     MMCIF = "cif"
+
+# Used when searching for a PDB file of arbitrary type
+_STRUCTURE_SUFFIXES = (".pdb", ".pdb.gz", ".cif", ".cif.gz")
 
 class StructureRetriever(Component):
     """
@@ -340,6 +344,36 @@ class ChainExtractionError(Exception):
     ERR_MSG = "Error extracting chain {} from structure {}"
     def __init__(self, structure, chain):
         super().__init__(self.ERR_MSG.format(chain, structure))
+
+@contextlib.contextmanager
+def open_pdb(path):
+    """
+    Open a PDB or MMCIF file. This should be used as a context manager, and
+    automatically handles decompressing gzipped files.
+    """
+    try:
+        if path.suffix == ".gz":
+            stream = gzip.open(str(path), "rt")
+            yield stream
+        else:
+            stream = path.open("r")
+            yield stream
+    finally:
+        stream.close()
+
+def find_pdb(pdb_name, *args, suffix_list=_STRUCTURE_SUFFIXES, **kwargs):
+    """
+    For each suffix, try and find a matching file using :py:func:`.pdb_path`.
+
+    :return: Path to the file or ``None`` if no matching file could be found.
+    :rtype: :py:class:`pathlib.Path` object.
+    """
+
+    for suffix in suffix_list:
+        path = pdb_path(pdb_name, suffix, *args, **kwargs)
+        if path.exists():
+            return path
+    return None
 
 def pdb_path(pdb_name, suffix, chain_id=None, base_dir=None):
     """
