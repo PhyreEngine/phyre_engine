@@ -155,3 +155,27 @@ def write_json_remark(stream, data, remark_num):
     json_str = json.dumps(data)
     for map_line in _chunk_string(json_str, 69):
         print("REMARK {:3d} ".format(remark_num) + map_line, file=stream)
+
+def read_json_remark(stream, remark_num):
+    """
+    Read and parse JSON data from a numbered REMARK field of a PDB file.
+    Arguments are the same as for :py:func:`.write_json_remark`.
+    """
+    json_str = read_remark(stream, remark_num, "")
+    return json.loads(json_str)
+
+def read_remark(stream, remark_num, join="\n"):
+    """
+    Read all REMARK lines with the given number from a PDB file.
+
+    :param stream: File handle from which to read data.
+    :param int remark_num: Number of the remark to read.
+    :param str join: String used to join lines.
+    """
+    remark_lines = []
+    search_regex = re.compile("^REMARK +{} (.*)$".format(remark_num))
+    for line in stream:
+        match = search_regex.match(line)
+        if match is not None:
+            remark_lines.append(match.group(1))
+    return join.join(remark_lines)

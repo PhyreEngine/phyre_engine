@@ -68,3 +68,15 @@ class TestFunctions(unittest.TestCase):
                 "Filter HETATMs and residues without a CA atom")
             self.assertEqual(res[0].get_id(), (' ', 2, ' '))
             self.assertEqual(res[1].get_id(), (' ', 4, ' '))
+
+    def test_remark_read_write(self):
+        """Test that we can read and write custom REMARK fields."""
+
+        # Dump random array to REMARK line and see if we can read it back.
+        data = random.sample(range(0, 1000), 1000)
+        with io.StringIO() as buffer:
+            pdb.write_json_remark(buffer, data, 240)
+            buffer.seek(0)
+            self.assertListEqual(
+                pdb.read_json_remark(buffer, 240), data,
+                "Read and write data to REMARK field.")
