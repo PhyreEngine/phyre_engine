@@ -21,7 +21,9 @@ def open_pdb(path):
     Open a PDB or MMCIF file. This should be used as a context manager, and
     automatically handles decompressing gzipped files.
     """
+    path = pathlib.Path(path)
     try:
+        stream = None
         if path.suffix == ".gz":
             stream = gzip.open(str(path), "rt")
             yield stream
@@ -29,7 +31,8 @@ def open_pdb(path):
             stream = path.open("r")
             yield stream
     finally:
-        stream.close()
+        if stream is not None:
+            stream.close()
 
 def find_pdb(pdb_name, *args, suffix_list=_STRUCTURE_SUFFIXES, **kwargs):
     """

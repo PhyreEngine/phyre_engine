@@ -6,6 +6,7 @@ import phyre_engine.tools.pdb as pdb
 import io
 import Bio.PDB
 import random
+import tempfile
 
 ATOM_SEQ_TEST_PDB = (
     "HETATM    1  CA  FOO A   1      11.751  37.846  29.016  1.00 44.65\n"
@@ -55,6 +56,26 @@ class TestFunctions(unittest.TestCase):
     def test_open_pdb_compressed(self):
         """Open a compressed mmcif file."""
         pdb_path = pdb.pdb_path("4n6v", ".cif.gz", base_dir=self.mmcif_dir)
+        with pdb.open_pdb(pdb_path) as pdb_in:
+            self.assertGreater(len(pdb_in.readlines()), 0)
+
+    def test_open_nonexistent_pdb(self):
+        """Try and open a non-existent PDB file."""
+        with tempfile.TemporaryDirectory() as tempdir:
+            with self.assertRaises(FileNotFoundError):
+                with pdb.open_pdb(Path(tempdir) / "bad") as _:
+                    pass
+
+    def test_open_nonexistent_pdb_gz(self):
+        """Try and open a non-existent gzipped PDB file."""
+        with tempfile.TemporaryDirectory() as tempdir:
+            with self.assertRaises(FileNotFoundError):
+                with pdb.open_pdb(Path(tempdir) / "bad.gz") as _:
+                    pass
+
+    def test_open_str(self):
+        """Should be able to pass a string, not just a Path object."""
+        pdb_path = str(pdb.pdb_path("4n6v", ".cif.gz", base_dir=self.mmcif_dir))
         with pdb.open_pdb(pdb_path) as pdb_in:
             self.assertGreater(len(pdb_in.readlines()), 0)
 
