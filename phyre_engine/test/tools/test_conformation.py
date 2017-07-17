@@ -3,8 +3,18 @@ import unittest
 import phyre_engine.tools.conformation as conformation
 from Bio.PDB import PDBParser
 from phyre_engine.tools.conformation import (PopulationConformationSelector,
-                                             PopulationMutationSelector)
+                                             PopulationMutationSelector,
+    PopulationMicroHetSelector)
 import Bio.PDB.Atom
+
+
+# Used to check that the selectors work fine when no alternative
+# conformations are present.
+FINE_PDB = """
+ATOM      2  CA  PRO A   1       3.746  20.507  21.289  0.83 65.19           C
+ATOM     15  CA  GLU A   2       6.861  18.244  21.377  1.00 60.65           C
+ATOM     25  CA  LYS A   3       7.674  14.952  23.095  0.50 60.74           C
+"""
 
 class TestMutationSelectors(unittest.TestCase):
     """Test point mutation selectors"""

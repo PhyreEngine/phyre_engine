@@ -92,9 +92,9 @@ class PopulationConformationSelector(ConformationSelector):
     """Select the single most populated conformation.
 
     Each conformation is assigned a score according to the atoms it contains.
-    The score is given by a weighted sum of "important" atoms. CA atoms are
-    assigned a score of 4, CB atoms a score of 3, and N, C and O atoms a score
-    of 2. All other atoms are assigned a score of 1.
+    The score is given by a weighted sum of "important" atoms. By default, CA
+    atoms are assigned a score of 1000 and all other atoms a score of 1. This
+    can be altered with the ``scores`` and ``default_score`` parameter.
 
     If the score assigned to each conformation is equal, ties are broken by
     choosing the conformation with the highest cumulative occupancy over
@@ -103,13 +103,14 @@ class PopulationConformationSelector(ConformationSelector):
     Any remaining ties are broken by picking an arbitrary conformation.
     """
 
-    SCORES = {
-        "CA": 4,
-        "CB": 3,
-        "N": 2,
-        "C": 2,
-        "O": 2,
+    scores = {
+        "CA": 1000,
     }
+
+    def __init__(self, scores=None, default_score=1):
+        if scores is not None:
+            self.scores = scores
+        self.default_score = default_score
 
     @functools.total_ordering
     class ConformationScore:
@@ -182,8 +183,8 @@ class PopulationMicroHetSelector(PopulationConformationSelector):
         # Build a list of all conformations.
         conformations = {}
         for atom in residue:
-            if atom.is_disordered() and atom.get_id() in self.SCORES:
-                weight = self.SCORES[atom.get_id()]
+            if atom.is_disordered():
+                weight = self.scores.get(atom.get_id(), self.default_score)
                 for conf in atom.disordered_get_id_list():
                     # Set zero for this conformation
                     if conf not in conformations:
@@ -256,11 +257,11 @@ class PopulationMutationSelector(PopulationConformationSelector):
 
             conf_res = residue.disordered_get(conf)
             for atom in conf_res:
-                if atom.get_id() in self.SCORES:
-                    conformations[conf] += self.ConformationScore(
-                        self.SCORES[atom.get_id()],
-                        atom.get_occupancy(),
-                        atom.get_bfactor())
+                weight = self.scores.get(atom.get_id(), self.default_score)
+                conformations[conf] += self.ConformationScore(
+                    weight,
+                    atom.get_occupancy(),
+                    atom.get_bfactor())
 
         sorted_confs = sorted(conformations.items(), key=lambda c: c[1])
         for conf, score in sorted_confs:
