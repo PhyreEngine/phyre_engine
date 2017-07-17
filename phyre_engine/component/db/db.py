@@ -5,6 +5,11 @@ import pathlib
 import urllib.request
 import Bio.PDB
 import logging
+import collections
+import json
+from Bio.SeqRecord import SeqRecord
+from Bio.Seq import Seq
+from Bio.Alphabet.IUPAC import IUPACProtein
 
 log = lambda: logging.getLogger(__name__)
 
@@ -162,3 +167,166 @@ class PDBSequence(Component):
             template["sequence"], _ = pdb.atom_seq(chain)
         return data
 
+class Reduce(Component):
+    """
+    Group all identical sequences in the fold library together.
+
+    This component will examine the sequences (from the ``sequence`` field) of
+    each template (in the ``templates`` list in the pipeline state), and group
+    all identical sequences together. The ``templates`` list will be reduced to
+    only contain non-identical sequences.
+
+    A ``reduction`` key will be added to the template state, containing a
+    mapping of sequences to the templates with the same sequence. For example,
+    the ``reduction`` key will look like the following:
+
+    .. code-block:: none
+
+        {
+            "AEG...": [
+                {"PDB": "1abc", "chain": "B", ...},
+                {"PDB": "1xyz", "chain": "C", ...}
+                # ...
+            ],
+            "HGA...": [
+                {"PDB": "1foo", "chain": "A", ...},
+                {"PDB": "2bar", "chain": "X", ...},
+                # ...
+            ]
+            # ...
+        }
+
+    If specified, a JSON file storing the mapping will be written. The JSON file
+    will contain similar information as the ``reduction`` key, but templates
+    will be represented simply as 2-tuples of PDB ID and chain ID. The example
+    shown above would be represented as follows in JSON format:
+
+    .. code-block:: json
+
+        {
+            "AEG...": [["1abc", "B"], ["1xyz", "C"]],
+            "HGA...": [["1foo", "A"], ["2bar", "X"]]
+        }
+
+    :param str reduction_file: File to which the mapping will be written.
+    """
+    ADDS = ["reduction"]
+    REMOVES = []
+    REQUIRED = ["templates"]
+
+    def __init__(self, reduction_file=None):
+        if reduction_file is not None:
+            self.reduction_file = pathlib.Path(reduction_file)
+        else:
+            self.reduction_file = None
+
+    def run(self, data, config=None, pipeline=None):
+        """Prune identical sequences."""
+        # Indexed by sequence
+        seqs = collections.defaultdict(lambda: [])
+
+        templates = self.get_vals(data)
+        for template in templates:
+            seqs[str(template["sequence"].seq)].append(template)
+
+        log().info(
+            "Reduced %d sequences to %d non-identical sequences",
+            len(templates), len(seqs))
+
+        # Generate the new list of templates and the mapping.
+        data["templates"] = [ident[0] for ident in seqs.values()]
+        data["reduction"] = dict(seqs)
+
+        if self.reduction_file is not None:
+            json_reduction = {}
+            for seq, ident in seqs.items():
+                json_reduction[seq] = [(i["PDB"], i["chain"]) for i in ident]
+
+            with self.reduction_file.open("w") as reduction_fh:
+                json.dump(json_reduction, reduction_fh)
+        return data
+
+class Expand(Component):
+    """
+    Expand a list of templates using the defitions in the ``reduction`` key of
+    the pipeline state.
+
+    This component is intended to complement :py:class:`.Reduce` by expanding a
+    list of templates to contain all templates with an identical sequence.
+
+    :param str reduction_file: Optionally, a JSON file containing the
+        reductions. If this is supplied and the ``reduction`` key is not present
+        in the pipeline state, this will be used as the source of the
+        reductions. It is an error to supply this file *and* to include a
+        ``reduction`` key in the pipeline state.
+    """
+    REQUIRED = ["templates"]
+    ADDS = []
+    REMOVES = ["reduction"]
+
+    def __init__(self, reduction_file=None):
+        if reduction_file is not None:
+            self.reduction_file = pathlib.Path(reduction_file)
+        else:
+            self.reduction_file = None
+
+    def _read_reduction_file(self):
+        """
+        Parse the reduction_file. Returns a dict mapping sequence to a list of
+        templates, designed to be used identically to the ``reduction`` key.
+        """
+        reductions = collections.defaultdict(lambda: [])
+        with self.reduction_file.open("r") as json_in:
+            mapping = json.load(json_in)
+            for seq, template_ids in mapping.items():
+                seq_record = SeqRecord(Seq(seq, IUPACProtein))
+                for template_id in template_ids:
+                    template = {
+                        "sequence": seq_record,
+                        "PDB": template_id[0],
+                        "chain": template_id[1]
+                    }
+                    reductions[seq].append(template)
+        return dict(reductions)
+
+    @staticmethod
+    def _update(orig, other):
+        """
+        Update the template 'other' with all the parameters from 'orig' that
+        are not present in 'other'.
+        """
+        for key, value in orig.items():
+            if key not in other:
+                other[key] = value
+        return other
+
+    def run(self, data, config=None, pipeline=None):
+        """Expand ``templates`` key with grouped sequences."""
+        templates = self.get_vals(data)
+
+        if ((self.reduction_file is not None and "reduction" in data)
+                or (self.reduction_file is None and "reduction" not in data)):
+            raise ValueError((
+                "Must supply either the 'reduction' key in the pipeline state "
+                "or the 'reduction_file' parameter in the constructor."))
+
+        if self.reduction_file is not None:
+            reduction = self._read_reduction_file()
+        else:
+            reduction = data["reduction"]
+
+        extra_templates = []
+        for template in templates:
+            seq = str(template["sequence"].seq)
+            identical_templates = reduction.get(seq, [])
+            for ident_template in identical_templates:
+                extra_templates.append(self._update(template, ident_template))
+
+        log().info(
+            "Adding %d templates to the %d already present.",
+            len(extra_templates), len(templates))
+
+        data["templates"].extend(extra_templates)
+        if "reduction" in data:
+            del data["reduction"]
+        return data
