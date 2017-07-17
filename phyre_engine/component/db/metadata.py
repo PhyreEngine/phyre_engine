@@ -18,6 +18,7 @@ sets the ``name`` key.
 """
 
 from phyre_engine.component.component import Component
+import re
 
 class NameTemplate(Component):
     """
@@ -103,4 +104,50 @@ class DescribeTemplate(Component):
         templates = self.get_vals(data)
         for template in templates:
             template["sequence"].description = self.description_fn(template)
+        return data
+
+class ParseSequenceName(Component):
+    """
+    Parse the sequence name (the ``name`` attribute of the ``sequence`` element)
+    of each template in the ``templates`` list.
+
+    A regular expression with *named captures* must be supplied to the
+    constructor. All matching groups are assigned to the template with the
+    corresponding keys.
+
+    The following regular expressions may be useful:
+
+    ``^(?P<name>.*)$``
+        Use the entire sequence name to set the ``name`` attribute.
+
+    ``^(?P<name>(?P<PDB>[0-9a-zA-Z]{4})_(?P<chain>[0-9a-zA-Z]+))``
+        Match a PDB ID separated from a chain ID by an underscore, and store
+        the PDB ID and chain ID in the ``PDB`` and ``chain`` elements. Set the
+        ``name`` key to the PDB ID and chain ID, separated by an underscore.
+
+    :param str regex: Regular expression to search against the sequence name.
+    :param bool must_match: If true, any non-matching templates cause an error.
+    """
+
+    ADDS = []
+    REMOVES = []
+    REQUIRED = ["templates"]
+
+    def __init__(self, regex, must_match=False):
+        self.regex = re.compile(regex)
+        self.must_match = must_match
+
+    def run(self, data, config=None, pipeline=None):
+        """Parse sequence name using a regex."""
+
+        templates = self.get_vals(data)
+        for template in templates:
+            match = self.regex.search(template["sequence"].name)
+            if match is None:
+                if self.must_match:
+                    raise ValueError(
+                        "Sequence name {} did not match regex {!s}".format(
+                            template["sequence"].name, self.regex.pattern))
+                continue
+            template.update(match.groupdict())
         return data

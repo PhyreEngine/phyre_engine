@@ -1,7 +1,9 @@
 import unittest
 import Bio.SeqIO
+from Bio.SeqRecord import SeqRecord
 import io
-from phyre_engine.component.db.metadata import NameTemplate
+from phyre_engine.component.db.metadata import NameTemplate, ParseSequenceName
+import copy
 
 class TestNameTemplate(unittest.TestCase):
     """Test that NameTemplate can assign names correctly."""
@@ -38,6 +40,59 @@ class TestNameTemplate(unittest.TestCase):
         self.assertEqual(
             self.result_name(NameTemplate(custom_fn).run(self.data)),
             "custom")
+
+class TestParseSequenceName(unittest.TestCase):
+    """Test ParseSequenceName component."""
+
+    _TEMPLATES = [
+        {"sequence": SeqRecord(None, name="1ABC_X extra data")},
+        {"sequence": SeqRecord(None, name="1ABC_Y ignore me")},
+    ]
+    _STATE = {"templates": _TEMPLATES}
+
+    def _test_attributes(self, templates, atts):
+        """Test all attributes match for each template."""
+        for i, (template, att_dict) in enumerate(zip(templates, atts)):
+            for key, value in att_dict.items():
+                with self.subTest("Testing attribute", attribute=key, i=i):
+                    self.assertIn(key, template, "Key is present")
+                    self.assertEqual(template[key], value, "Values match")
+
+    def test_full_name(self):
+        """Test the full name regex given as an example."""
+        regex = "^(?P<name>.*)$"
+        parser = ParseSequenceName(regex)
+        results = parser.run(copy.deepcopy(self._STATE))
+
+        self._test_attributes(results["templates"], [
+            {"name": "1ABC_X extra data"},
+            {"name": "1ABC_Y ignore me"}
+        ])
+
+    def test_pdb_id(self):
+        """Test the regex for parsing PDB and chain ID given as an example."""
+        regex = "^(?P<name>(?P<PDB>[0-9a-zA-Z]{4})_(?P<chain>[0-9a-zA-Z]+))"
+        parser = ParseSequenceName(regex)
+        results = parser.run(copy.deepcopy(self._STATE))
+
+        self._test_attributes(results["templates"], [
+            {"name": "1ABC_X", "PDB": "1ABC", "chain": "X"},
+            {"name": "1ABC_Y", "PDB": "1ABC", "chain": "Y"}
+        ])
+
+    def test_failure(self):
+        """Test that an exception is raised on failure if must_match."""
+        parser = ParseSequenceName("^XXX", must_match=True)
+        with self.assertRaises(ValueError, msg="must_match raises exception"):
+            parser.run(copy.deepcopy(self._STATE))
+
+    def test_no_match(self):
+        """If not must_match, match failures shouldn't have an effect."""
+        parser = ParseSequenceName("^XXX", must_match=False)
+        results = parser.run(copy.deepcopy(self._STATE))
+        for i, template in enumerate(results["templates"]):
+            with self.subTest("No attributes added", i=i):
+                self.assertListEqual(["sequence"], list(template.keys()))
 
 if __name__ == "__main__":
     unittest.main()
