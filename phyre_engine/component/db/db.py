@@ -1,5 +1,6 @@
 from phyre_engine.component import Component
 import phyre_engine.tools.pdb as pdb
+import phyre_engine.tools.conformation
 from enum import Enum
 import pathlib
 import urllib.request
@@ -75,6 +76,12 @@ class ChainPDBBuilder(Component):
     preserve the mappings, then, we write a JSON-encoded array of residue IDs
     to the header of the PDB file under ``REMARK 149`` (the decimal ascii codes
     of "P" and "E" added together).
+
+    If the ``conf_sel`` parameter is not supplied (i.e. the default value of
+    ``None`` is used), then the selectors
+    :py:class:`phyre_engine.tool.conformation.PopulationMutationSelection` and
+    :py:class:`phyre_engine.tool.conformation.PopulationMicroHetSelector` are
+    applied in turn. To disable filtering, pass an empty list.
     """
 
     REQUIRED = ["templates"]
@@ -93,8 +100,14 @@ class ChainPDBBuilder(Component):
         """
         self.mmcif_dir = pathlib.Path(mmcif_dir)
         self.pdb_dir = pathlib.Path(pdb_dir)
-        self.conf_sel = conf_sel if conf_sel is not None else []
         self.overwrite = overwrite
+        if conf_sel is not None:
+            self.conf_sel = conf_sel
+        else:
+            self.conf_sel = [
+                phyre_engine.tools.conformation.PopulationMutationSelector(),
+                phyre_engine.tools.conformation.PopulationMicroHetSelector()
+            ]
 
     def run(self, data, config=None, pipeline=None):
         """Run the component."""
