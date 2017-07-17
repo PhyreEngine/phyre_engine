@@ -151,6 +151,11 @@ class PDBSequence(Component):
     ``sequence`` key to each element of the ``templates`` list in the pipeline
     state. The value of the ``sequence`` field will be a
     :py:class:`Bio.SeqIO.SeqRecord.SeqRecord` object.
+
+    If a ``sequence`` key is already present, the sequence metadata will be
+    retained: only the sequence itself will be altered. Otherwise, a sequence
+    record will be created. If the template has a ``name`` attribute, it will
+    be used for the ID of the sequence record.
     """
 
     ADDS = []
@@ -164,7 +169,13 @@ class PDBSequence(Component):
         for template in templates:
             structure = parser.get_structure("", template["structure"])
             chain = list(structure[0].get_chains())[0]
-            template["sequence"], _ = pdb.atom_seq(chain)
+            if "sequence" in template:
+                template["sequence"].seq, _ = pdb.atom_seq(chain)
+            else:
+                atom_seq, _ = pdb.atom_seq(chain)
+                seq_id = template["name"] if "name" in template else "Atom seq"
+                template["sequence"] = SeqRecord(
+                    atom_seq, id=seq_id, description="")
         return data
 
 class Reduce(Component):

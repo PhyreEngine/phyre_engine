@@ -135,7 +135,7 @@ class TestPDBSequence(unittest.TestCase):
                 "templates": [{"structure": pdb_fh.name}]
             })
             self.assertEqual(
-                str(results["templates"][0]["sequence"]), "AG",
+                str(results["templates"][0]["sequence"].seq), "AG",
                 "Sequence read correctly")
 
 class TestReduce(unittest.TestCase):
