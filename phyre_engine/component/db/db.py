@@ -214,6 +214,8 @@ class Reduce(Component):
     REMOVES = []
     REQUIRED = ["templates"]
 
+    CONFIG_SECTION = "reduce"
+
     def __init__(self, reduction_file=None):
         if reduction_file is not None:
             self.reduction_file = pathlib.Path(reduction_file)
@@ -263,6 +265,8 @@ class Expand(Component):
     REQUIRED = ["templates"]
     ADDS = []
     REMOVES = ["reduction"]
+
+    CONFIG_SECTION = "reduce"
 
     def __init__(self, reduction_file=None):
         if reduction_file is not None:
