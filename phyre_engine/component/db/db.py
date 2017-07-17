@@ -134,7 +134,7 @@ class ChainPDBBuilder(Component):
             pdb_file.parent.mkdir(parents=True, exist_ok=True)
 
             if not pdb_file.exists() or self.overwrite:
-                with source_file.open("r") as pdb_in:
+                with pdb.open_pdb(source_file) as pdb_in:
                     structure = parser.get_structure(
                         "{}_{}".format(pdb_id, chain),
                         pdb_in)
