@@ -71,7 +71,7 @@ class TestParseSequenceName(unittest.TestCase):
 
     def test_pdb_id(self):
         """Test the regex for parsing PDB and chain ID given as an example."""
-        regex = "^(?P<name>(?P<PDB>[0-9a-zA-Z]{4})_(?P<chain>[0-9a-zA-Z]+))"
+        regex = "^(?P<name>(?P<PDB>\w{4})_(?P<chain>\w+))"
         parser = ParseSequenceName(regex)
         results = parser.run(copy.deepcopy(self._STATE))
 
@@ -93,6 +93,16 @@ class TestParseSequenceName(unittest.TestCase):
         for i, template in enumerate(results["templates"]):
             with self.subTest("No attributes added", i=i):
                 self.assertListEqual(["sequence"], list(template.keys()))
+
+    def test_unicode_matching(self):
+        """Check that the unicode_matching flag works."""
+        state = copy.deepcopy(self._STATE)
+        state["templates"][0]["sequence"].name = "αβ: and so on"
+        parser = ParseSequenceName("^(?P<id>\w+)", unicode_matching=True)
+        results = parser.run(state)
+        self.assertEqual(
+            results["templates"][0]["id"], "αβ",
+            "Non-ASCII matching")
 
 if __name__ == "__main__":
     unittest.main()

@@ -120,22 +120,34 @@ class ParseSequenceName(Component):
     ``^(?P<name>.*)$``
         Use the entire sequence name to set the ``name`` attribute.
 
-    ``^(?P<name>(?P<PDB>[0-9a-zA-Z]{4})_(?P<chain>[0-9a-zA-Z]+))``
+    ``^(?P<name>(?P<PDB>\w{4})_(?P<chain>\w+))``
         Match a PDB ID separated from a chain ID by an underscore, and store
         the PDB ID and chain ID in the ``PDB`` and ``chain`` elements. Set the
         ``name`` key to the PDB ID and chain ID, separated by an underscore.
 
+    .. note::
+
+        Regex matching is by default done using the ``ASCII`` flag, because it
+        is rare to see sequences with non-ASCII characters in their metadata.
+        Unicode matching may be enabled with the ``unicode_match`` parameter.
+
     :param str regex: Regular expression to search against the sequence name.
     :param bool must_match: If true, any non-matching templates cause an error.
+    :param bool unicode_matching: Enable unicode matching, rather than the
+        default ASCII-only matching.
     """
 
     ADDS = []
     REMOVES = []
     REQUIRED = ["templates"]
 
-    def __init__(self, regex, must_match=False):
-        self.regex = re.compile(regex)
+    def __init__(self, regex, must_match=False, unicode_matching=False):
         self.must_match = must_match
+        if not unicode_matching:
+            self.flags = re.ASCII
+        else:
+            self.flags = 0
+        self.regex = re.compile(regex, self.flags)
 
     def run(self, data, config=None, pipeline=None):
         """Parse sequence name using a regex."""
