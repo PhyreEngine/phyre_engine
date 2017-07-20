@@ -30,6 +30,44 @@ class DumpAction(Action):
         yaml.dump(config, sys.stdout, SafeDumper, default_flow_style=False)
         sys.exit(0)
 
+class StoreStartingValue(Action):
+    """
+    Parse a starting value for the pipeline state.
+
+    For example, assume that this action is associated with the ``--start``
+    option and the ``start`` ``dest``. The user passes the following options:
+
+    .. code-block:: none
+        --start foo:bar --start baz:qux1 --start baz:qux2
+
+    This will result in the namespace returned by the argument parser having a
+    ``start`` (set from the ``dest`` parameter) attribute that looks like the
+    following:
+
+    .. code-block::
+
+       {"foo": "bar", "baz": ["qux1", "qux2"]}
+
+    Values for this option are split on the first ``:``. If several of the same
+    values are passed, a list is built.
+    """
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        start_vals = getattr(namespace, self.dest, None)
+        if start_vals is None:
+            start_vals = {}
+        key, value = values[0].split(":", maxsplit=1)
+
+        if key not in start_vals:
+            start_vals[key] = value
+        else:
+            # Convert to list if we saw a scalar
+            if not isinstance(start_vals[key], list):
+                start_vals[key] = [start_vals[key]]
+            start_vals[key].append(value)
+        setattr(namespace, self.dest, start_vals)
+
+
 def arg_parser():
     # Setup argument parser
     parser = ArgumentParser(description=__import__('__main__').__doc__)
@@ -40,6 +78,9 @@ def arg_parser():
     parser.add_argument(
         "-e", "--example", dest="dump", action=DumpAction, nargs=0,
         help="Dump a sample pipeline and exit.")
+    parser.add_argument(
+        "-s", "--start", dest="start", action=StoreStartingValue, nargs=1,
+        help="Add a value to the initial pipeline state.")
     parser.add_argument(
         dest="pipeline", metavar="pipeline",
         help="YAML file describing the pipeline")
@@ -113,6 +154,12 @@ def main():  # IGNORE:C0111
                 'tag:yaml.org,2002:seq',
                 construct_yaml_tuple)
             config = yaml.load(yml_in, SafeLoader)
+
+        # Update starting values if any were supplied on the command line
+        if "start" not in config["pipeline"]:
+            config["pipeline"]["start"] = {}
+        if args.start is not None:
+            config["pipeline"]["start"].update(args.start)
 
         # Set up logging if a logging section was given in the pipeline
         log_conf = init_logging(config.get("logging", None))
