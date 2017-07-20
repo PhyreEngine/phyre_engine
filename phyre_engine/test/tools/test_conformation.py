@@ -1,7 +1,20 @@
 import io
 import unittest
-import phyre_engine.conformation as conformation
+import phyre_engine.tools.conformation as conformation
 from Bio.PDB import PDBParser
+from phyre_engine.tools.conformation import (PopulationConformationSelector,
+                                             PopulationMutationSelector,
+    PopulationMicroHetSelector)
+import Bio.PDB.Atom
+
+
+# Used to check that the selectors work fine when no alternative
+# conformations are present.
+FINE_PDB = """
+ATOM      2  CA  PRO A   1       3.746  20.507  21.289  0.83 65.19           C
+ATOM     15  CA  GLU A   2       6.861  18.244  21.377  1.00 60.65           C
+ATOM     25  CA  LYS A   3       7.674  14.952  23.095  0.50 60.74           C
+"""
 
 class TestMutationSelectors(unittest.TestCase):
     """Test point mutation selectors"""
@@ -18,44 +31,25 @@ ATOM     25  CA BLYS A   3       7.674  14.952  23.095  0.50 60.74           C
         with io.StringIO(self.MUTATED_PDB) as string_fh:
             self.pdb = PDBParser().get_structure("3jqh", string_fh)
 
-    def test_arbitrary(self):
-        """Test ArbitraryMutationSelector."""
-        selector = conformation.ArbitraryMutationSelector()
-        conf = selector.select(self.pdb[0]["A"])[0]
+    def test_population(self):
+        sel = PopulationMutationSelector()
+        sanitised = sel.select(self.pdb[0]["A"])
 
-        self.assertEqual(len(list(conf.get_residues())), 3, "Got 3 residues.")
-        # Check all residues are ordered
-        for residue in conf:
-            self.assertTrue(
-                residue.is_disordered() != 2,
-                "All residues ordered")
-            self.assertEqual(
-                len(list(residue.get_atom())),
-                1,
-                "Residue contains 1 atom")
+        # We should have chosen the proline, because it has the highest
+        # occupancy
+        self.assertEqual(sanitised[1].get_resname(), "PRO", "Highest occupancy")
 
-    def test_all(self):
-        """Test AllMutationSelector."""
-        selector = conformation.AllMutationSelector()
-        all_confs = selector.select(self.pdb[0]["A"])
+        # This should not have affected the disordered status of the lysine
+        self.assertTrue(sanitised[3].is_disordered(), "LYS still disordered")
 
-        self.assertEqual(len(all_confs), 2, "Got two conformations.")
-
-        for conf in all_confs:
-            self.assertEqual(
-                len(list(conf.get_residues())),
-                3,
-                "Got 3 residues for conformation 1.")
-
-            # Check all residues are ordered
-            for residue in conf:
-                self.assertTrue(
-                    residue.is_disordered() != 2,
-                    "All residues ordered")
-                self.assertEqual(
-                    len(list(residue.get_atom())),
-                    1,
-                    "Residue contains 1 atom")
+        # If we add a CB atom to the SER, it should increase the population and
+        # we should select it.
+        add_cb = Bio.PDB.Atom.DisorderedAtom("CB")
+        add_cb.disordered_add(
+            Bio.PDB.Atom.Atom("CB", [0] * 3, 65, 0.5, "B", "CB", 3, "C"))
+        self.pdb[0]["A"][1].disordered_get("SER").add(add_cb)
+        sanitised = sel.select(self.pdb[0]["A"])
+        self.assertEqual(sanitised[1].get_resname(), "SER", "Highest weight")
 
 class TestMicroConformationSelectors(unittest.TestCase):
     """Test microheterogeneity selectors."""
@@ -93,22 +87,63 @@ ATOM     37  NZ BLYS A   3       8.293   9.541  19.864  0.50 65.48           N
                     0,
                     "Atom is not disordered.")
 
-    def test_arbitrary(self):
-        """Test ArbitraryConformationSelector."""
-        with io.StringIO(self.MUTATED_PDB) as string_fh:
-            pdb = PDBParser().get_structure("3jqh", string_fh)
-            selector = conformation.ArbitraryConformationSelector()
-            conf = selector.select(pdb[0]["A"])
-            self._verify_num_elements(conf)
+    def _compare_scores(self, scores1, scores2, message):
+        """
+        Check various operators for ConformationScores.
+
+        The first parameter *must* be less than the second. Each parameter
+        should be a tuple of values that will be passed to the
+        :py:class:`phyre_engine.tools.conformation.PopulationConfirmationSelector.ConformationScore`
+        constructor.
+        """
+
+        # Alias for shorter class name
+        Score = PopulationConformationSelector.ConformationScore
+        conf_scores1 = Score(*scores1)
+        conf_scores2 = Score(*scores2)
+
+        # For constructing diagnostic messages
+        def _msg(operator):
+            return "{}: {} operator".format(message, operator)
+
+        self.assertLess(conf_scores1, conf_scores2, _msg("<"))
+        self.assertLessEqual(conf_scores1, conf_scores2, _msg("<="))
+        self.assertGreater(conf_scores2, conf_scores1, _msg(">"))
+        self.assertGreaterEqual(conf_scores2, conf_scores1, _msg(">="))
+        self.assertNotEqual(conf_scores1, conf_scores2, _msg("!="))
+        self.assertEqual(conf_scores1, Score(*scores1), _msg("=="))
+        self.assertEqual(conf_scores2, Score(*scores2), _msg("=="))
+
+        # Try and sort each score, and check that the first score is less than
+        # the second
+        sorted_scores = sorted([conf_scores1, conf_scores2])
+        self.assertLess(
+            sorted_scores[0],
+            sorted_scores[1],
+            "{}: sorting".format(message))
+
+    def test_conformation_sort(self):
+        """Test comparison and sorting of ConformationScore objects."""
+        self._compare_scores((1, 2, 3), (2, 2, 3), "Different population")
+        self._compare_scores((1, 1, 3), (1, 2, 3), "Different occupancy")
+        self._compare_scores((1, 2, 4), (1, 2, 3), "Different b-factor")
+
+    def test_conformation_add(self):
+        """Ensure that addition of ComparisonScore objects works properly."""
+        Score = PopulationConformationSelector.ConformationScore
+        self.assertEqual(
+            Score(1, 2, 3) + Score(1, 2, 3),
+            Score(2, 4, 6),
+            "Add two scores together")
 
     def test_population(self):
-        """Test PopulationConformationSelector."""
+        """Test PopulationMicroHetSelector."""
 
         # We should get conformation A, because it has a lower cumulative B
         # factor.
         with io.StringIO(self.MUTATED_PDB) as string_fh:
             pdb = PDBParser().get_structure("3jqh", string_fh)
-            selector = conformation.PopulationConformationSelector()
+            selector = conformation.PopulationMicroHetSelector()
             conf = selector.select(pdb[0]["A"])
             self._verify_num_elements(conf)
             # Verify that this is conformation A
@@ -124,7 +159,7 @@ ATOM     37  NZ BLYS A   3       8.293   9.541  19.864  0.50 65.48           N
 
         with io.StringIO(no_ca_a) as string_fh:
             pdb = PDBParser().get_structure("3jqh", string_fh)
-            selector = conformation.PopulationConformationSelector()
+            selector = conformation.PopulationMicroHetSelector()
             conf = selector.select(pdb[0]["A"])
             self._verify_num_elements(conf)
             # Verify that this is conformation B
@@ -137,7 +172,7 @@ ATOM     37  NZ BLYS A   3       8.293   9.541  19.864  0.50 65.48           N
         with io.StringIO(self.MUTATED_PDB) as string_fh:
             pdb = PDBParser().get_structure("3jqh", string_fh)
             pdb[0]["A"][3]["CA"].disordered_get("A").set_occupancy(0.49)
-            selector = conformation.PopulationConformationSelector()
+            selector = conformation.PopulationMicroHetSelector()
             conf = selector.select(pdb[0]["A"])
             self._verify_num_elements(conf)
             # Verify that this is conformation B
@@ -150,7 +185,7 @@ ATOM     37  NZ BLYS A   3       8.293   9.541  19.864  0.50 65.48           N
         with io.StringIO(self.MUTATED_PDB) as string_fh:
             pdb = PDBParser().get_structure("3jqh", string_fh)
             pdb[0]["A"][3]["CA"].disordered_get("A").set_bfactor(70.74)
-            selector = conformation.PopulationConformationSelector()
+            selector = conformation.PopulationMicroHetSelector()
             conf = selector.select(pdb[0]["A"])
             self._verify_num_elements(conf)
             # Verify that this is conformation B
