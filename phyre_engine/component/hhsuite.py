@@ -49,6 +49,9 @@ class HHSuiteTool(Component):  #pylint: disable=abstract-method
     :param str HHLIB: Optional HHLIB environment variable.
     :param QueryType input_type: Query type.
     """
+
+    CONFIG_SECTION = "hhsuite"
+
     def __init__(self, tool, flags, options, bin_dir, HHLIB, input_type):
         self.name, self.tool = tool
         self.flags = flags
