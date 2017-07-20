@@ -1,0 +1,16 @@
+>3m4p_A Ehasnrs, asparaginyl-tRNA synthetase, putative; aminoacyl-tRNA synthetase, tRNA ligase, AARS, translation, ATP-binding, nucleotide-binding; HET: 4AD; 2.83A {Entamoeba histolytica} PDB: 3m4q_A
+    i     j  score     SS  probab  dssp
+    9   159   0.10   0.00  0.3565     H
+   10   160   0.35   0.00  0.3835     H
+   11   161   0.15   0.00  0.4059     H
+   12   162   1.39   0.00  0.4281     H
+   13   163  -0.19   0.00  0.4436     H
+>1h4v_B Histidyl-tRNA synthetase; class IIA aminoacyl-tRNA synthetase, ATP + L-histidine tRNA(His)-> AMP + PPI + L-histidyl-tRNA(His); 2.4A {Thermus thermophilus} SCOP: c.51.1.1 d.104.1.1 PDB: 1ady_A* 1adj_A 4rdx_A*
+missing dssp
+    i     j  score     SS  probab
+    6    17   0.23   0.00  0.4388
+    7    18   0.55   0.00  0.5639
+    8    19   0.37   0.00  0.6517
+    9    20   0.64   0.00  0.7241
+   10    21   0.43   0.00  0.7749
+   11    22   0.37   0.00  0.8221

@@ -1,7 +1,23 @@
 """Parsers for hhsuite files."""
 from enum import Enum
-import warnings
+import logging
 import re
+from collections import namedtuple
+
+log = lambda: logging.getLogger(__name__)
+
+def _parse_range(range_str):
+    """Parse a range string (``x-y``) into a ``range`` object."""
+    start, end = range_str.split("-")
+    return range(int(start), int(end))
+
+def _parse_num_seqs(num_seqs_str):
+    """
+    Parse the No_of_seqs header field into a 2-tuple containing filtered and
+    total number of sequences.
+    """
+    num_filt, num_in = num_seqs_str.split(" out of ")
+    return (int(num_filt), int(num_in))
 
 class Report:
     """Parse an hhsearch report file into a list of hits.
@@ -12,9 +28,93 @@ class Report:
     parse the alignment data using the :class:`Tabular` parser.
 
     :param str file: Path of the report file to be parsed.
-    :ivar hits: List of :class:`Hit` objects.
-    :ivar summary: Dictionary containing the summary lines of the report.
+    :ivar hits: List of hits.
+    :vartype hits: :py:class:`.Hit`
+    :ivar summary: Header information parsed from the report file.
+    :vartype summary: :py:class:`.Summary`
     """
+
+    #: Represents a single hit parsed from an hhsuite report file. For detailed
+    #: information, see section 5.1 of the hh-suite user guide.
+    #:
+    #: :param int rank: Rank in the hit list of this hit.
+    #: :param str name: Name of this hit.
+    #: :param float prob: True positive probability.
+    #: :param float evalue: Expected number of false positives with a score
+    #:     greater than this hit.
+    #: :param float pvalue: Probability in a *pairwise* comparison of finding a
+    #:     hit with at least this score.
+    #: :param float score: Raw score calculated by HMM-HMM alignment.
+    #: :param float ss: Secondary structure score.
+    #: :param int cols: Number of aligned match states in the alignment.
+    #: :param range(int) query_range: Range of aligned match states in the
+    #:     query.
+    #: :param range(int) template_range: Range of aligned match states in the
+    #:     template.
+    #: :param int template_matches: Number of match states in the template HMM.
+    #: :param int identities: percentage of aligned residues that are identical.
+    #: :param float similarity: Arithmetic mean of substitution scores between
+    #:     aligned residues.
+    #: :param float sum_probs: Sum of posterior probabilities of all aligned
+    #:     pairs.
+    #: :param float template_neff: Effective number of sequences in the template
+    #:     HMM.
+    Hit = namedtuple(
+        "Hit", (
+            "rank name "
+            "prob evalue pvalue score ss cols query_range template_range "
+            "template_matches identities similarity sum_probs template_neff"
+        ))
+
+    #: Summary of an hhsuite report, stored at the top of the report file.
+    #: :param str query: Name of the query sequence/MSA.
+    #: :param int match_cols: Number of match columns in the query HMM.
+    #: :param float neff: Effective number of sequences.
+    #: :param int num_searched: Number of HMMs searched.
+    #: :param str date: Date the report file was generated.
+    #: :param str command: Command line used to generate the report.
+    #: :param tuple(int, int) num_seqs: Number of filtered and input sequences.
+    Summary = namedtuple(
+        "Summary",
+        "query match_cols neff num_searched date command num_seqs")
+
+    # List of regexes, field names and functions to convert to the correct data
+    # type. These match against lines in the alignment section at the bottom of
+    # the report file.
+    _PAIRWISE_FIELDS = [
+        (r"Identities=([^%]+)%", "identities", float),
+        (r"Similarity=(\S+)", "similarity", float),
+        (r"Sum_probs=(\S+)", "sum_probs", float),
+        (r"Template_Neff=(\S+)", "template_neff", float),
+    ]
+
+    # The scores, in order, appearing in the hit section. These appear *after*
+    # the hit rank and (truncated) sequence name. This is a list of 2-tuples
+    # containing the name of the field and the function used to parse the string
+    # into an object of the correct type.
+    _HIT_FIELDS = [
+        ("prob", float),
+        ("evalue", float),
+        ("pvalue", float),
+        ("score", float),
+        ("ss", float),
+        ("cols", int),
+        ("query_range", _parse_range),
+        ("template_range", _parse_range),
+        ("template_matches", int)
+    ]
+
+    # Header fields, mapping to a 2-tuple containing the name used in the
+    # summary and a conversion function.
+    _HEADER_FIELDS = {
+        "Query": ('query', str),
+        "Match_columns": ('match_cols', int),
+        "Neff": ('neff', float),
+        "Searched_HMMs": ('num_searched', int),
+        "Date": ('date', str),
+        "Command": ('command', str),
+        "No_of_seqs": ('num_seqs', _parse_num_seqs)
+    }
 
     #Tokens describing the current state of the parser. The state reflects the
     #section of the report that is currently being parsed.
@@ -29,17 +129,26 @@ class Report:
         """Parse a report file."""
         self._state = Report.State.HEADER
         self._current_index = 0
+        self._summary = {}
+        self._hits = []
         self._parse_file(file)
+        self._hit_objs = None
 
+    @property
+    def hits(self):
+        """Return a list of :py:class:`.Hit` objects."""
+        if self._hit_objs is None:
+            self._hit_objs = [self.Hit(**hit) for hit in self._hits]
+        return self._hit_objs
+
+    @property
+    def summary(self):
+        """Get summary information about the report."""
+        return self.Summary(**self._summary)
 
     def _parse_file(self, file):
         #Parse the file line by line, maintaining the currents state in the
-        #_state instance variable. Start by parsing the header:
-        self.summary = {}
-        self.hits = []
-
-        #Index of the hit being parsed by _parse_pairwise_line
-
+        #_state instance variable. Start by parsing the header.
         with open(file, "r") as in_fh:
             for line in in_fh:
                 line = line.rstrip()
@@ -60,46 +169,22 @@ class Report:
         if not line.strip():
             return
 
-
         #Parse the initial few lines of the header. This is of the form
         #  ^Field       Value\s*$
-        #so we can just grab the results using (several) regexes.
-
-        #The "No_of_seqs" field is slightly different, because it is of the
-        #follwing form:
-        #  ^No_of_seqs 137 out of 2499$
-        #We parse this into the following hashref:
-        #  {filtered => 137, in => 2499}
-        fields = {
-            "Query":          'query',
-            "Match_columns":  'match_cols',
-            "Neff":           'neff',
-            "Searched_HMMs":  'num_searched',
-            "Date":           'date',
-            "Command":        'command'
-        }
-        ints = {"num_searched", "match_cols"}
-        floats = {"neff"}
         field, value = line.split(maxsplit=1)
-
-        if field == "No_of_seqs":
-            num_filt, num_in = value.split(" out of ")
-            self.summary["num_seqs"] = {}
-            self.summary["num_seqs"]["filtered"] = int(num_filt)
-            self.summary["num_seqs"]["in"]       = int(num_in)
-        elif field in fields:
-            short_name = fields[field]
-            if short_name in ints:
-                value = int(value)
-            elif short_name in floats:
-                value = float(value)
-            self.summary[short_name] = value
+        if field in self._HEADER_FIELDS:
+            name, converter = self._HEADER_FIELDS[field]
+            self._summary[name] = converter(value)
         else:
-            err_msg = "Unknown field {} in hhhsuite report."
-            warnings.warn(err_msg.format(field))
-
+            log().warn(
+                "Unknown field '%s' (value: '%s') in report",
+                field, value)
 
     def _parse_hit_line(self, line):
+        # Reproducing a full-width excerpt is worth violating my arbitrary rules
+        # on code width:
+        # pylint: disable=max-line-length
+
         #The hitlist looks like this (with column numbers added):
         #
         #  0        1         2         3         4         5         6         7         8         9
@@ -128,43 +213,22 @@ class Report:
             self._state = Report.State.PAIRWISE
             return
 
-        hit = Hit()
-
+        info = {}
         #Get and remove the rank
-        hit.info["rank"], line = line.split(maxsplit=1)
+        info["rank"], line = line.split(maxsplit=1)
+        info["rank"] = int(info["rank"])
 
         #Discard the (possibly truncated) name of the sequence
         line = line[31:]
 
-        #Split on spaces and parentheses, discard empty fields and fill the
-        #hit dict
-        (
-            hit.info["prob"],
-            hit.info["evalue"],
-            hit.info["pvalue"],
-            hit.info["score"],
-            hit.info["ss"],
-            hit.info["cols"],
-            hit.info["query_range"],
-            hit.info["template_range"],
-            hit.info["template_matches"],
-        ) = [x for x in re.split("[ ()]+", line) if x]
-
-        #Turn query_range and template_range into ranges
-        hit.info["template_range"] = range(
-                *[int(x) for x in hit.info["template_range"].split("-")])
-        hit.info["query_range"] = range(
-                *[int(x) for x in hit.info["query_range"].split("-")])
-
-        #Convert the remaining values into numbers.
-        for field in ["rank", "cols", "template_matches"]:
-            hit.info[field] = int(hit.info[field])
-        for field in ["prob", "evalue", "pvalue", "score", "ss"]:
-            hit.info[field] = float(hit.info[field])
+        # Extract and convert the remaining fields. The regex is used to split
+        # to easily discard parentheses around the template_matches field.
+        fields = [f for f in re.split("[ ()]+", line) if f]
+        for (field, converter), value in zip(self._HIT_FIELDS, fields):
+            info[field] = converter(value)
 
         #Finally, add this hit to the list
-        self.hits.append(hit)
-
+        self._hits.append(info)
 
     def _parse_pairwise_line(self, line):
         #Skip blank lines or "Done!"
@@ -180,45 +244,14 @@ class Report:
             #Parse the name of the hit. This can be longer than the hit name in the
             #summary, because it is not truncated:
             #>A long description
-            self.hits[current].info["name"] = line[1:]
+            self._hits[current]["name"] = line[1:]
         elif line.startswith("Probab"):
             #Parse the details line:
             #Probab=100.00  E-value=9.5e-116  Score=793.48  Aligned_cols=222  Identities=66%  Similarity=1.106  Sum_probs=219.2  Template_Neff=3.452
-
-            #List of regexes, field names and functions to convert to the
-            #correct data type.
-            matches = [
-                (r"Identities=([^%]+)%", "identities",    float),
-                (r"Similarity=(\S+)",    "similarity",    float),
-                (r"Sum_probs=(\S+)",     "sum_probs",     float),
-                (r"Template_Neff=(\S+)", "template_neff", float),
-            ]
-
-            for regex, field, converter in matches:
+            for regex, field, converter in self._PAIRWISE_FIELDS:
                 match = re.search(regex, line)
                 if match:
-                    self.hits[current].info[field] = converter(match.group(1))
-
-
-class Hit:
-    """A class representing a single hit.
-
-    A hit may have several per-hit attributes describing, for example, the score
-    between a query and the hit or simply giving the name of the hit.
-    Additionally, a hit may contain the alignment between a query and this hit.
-
-    :param info: Optional keys to be added to the `info` attribute.
-    :ivar info: A dictionary giving per-hit properties.
-    :ivar aln: A list of alignment pairs.
-    """
-
-    def __init__(self, **info):
-        """Initialise a new Hit method with empty `info` and `aln`
-        attributes.
-        """
-
-        self.info = info
-        self.aln = []
+                    self._hits[current][field] = converter(match.group(1))
 
 
 class Tabular:
@@ -227,14 +260,34 @@ class Tabular:
 
     :param str file: Path of the file to parse.
     :ivar hits: List of hits contained within the file to be parsed.
+    :vartype hits: :py:class:`.Hit`
     """
 
+    #: Represents a single hit.
+    #: :param str name: Name of this hit. Parsed from the tabular report.
+    #: :param list[ResiduePair] alignment: List of residue pairs.
+    Hit = namedtuple("Hit", "name alignment")
+
+    #: Alignment between two residues.
+    #:
+    #: Some of these scores may be ``None``.
+    #: :param int i: Index of the query residue.
+    #: :param int j: Index of the template residue.
+    #: :param float SS: Secondary structure score.
+    #: :param float score: Score of this residue pair.
+    #: :param float probab: Posterior probability of residue pair.
+    #: :param str dssp: DSSP-assigned state of template residue.
+    ResiduePair = namedtuple("ResiduePair", "i j score SS probab dssp")
+
+    # Type conversion functions of the various possible properties.
+    _TYPES = {
+        "i": int, "j": int,
+        "score": float, "probab": float, "dssp": str, "SS": float
+    }
 
     def __init__(self, file):
         """Parse a tabulated file produced by an hhsuite tool."""
-
         self.hits = []
-        self._current_hit = None
         with open(file, "r") as fh:
             self._parse_file(fh)
 
@@ -252,22 +305,6 @@ class Tabular:
             record.append(line.rstrip("\n"))
         yield record
 
-    def _parse_num(self, string):
-        #Parse a number from a string. If possible, this will return an int.
-        #Otherwise, a float. If the string is not numeric, it will return the
-        #string.
-        try:
-            return int(string)
-        except ValueError:
-            pass
-
-        try:
-            return float(string)
-        except ValueError:
-            pass
-
-        return string
-
     def _parse_file(self, fh):
         #Records start with a line beginning with ">" containing the full name
         #of the hit.
@@ -284,15 +321,27 @@ class Tabular:
         #
         #The remaining lines give the values for each field.
 
-
         for lines in self._records(fh):
-            lines = [l for l in lines if not l.startswith("missing")]
-
-            name   = lines[0][1:]
-            header = lines[1].split()
-            hit = Hit(name=name)
-            for l in lines[2:]:
-                values = [self._parse_num(x) for x in l.split()]
-                hit.aln.append(dict(zip(header, values)))
-            self.hits.append(hit)
-
+            missing = []
+            name = None
+            header = None
+            pairs = []
+            for line in lines:
+                if line.startswith("missing"):
+                    missing.append(line.replace("missing ", ""))
+                elif name is None:
+                    # Strip leading ">"
+                    name = line[1:]
+                elif header is None:
+                    header = line.split()
+                else:
+                    # Use header to generate a dict of field:value pairs
+                    pair_dict = {}
+                    for field, value in zip(header, line.split()):
+                        pair_dict[field] = self._TYPES[field](value)
+                    # Add missing values with a value of None
+                    for field in missing:
+                        pair_dict[field] = None
+                    # Convert to a Hit ResiduePair object
+                    pairs.append(self.ResiduePair(**pair_dict))
+            self.hits.append(self.Hit(name, pairs))
