@@ -4,7 +4,6 @@ formats. By default, each dumper will write to standard output. The ``output``
 parameter may be set to either a file name or output stream to determine where
 the output will be written.
 """
-import json
 import sys
 from phyre_engine.component.component import Component
 from phyre_engine.tools.util import Stream
@@ -12,7 +11,7 @@ from phyre_engine.tools.util import Stream
 try:
     # Use libyaml if it is available
     import yaml
-    from yaml import CSafeDUmper as SafeDumper
+    from yaml import CSafeDumper as SafeDumper
 except ImportError:
     from yaml import SafeDumper
 
