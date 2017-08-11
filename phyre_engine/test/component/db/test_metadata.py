@@ -2,7 +2,8 @@ import unittest
 import Bio.SeqIO
 from Bio.SeqRecord import SeqRecord
 import io
-from phyre_engine.component.db.metadata import NameTemplate, ParseSequenceName
+from phyre_engine.component.db.metadata import NameTemplate, ParseSequenceName, \
+    ParseField
 import copy
 
 class TestNameTemplate(unittest.TestCase):
@@ -103,6 +104,27 @@ class TestParseSequenceName(unittest.TestCase):
         self.assertEqual(
             results["templates"][0]["id"], "αβ",
             "Non-ASCII matching")
+
+class TestParseField(unittest.TestCase):
+    """Test ParseField component."""
+
+    _TEMPLATES = [
+        {"haystack": "1foo"},
+        {"haystack": "2bar"},
+    ]
+    _STATE = {"templates": _TEMPLATES}
+
+    def test_matcher(self):
+        """Test matching arbitrary field."""
+        parser = ParseField("haystack", r"^(?P<num>\d)(?P<char>\w{3})$")
+        results = parser.run(self._STATE)
+        self.assertDictEqual(
+            results["templates"][0],
+            {"haystack": "1foo", "num": "1", "char": "foo"})
+        self.assertDictEqual(
+            results["templates"][1],
+            {"haystack": "2bar", "num": "2", "char": "bar"})
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -106,7 +106,51 @@ class DescribeTemplate(Component):
             template["sequence"].description = self.description_fn(template)
         return data
 
-class ParseSequenceName(Component):
+class RegexComponent(Component):
+    """
+    Base class of regex-using metadata parsers. Components that read a regular
+    expression from a string should inherit from this to ensure that regular
+    expressions are treated consistently across components.
+
+    :param str regex: Regular expression to search against the sequence name.
+    :param bool must_match: If true, any non-matching templates cause an error.
+    :param bool unicode_matching: Enable unicode matching, rather than the
+        default ASCII-only matching.
+
+    .. note::
+
+        Regex matching is by default done using the ``ASCII`` flag, because it
+        is rare to see sequences with non-ASCII characters in their metadata.
+        Unicode matching may be enabled with the ``unicode_match`` parameter.
+    """
+
+    ADDS = []
+    REMOVES = []
+    REQUIRED = ["templates"]
+
+    def __init__(self, regex, must_match=False, unicode_matching=False):
+        self.must_match = must_match
+        if not unicode_matching:
+            self.flags = re.ASCII
+        else:
+            self.flags = 0
+        self.regex = re.compile(regex, self.flags)
+
+    def _search(self, haystack):
+        """
+        Search for ``self.regex`` in ``haystack``. Aborts if ``must_match``
+        and no match was found.
+        """
+        match = self.regex.search(haystack)
+        if match is None:
+            if self.must_match:
+                raise ValueError(
+                    "Field '{}' did not match regex {!s}".format(
+                        haystack, self.regex.pattern))
+        return match
+
+
+class ParseSequenceName(RegexComponent):
     """
     Parse the sequence name (the ``name`` attribute of the ``sequence`` element)
     of each template in the ``templates`` list.
@@ -125,41 +169,45 @@ class ParseSequenceName(Component):
         the PDB ID and chain ID in the ``PDB`` and ``chain`` elements. Set the
         ``name`` key to the PDB ID and chain ID, separated by an underscore.
 
-    .. note::
+    .. seealso::
 
-        Regex matching is by default done using the ``ASCII`` flag, because it
-        is rare to see sequences with non-ASCII characters in their metadata.
-        Unicode matching may be enabled with the ``unicode_match`` parameter.
-
-    :param str regex: Regular expression to search against the sequence name.
-    :param bool must_match: If true, any non-matching templates cause an error.
-    :param bool unicode_matching: Enable unicode matching, rather than the
-        default ASCII-only matching.
+        :py:class:`.RegexComponent`: Base class for regex-using components.
     """
-
-    ADDS = []
-    REMOVES = []
-    REQUIRED = ["templates"]
-
-    def __init__(self, regex, must_match=False, unicode_matching=False):
-        self.must_match = must_match
-        if not unicode_matching:
-            self.flags = re.ASCII
-        else:
-            self.flags = 0
-        self.regex = re.compile(regex, self.flags)
 
     def run(self, data, config=None, pipeline=None):
         """Parse sequence name using a regex."""
 
         templates = self.get_vals(data)
         for template in templates:
-            match = self.regex.search(template["sequence"].name)
-            if match is None:
-                if self.must_match:
-                    raise ValueError(
-                        "Sequence name {} did not match regex {!s}".format(
-                            template["sequence"].name, self.regex.pattern))
-                continue
-            template.update(match.groupdict())
+            match = self._search(template["sequence"].name)
+            if match is not None:
+                template.update(match.groupdict())
+        return data
+
+class ParseField(RegexComponent):
+    """
+    Apply a regular expression to a field of each dictionary in the
+    ``templates`` list, adding fields matching all named captures. This may be
+    useful, for example, for parsing a PDB ID and chain from the ``name``
+    element of a template parsed by
+    :py:class:`phyre_engine.component.hhsuite.ReportParser`.
+
+    In addition to the ``field`` parameter, this component accepts the
+    parameters of its base class, :py:class:`.RegexComponent`.
+
+    :param str field: Name of the field to parse.
+    """
+
+    def __init__(self, field, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.field = field
+
+    def run(self, data, config=None, pipeline=None):
+        """Parse a field using a regex."""
+
+        templates = self.get_vals(data)
+        for template in templates:
+            match = self._search(template[self.field])
+            if match is not None:
+                template.update(match.groupdict())
         return data
