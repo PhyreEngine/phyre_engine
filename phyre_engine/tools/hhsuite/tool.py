@@ -14,13 +14,15 @@ import os
 #:     ``-n`` flag.
 #: :param evalue_cutoff: e-value cutoff, equivalent to the ``-e`` flag.
 #: :param output: output file, equivalent to the ``-o`` flag.
+#: :param int verbose: Verbosity from 0 (silent) to 2 (verbose) (``-v`` flag).
 hhblits = ExternalTool(
     flag_map={
         "database": "d",
         "input": "i",
         "iterations": "n",
         "evalue_cutoff": "e",
-        "output": "o"
+        "output": "o",
+        "verbose": "v"
     }, long_prefix="-")
 
 #: Wrapper for the hhsearch tool included within the hh-suite package.
@@ -32,12 +34,14 @@ hhblits = ExternalTool(
 #: :param input: input alignment file, equivalent to the ``-i`` flag.
 #: :param evalue_cutoff: e-value cutoff, equivalent to the ``-e`` flag.
 #: :param output: output file, qquivalent to the ``-o`` flag.
+#: :param int verbose: Verbosity from 0 (silent) to 2 (verbose) (``-v`` flag).
 hhsearch = ExternalTool(
     flag_map = {
         "database":"d",
         "input": "i",
         "evalue_cutoff": "e",
-        "output": "o"
+        "output": "o",
+        "verbose": "v"
     }, long_prefix = "-")
 
 #: Wrapper for the hhmake tool included within the hh-suite package.
