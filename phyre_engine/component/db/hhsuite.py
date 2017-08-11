@@ -289,7 +289,9 @@ class DatabaseBuilder(Component):
                 cmd_line = hh.ffindex_build(
                     (self.bin_dir, "ffindex_build"),
                     positional=[ffdata, ffindex],
+                    flags=["sort"],
                     options={"file_list": index.name})
+                log().debug("Running command %s", cmd_line)
                 hh.run(cmd_line, check=True)
                 ff_dbs[file_type] = db_name
 
