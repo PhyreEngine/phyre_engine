@@ -114,7 +114,7 @@ def dummy_pipeline():
         'pipeline': {
             'checkpoint': 'checkpoint_file.chk',
             'components': [
-                'phyre_engine.component.FastaInput.FastaInput',
+                'phyre_engine.component.input.FastaInput',
                 'phyre_engine.component.SeqValidator.SeqValidator', {
                     'phyre_engine.component.hhsuite.HHBlits': [
                         '/path/to/data/uniclust30',
