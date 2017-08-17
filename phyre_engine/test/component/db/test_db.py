@@ -9,10 +9,7 @@ from pathlib import Path
 import shutil
 import Bio.SeqIO
 
-from Bio.SeqRecord import SeqRecord
-from Bio.Seq import Seq
-from Bio.Alphabet.IUPAC import IUPACProtein
-
+@phyre_engine.test.requireFields("net_tests")
 class TestStructureRetriever(unittest.TestCase):
     """Test STructureRetriever component."""
     _PIPE_STATE = {"templates": [
@@ -135,7 +132,7 @@ class TestPDBSequence(unittest.TestCase):
                 "templates": [{"structure": pdb_fh.name}]
             })
             self.assertEqual(
-                str(results["templates"][0]["sequence"].seq), "AG",
+                results["templates"][0]["sequence"], "AG",
                 "Sequence read correctly")
 
 class TestReduce(unittest.TestCase):
@@ -146,18 +143,12 @@ class TestReduce(unittest.TestCase):
         return (template["PDB"], template["chain"])
 
     _TEMPLATES = [
-        {"sequence": SeqRecord(Seq("AGH", IUPACProtein)),
-         "PDB": "1foo", "chain": "X"},
-        {"sequence": SeqRecord(Seq("AGH", IUPACProtein)),
-         "PDB": "1foo", "chain": "Y"},
-        {"sequence": SeqRecord(Seq("AGH", IUPACProtein)),
-         "PDB": "1bar", "chain": "A"},
-        {"sequence": SeqRecord(Seq("HHH", IUPACProtein)),
-         "PDB": "1baz", "chain": "B"},
-        {"sequence": SeqRecord(Seq("HHH", IUPACProtein)),
-         "PDB": "1baz", "chain": "C"},
-        {"sequence": SeqRecord(Seq("HH", IUPACProtein)),
-         "PDB": "1qux", "chain": "A"}
+        {"sequence": "AGH", "PDB": "1foo", "chain": "X"},
+        {"sequence": "AGH", "PDB": "1foo", "chain": "Y"},
+        {"sequence": "AGH", "PDB": "1bar", "chain": "A"},
+        {"sequence": "HHH", "PDB": "1baz", "chain": "B"},
+        {"sequence": "HHH", "PDB": "1baz", "chain": "C"},
+        {"sequence": "HH", "PDB": "1qux", "chain": "A"}
     ]
 
     def test_reduce(self):
@@ -167,7 +158,7 @@ class TestReduce(unittest.TestCase):
         self.assertEqual(len(results["templates"]), 3, "Reduced to 3 seqs")
 
         self.assertSetEqual(
-            set([str(t["sequence"].seq) for t in results["templates"]]),
+            set([t["sequence"] for t in results["templates"]]),
             set(["AGH", "HHH", "HH"]),
             "New templates contains all unique seqs")
 
@@ -220,13 +211,11 @@ class TestReduce(unittest.TestCase):
 class TestExpand(unittest.TestCase):
     """Expand templates list using identical templates."""
 
-    _AGH_SEQ = SeqRecord(Seq("AGH"))
-    _HHH_SEQ = SeqRecord(Seq("HHH"))
     _TEST_REDUCTION = {
         "AGH": [
-            {"sequence": _AGH_SEQ,
+            {"sequence": "AGH",
              "PDB": "1foo", "chain": "A", "extra_var": "foo"},
-            {"sequence": _AGH_SEQ,
+            {"sequence": "AGH",
              "PDB": "1foo", "chain": "B", "extra_var": "foo"},
         ]
     }
@@ -234,25 +223,14 @@ class TestExpand(unittest.TestCase):
         "AGH": [["1foo", "A"], ["1foo", "B"]]
     }
     _TEST_TEMPLATES = [
-        {"sequence": _AGH_SEQ,
+        {"sequence": "AGH",
          "PDB": "1baz", "chain": "A", "another": "var"},
-        {"sequence": _HHH_SEQ}
+        {"sequence": "HHH"}
     ]
     _TEST_STATE = {
         "templates": _TEST_TEMPLATES,
         "reduction": _TEST_REDUCTION
     }
-
-    @staticmethod
-    def _convert_seqrecords(templates):
-        # We can't compare SeqRecords directly, so use this to replace them
-        # with their sequences.
-        converted = []
-        for template in templates:
-            copy = template.copy()
-            copy["sequence"] = str(copy["sequence"].seq)
-            converted.append(copy)
-        return converted
 
     def test_expand_reduction(self):
         """Expand using the pipeline 'reduction' key."""
@@ -262,7 +240,7 @@ class TestExpand(unittest.TestCase):
             "reduction": self._TEST_REDUCTION.copy()
         }
         results = expand.run(state)
-        templates = self._convert_seqrecords(results["templates"])
+        templates = results["templates"]
 
         self.assertEqual(len(templates), 4, "Added two sequences")
         self._test_original_remain(templates)
@@ -292,7 +270,7 @@ class TestExpand(unittest.TestCase):
                 "templates": self._TEST_TEMPLATES.copy()
             }
             results = expand.run(state)
-            templates = self._convert_seqrecords(results["templates"])
+            templates = results["templates"]
 
             self.assertEqual(len(templates), 4, "Added two sequences")
             self._test_original_remain(templates)

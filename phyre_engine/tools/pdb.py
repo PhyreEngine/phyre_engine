@@ -101,6 +101,12 @@ def atom_seq(chain):
     3. Discard all residues without a CA atom defined.
 
     This is intended to be the canonical source of a PDB structure's sequence.
+
+    :param Bio.PDB.Chain.Chain chain: PDB chain.
+
+    :return: 2-Tuple containing a one-letter amino acid sequence and a list of
+        :py:class:`Bio.PDB.Residue.Residue` classes.
+    :rtype: tuple(str, Bio.PDB.Residue.Residue)
     """
 
     sequence = ""
@@ -111,7 +117,7 @@ def atom_seq(chain):
                 and "CA" in res):
             sequence += Bio.PDB.Polypeptide.three_to_one(res.get_resname())
             residues.append(res)
-    return Bio.Seq.Seq(sequence, Bio.Alphabet.IUPAC.IUPACProtein), residues
+    return sequence, residues
 
 def renumber(chain, new_id=" "):
     """

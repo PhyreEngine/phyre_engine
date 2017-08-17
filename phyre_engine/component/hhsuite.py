@@ -25,7 +25,7 @@ class QueryType(Enum):
     #: directly to the ``-i`` key.
     FILE = "input"
 
-    #: Write the :py:class:`Bio.Seq.SeqRecord` object pointed to by the
+    #: Write the sequence pointed to by the
     #: ``sequence`` key of the pipeline state to a temporary file and use that
     #: as the query sequence.
     SEQUENCE = "sequence"

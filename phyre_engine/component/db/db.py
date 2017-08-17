@@ -8,9 +8,6 @@ import Bio.PDB
 import logging
 import collections
 import json
-from Bio.SeqRecord import SeqRecord
-from Bio.Seq import Seq
-from Bio.Alphabet.IUPAC import IUPACProtein
 
 log = lambda: logging.getLogger(__name__)
 
@@ -162,8 +159,8 @@ class PDBSequence(Component):
     The templates must have the ``structure`` key defined, pointing to a PDB
     file from which ATOM records will be parsed. This component adds the
     ``sequence`` key to each element of the ``templates`` list in the pipeline
-    state. The value of the ``sequence`` field will be a
-    :py:class:`Bio.SeqIO.SeqRecord.SeqRecord` object.
+    state. The value of the ``sequence`` field will be a Python string
+    consisting of single-letter amino acids.
 
     If a ``sequence`` key is already present, the sequence metadata will be
     retained: only the sequence itself will be altered. Otherwise, a sequence
@@ -183,12 +180,11 @@ class PDBSequence(Component):
             structure = parser.get_structure("", template["structure"])
             chain = list(structure[0].get_chains())[0]
             if "sequence" in template:
-                template["sequence"].seq, _ = pdb.atom_seq(chain)
+                template["sequence"], _ = pdb.atom_seq(chain)
             else:
                 atom_seq, _ = pdb.atom_seq(chain)
                 seq_id = template["name"] if "name" in template else "Atom seq"
-                template["sequence"] = SeqRecord(
-                    atom_seq, id=seq_id, description="")
+                template["sequence"] = atom_seq
         return data
 
 class Reduce(Component):
@@ -253,7 +249,7 @@ class Reduce(Component):
 
         templates = self.get_vals(data)
         for template in templates:
-            seqs[str(template["sequence"].seq)].append(template)
+            seqs[template["sequence"]].append(template)
 
         log().info(
             "Reduced %d sequences to %d non-identical sequences",
@@ -307,10 +303,9 @@ class Expand(Component):
         with self.reduction_file.open("r") as json_in:
             mapping = json.load(json_in)
             for seq, template_ids in mapping.items():
-                seq_record = SeqRecord(Seq(seq, IUPACProtein))
                 for template_id in template_ids:
                     template = {
-                        "sequence": seq_record,
+                        "sequence": seq,
                         "PDB": template_id[0],
                         "chain": template_id[1]
                     }
@@ -345,7 +340,7 @@ class Expand(Component):
 
         extra_templates = []
         for template in templates:
-            seq = str(template["sequence"].seq)
+            seq = template["sequence"]
             identical_templates = reduction.get(seq, [])
             for ident_template in identical_templates:
                 extra_templates.append(self._update(template, ident_template))

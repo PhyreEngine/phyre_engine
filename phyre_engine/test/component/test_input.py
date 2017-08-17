@@ -25,7 +25,7 @@ class TestFastaInput(unittest.TestCase):
 
 
         fasta_input = FastaInput()
-        seq = fasta_input.run({"input": valid_fasta_file.name})['sequence']
+        seq = fasta_input.run({"input": valid_fasta_file.name})['seq_record']
         self.assertEqual(seq.seq, "".join(seq_lines))
 
     def test_file_exists(self):

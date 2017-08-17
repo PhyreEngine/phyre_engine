@@ -32,7 +32,7 @@ class MSABuilder(Component):
         `basedir` named ``a3m`` and ``hhr`` will be created containing the MSAs
         and hhblits reports, respectively.
 
-        This component reads sequences (Bio.SeqRecord objects) from the
+        This component reads sequences from the
         ``sequences`` key of the pipeline data, and adds the ``msas`` and
         ``reports`` keys.
         """
@@ -59,8 +59,11 @@ class MSABuilder(Component):
 
             # No need to recreate
             if (not msa_file.exists()) or self.overwrite:
-                Bio.SeqIO.write(template["sequence"], query_file.name, "fasta")
+                print(
+                    ">{name}\n{sequence}\n".format(**template),
+                    file=query_file)
                 query_file.flush()
+
                 options = self.options.copy()
                 options["input"] = query_file.name
                 options["oa3m"] = msa_file
