@@ -64,9 +64,9 @@ class TestChainPDBBuilder(unittest.TestCase):
         pdb_dir = self.tmpdir
 
         builder = db.ChainPDBBuilder(str(self.mmcif_dir), str(pdb_dir))
-        results = builder.run({"templates": [{"PDB": "12as", "chain": "A"}]})
+        results = builder.run({"PDB": "12as", "chain": "A"})
 
-        pdb_12as_A_path = Path(results["templates"][0]["structure"])
+        pdb_12as_A_path = Path(results["structure"])
         self.assertTrue(
             pdb_12as_A_path.exists(),
             "PDB file containing chain was created.")
@@ -101,9 +101,9 @@ class TestChainPDBBuilder(unittest.TestCase):
         builder = db.ChainPDBBuilder(
             str(self.mmcif_dir), str(pdb_dir),
             conf_sel=[FilterHetatms()])
-        results = builder.run({"templates": [{"PDB": "12as", "chain": "A"}]})
+        results = builder.run({"PDB": "12as", "chain": "A"})
 
-        with Path(results["templates"][0]["structure"]).open("r") as pdb_in:
+        with Path(results["structure"]).open("r") as pdb_in:
             # Results should match the same sequence without the terminating
             # residue, which is marked as a HETATM.
             self.assertEqual(
