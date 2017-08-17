@@ -12,10 +12,7 @@ import Bio.SeqIO
 @phyre_engine.test.requireFields("net_tests")
 class TestStructureRetriever(unittest.TestCase):
     """Test STructureRetriever component."""
-    _PIPE_STATE = {"templates": [
-        {"PDB": "12as"},
-        {"PDB": "4HHB"}
-    ]}
+    _PIPE_STATE = {"PDB": "12as"}
 
     def test_retrieve(self):
         """Try and download some files."""
@@ -33,13 +30,9 @@ class TestStructureRetriever(unittest.TestCase):
                         suffix = struc_type.value
 
                     pdb_12as = Path(tmpdir, "2a/12as.{}.gz".format(suffix))
-                    pdb_4hhb = Path(tmpdir, "hh/4hhb.{}.gz".format(suffix))
                     self.assertTrue(
                         pdb_12as.exists(),
                         "{!s} should exist".format(pdb_12as))
-                    self.assertTrue(
-                        pdb_4hhb.exists(),
-                        "{!s} should exist".format(pdb_4hhb))
 
 
 class TestChainPDBBuilder(unittest.TestCase):
@@ -71,9 +64,9 @@ class TestChainPDBBuilder(unittest.TestCase):
         pdb_dir = self.tmpdir
 
         builder = db.ChainPDBBuilder(str(self.mmcif_dir), str(pdb_dir))
-        results = builder.run({"templates": [{"PDB": "12as", "chain": "A"}]})
+        results = builder.run({"PDB": "12as", "chain": "A"})
 
-        pdb_12as_A_path = Path(results["templates"][0]["structure"])
+        pdb_12as_A_path = Path(results["structure"])
         self.assertTrue(
             pdb_12as_A_path.exists(),
             "PDB file containing chain was created.")
@@ -108,9 +101,9 @@ class TestChainPDBBuilder(unittest.TestCase):
         builder = db.ChainPDBBuilder(
             str(self.mmcif_dir), str(pdb_dir),
             conf_sel=[FilterHetatms()])
-        results = builder.run({"templates": [{"PDB": "12as", "chain": "A"}]})
+        results = builder.run({"PDB": "12as", "chain": "A"})
 
-        with Path(results["templates"][0]["structure"]).open("r") as pdb_in:
+        with Path(results["structure"]).open("r") as pdb_in:
             # Results should match the same sequence without the terminating
             # residue, which is marked as a HETATM.
             self.assertEqual(
@@ -129,10 +122,10 @@ class TestPDBSequence(unittest.TestCase):
             pdb_fh.flush()
             seq_parser = db.PDBSequence()
             results = seq_parser.run({
-                "templates": [{"structure": pdb_fh.name}]
+                "structure": pdb_fh.name
             })
             self.assertEqual(
-                results["templates"][0]["sequence"], "AG",
+                results["sequence"], "AG",
                 "Sequence read correctly")
 
 class TestReduce(unittest.TestCase):

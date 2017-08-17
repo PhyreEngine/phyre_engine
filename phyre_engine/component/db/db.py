@@ -18,21 +18,20 @@ class StructureType(Enum):
 class StructureRetriever(Component):
     """
     Downloads a structure from the RCSB, saving it with the usual naming
-    convention in a specified base directory.
+    convention in a specified base directory. The PDB code specified by the
+    ``PDB`` key of the pipeline state will be
 
     For example, if the PDB file ``4hhb.pdb`` is to be downloaded, it will be
     saved in a directory underneath the base directory as ``hh/4hhb.pdb``. The
     type of file to be downloaded can be set using the ``struc_type`` parameter
     of the constructor.
 
-    The files to be downloaded will be determined by the ``PDB`` key of each
-    element in the ``templates`` list in the pipeline state.
 
     :param .StructureType struc_type: Type of file to download.
     :param str base_dir: Base directory in which to save PDB files.
     """
 
-    REQUIRED = ["templates"]
+    REQUIRED = ["PDB"]
     ADDS = []
     REMOVES = []
 
@@ -45,27 +44,26 @@ class StructureRetriever(Component):
 
     def run(self, data, config=None, pipeline=None):
         """Run component."""
-        templates = self.get_vals(data)
-        for template in templates:
-            url = self.URL.format(
-                PDB=template["PDB"].lower(),
-                type=self.struc_type.value)
+        pdb_id = self.get_vals(data)
+        url = self.URL.format(
+            PDB=pdb_id.lower(),
+            type=self.struc_type.value)
 
-            path = pdb.pdb_path(
-                template["PDB"],
-                ".{}.gz".format(self.struc_type.value),
-                base_dir=self.base_dir)
-            path.parent.mkdir(parents=True, exist_ok=True)
+        path = pdb.pdb_path(
+            pdb_id,
+            ".{}.gz".format(self.struc_type.value),
+            base_dir=self.base_dir)
+        path.parent.mkdir(parents=True, exist_ok=True)
 
-            urllib.request.urlretrieve(url, str(path))
+        urllib.request.urlretrieve(url, str(path))
         return data
 
 class ChainPDBBuilder(Component):
-    """For each structure, extract that chain to a PDB file file
-    and extract the sequence (based on ATOM records) of that structure.
-
-    This component will read the chain of each template from the corresponding
-    MMCIF file and write it to a PDB file.
+    """
+    Extract a chain from an MMCIF file and save it as a PDB file. The PDB ID
+    and chain ID are given by the ``PDB`` and ``chain`` fields of the pipeline
+    state. The ``structure`` field, containing the file path of the new PDB file
+    is added.
 
     Sometimes it is useful to preserve the arcane mappings used by the authors
     of PDB structures. For our purposes, we are often mapping between sequence
@@ -81,9 +79,19 @@ class ChainPDBBuilder(Component):
     applied in turn. To disable filtering, pass an empty list.
     """
 
-    REQUIRED = ["templates"]
-    ADDS     = []
+    REQUIRED = ["PDB", "chain"]
+    ADDS = ["structure"]
     REMOVES  = []
+
+    class MissingSourceError(RuntimeError):
+        """Raised when an MMCIF file is unexpectedly missing."""
+
+        _ERROR = "Could not find source file for PDB ID {}"
+
+        def __init__(self, pdb_id):
+            super().__init__(self._ERROR.format(pdb_id))
+            self.pdb_id = pdb_id
+
 
     def __init__(self, mmcif_dir, pdb_dir, conf_sel=None, overwrite=False):
         """Initialise new component.
@@ -108,83 +116,60 @@ class ChainPDBBuilder(Component):
 
     def run(self, data, config=None, pipeline=None):
         """Run the component."""
-        templates = self.get_vals(data)
+        pdb_id, chain = self.get_vals(data)
 
         parser = Bio.PDB.MMCIFParser()
         pdbio = Bio.PDB.PDBIO()
-        # Create a new list rather than modifying the existing list in place.
-        # This is so that we can handle failures gracefully, if you can call
-        # squawking an exception and then ignoring the template graceful.
-        new_templates = []
-        for template in templates:
-            pdb_id = template["PDB"]
-            chain = template["chain"]
 
-            source_file = pdb.find_pdb(pdb_id, base_dir=self.mmcif_dir)
-            if source_file is None:
-                log().error(
-                    "Could not find MMCIF file '%s' in '%s'",
-                    pdb_id, self.mmcif_dir)
-                continue
+        source_file = pdb.find_pdb(pdb_id, base_dir=self.mmcif_dir)
+        if source_file is None:
+            log().error(
+                "Could not find MMCIF file '%s' in '%s'",
+                pdb_id, self.mmcif_dir)
+            raise self.MissingSourceError(pdb_id)
 
-            pdb_file = pdb.pdb_path(pdb_id, ".pdb", chain, self.pdb_dir)
-            pdb_file.parent.mkdir(parents=True, exist_ok=True)
+        pdb_file = pdb.pdb_path(pdb_id, ".pdb", chain, self.pdb_dir)
+        pdb_file.parent.mkdir(parents=True, exist_ok=True)
 
-            if not pdb_file.exists() or self.overwrite:
-                with pdb.open_pdb(source_file) as pdb_in:
-                    structure = parser.get_structure(
-                        "{}_{}".format(pdb_id, chain),
-                        pdb_in)
-                    chain = structure[0][chain]
+        if not pdb_file.exists() or self.overwrite:
+            with pdb.open_pdb(source_file) as pdb_in:
+                structure = parser.get_structure(
+                    "{}_{}".format(pdb_id, chain),
+                    pdb_in)
+                chain = structure[0][chain]
 
-                for selector in self.conf_sel:
-                    chain = selector.select(chain)
-                mapping, chain = pdb.renumber(chain, ".")
+            for selector in self.conf_sel:
+                chain = selector.select(chain)
+            mapping, chain = pdb.renumber(chain, ".")
 
-                with pdb_file.open("w") as pdb_out:
-                    pdb.write_json_remark(pdb_out, mapping, 149)
-                    pdbio.set_structure(chain)
-                    pdbio.save(pdb_out)
-            template["structure"] = str(pdb_file)
-            new_templates.append(template)
-
-        data["templates"] = new_templates
+            with pdb_file.open("w") as pdb_out:
+                pdb.write_json_remark(pdb_out, mapping, 149)
+                pdbio.set_structure(chain)
+                pdbio.save(pdb_out)
+        data["structure"] = str(pdb_file)
         return data
 
 class PDBSequence(Component):
     """
-    Read a sequence from a list of ATOM records for each template by parsing the
-    PDB chain from each template.
+    Read a sequence from the ATOM records of a PDB structure.
 
-    The templates must have the ``structure`` key defined, pointing to a PDB
-    file from which ATOM records will be parsed. This component adds the
-    ``sequence`` key to each element of the ``templates`` list in the pipeline
-    state. The value of the ``sequence`` field will be a Python string
-    consisting of single-letter amino acids.
-
-    If a ``sequence`` key is already present, the sequence metadata will be
-    retained: only the sequence itself will be altered. Otherwise, a sequence
-    record will be created. If the template has a ``name`` attribute, it will
-    be used for the ID of the sequence record.
+    The pipeline state must have the ``structure`` key defined, pointing to a
+    PDB file from which ATOM records will be parsed. This component adds the
+    ``sequence`` key to the pipeline state. The value of the ``sequence`` field
+    will be a Python string consisting of single-letter amino acids.
     """
 
-    ADDS = []
+    ADDS = ["sequence"]
     REMOVES = []
-    REQUIRED = ["templates"]
+    REQUIRED = ["structure"]
 
     def run(self, data, config=None, pipeline=None):
-        templates = self.get_vals(data)
+        structure_path = self.get_vals(data)
 
         parser = Bio.PDB.PDBParser()
-        for template in templates:
-            structure = parser.get_structure("", template["structure"])
-            chain = list(structure[0].get_chains())[0]
-            if "sequence" in template:
-                template["sequence"], _ = pdb.atom_seq(chain)
-            else:
-                atom_seq, _ = pdb.atom_seq(chain)
-                seq_id = template["name"] if "name" in template else "Atom seq"
-                template["sequence"] = atom_seq
+        structure = parser.get_structure("", structure_path)
+        chain = list(structure[0].get_chains())[0]
+        data["sequence"], _ = pdb.atom_seq(chain)
         return data
 
 class Reduce(Component):

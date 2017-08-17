@@ -10,32 +10,21 @@ import logging
 log = lambda: logging.getLogger(__name__)
 
 class MSABuilder(Component):
-    """Build MSA for each template sequence using hhblits."""
+    """
+    Build an MSA using hhblits. The sequence is taken from the ``sequence``
+    field of the pipeline state. Files are named according to the ``name`` field
+    of the pipeline state.
+    """
 
-    REQUIRED = ["templates"]
-    ADDS = []
+    REQUIRED = ["sequence", "name"]
+    ADDS = ["a3m", "hhr"]
     REMOVES = []
     CONFIG_SECTION = "hhsuite"
 
     def __init__(
             self, database, *args, bin_dir=None, HHLIB=None, basedir=".",
             overwrite=False, **kwargs):
-        """Initialise a new MSA builder; this is essentially a parallel hhblits
-        component.
 
-        This differs slightly from
-        :py:class`phyre_engine.component.hhsuite.HHBlits`: that class will build
-        a profile for a single sequence, while this will operate on an array of
-        sequences.
-
-        Files will be placed in the directory `basedir`. Subdirectories under
-        `basedir` named ``a3m`` and ``hhr`` will be created containing the MSAs
-        and hhblits reports, respectively.
-
-        This component reads sequences from the
-        ``sequences`` key of the pipeline data, and adds the ``msas`` and
-        ``reports`` keys.
-        """
         self.bin_dir = bin_dir
         self.HHLIB = HHLIB
         self.basedir = pathlib.Path(basedir)
@@ -84,14 +73,13 @@ class MSABuilder(Component):
         (self.basedir / "a3m").mkdir(exist_ok=True)
         (self.basedir / "hhr").mkdir(exist_ok=True)
 
-        for template in templates:
-            self.hhblits(template)
+        self.hhblits(data)
         return data
 
 class AddSecondaryStructure(Component):
     """Add predicted and actual secondary structure to MSAs."""
 
-    REQUIRED = ["templates"]
+    REQUIRED = ["a3m"]
     ADDS = []
     REMOVES = []
     CONFIG_SECTION = "hhsuite"
@@ -109,20 +97,21 @@ class AddSecondaryStructure(Component):
         self.addss = str(pathlib.Path(hhlib, "scripts/addss.pl"))
 
     def run(self, data, config=None, pipeline=None):
-        templates = self.get_vals(data)
-        for template in templates:
-            cmd_line = [self.addss, "-i", template["a3m"]]
-            log().debug("Running %s", cmd_line)
-            hh.run(cmd_line, check=True, HHLIB=self.HHLIB)
+        a3m = self.get_vals(data)
+
+        cmd_line = [self.addss, "-i", a3m]
+        log().debug("Running %s", cmd_line)
+        hh.run(cmd_line, check=True, HHLIB=self.HHLIB)
+
         return data
 
 
 
 class HMMBuilder(Component):
-    """Use hhmake to build an hhm file for each template."""
+    """Use hhmake to build an hhm file from an a3m file."""
 
-    REQUIRED = ["templates"]
-    ADDS = []
+    REQUIRED = ["a3m", "name"]
+    ADDS = ["hhm"]
     REMOVES = []
     CONFIG_SECTION = "hhsuite"
 
@@ -139,34 +128,33 @@ class HMMBuilder(Component):
         self.options = kwargs
 
     def run(self, data, config=None, pipeline=None):
-        templates = self.get_vals(data)
+        a3m, name = self.get_vals(data)
         hhm_path = self.basedir / "hhm"
         hhm_path.mkdir(exist_ok=True)
 
-        for template in templates:
-            # Generate hhm file
-            hhm_name = "{}.hhm".format(template["name"])
-            hhm_file = hhm_path / hhm_name
+        # Generate hhm file
+        hhm_name = "{}.hhm".format(name)
+        hhm_file = hhm_path / hhm_name
 
-            if (not hhm_file.exists()) or self.overwrite:
-                options = self.options.copy()
-                options["input"] = template["a3m"]
-                options["output"] = hhm_file
+        if (not hhm_file.exists()) or self.overwrite:
+            options = self.options.copy()
+            options["input"] = a3m
+            options["output"] = hhm_file
 
-                cmd_line = hh.hhmake(
-                    (self.bin_dir, "hhmake"),
-                    positional=None,
-                    flags=self.flags,
-                    options=options)
-                hh.run(cmd_line, HHLIB=self.HHLIB, check=True)
+            cmd_line = hh.hhmake(
+                (self.bin_dir, "hhmake"),
+                positional=None,
+                flags=self.flags,
+                options=options)
+            hh.run(cmd_line, HHLIB=self.HHLIB, check=True)
 
-            template["hhm"] = str(hhm_file)
+        data["hhm"] = str(hhm_file)
         return data
 
 class CS219Builder(Component):
-    """Use cstranslate to build column state sequences for each sequence."""
+    """Use cstranslate to build column state sequences for an a3m."""
 
-    REQUIRED = ["templates"]
+    REQUIRED = ["a3m", "name"]
     ADDS = []
     REMOVES = []
     CONFIG_SECTION = "hhsuite"
@@ -203,26 +191,25 @@ class CS219Builder(Component):
             self.flags.append("binary")
 
     def run(self, data, config=None, pipeline=None):
-        templates = self.get_vals(data)
+        a3m, name = self.get_vals(data)
         cs219_path = self.basedir / "cs219"
         cs219_path.mkdir(exist_ok=True)
 
-        for template in templates:
-            # Generate cs219 file
-            cs219_name = "{}.cs219".format(template["name"])
-            cs219_file = cs219_path / cs219_name
+        # Generate cs219 file
+        cs219_name = "{}.cs219".format(name)
+        cs219_file = cs219_path / cs219_name
 
-            if (not cs219_file.exists()) or self.overwrite:
-                options = self.options.copy()
-                options["outfile"] = cs219_file
-                options["infile"] = template["a3m"]
-                cmd_line = hh.cstranslate(
-                    (self.bin_dir, "cstranslate"),
-                    positional=None,
-                    flags=self.flags,
-                    options=options)
-                hh.run(cmd_line, check=True, HHLIB=self.HHLIB)
-            template["cs219"] = str(cs219_file)
+        if (not cs219_file.exists()) or self.overwrite:
+            options = self.options.copy()
+            options["outfile"] = cs219_file
+            options["infile"] = a3m
+            cmd_line = hh.cstranslate(
+                (self.bin_dir, "cstranslate"),
+                positional=None,
+                flags=self.flags,
+                options=options)
+            hh.run(cmd_line, check=True, HHLIB=self.HHLIB)
+        data["cs219"] = str(cs219_file)
         return data
 
 class DatabaseBuilder(Component):

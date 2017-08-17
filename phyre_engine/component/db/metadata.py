@@ -38,10 +38,6 @@ class RegexComponent(Component):
         Unicode matching may be enabled with the ``unicode_match`` parameter.
     """
 
-    ADDS = []
-    REMOVES = []
-    REQUIRED = ["templates"]
-
     def __init__(self, regex, must_match=False, unicode_matching=False):
         self.must_match = must_match
         if not unicode_matching:
@@ -87,6 +83,9 @@ class ParseField(RegexComponent):
 
     :param str field: Name of the field to parse.
     """
+    ADDS = []
+    REMOVES = []
+    REQUIRED = []
 
     def __init__(self, field, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -94,10 +93,7 @@ class ParseField(RegexComponent):
 
     def run(self, data, config=None, pipeline=None):
         """Parse a field using a regex."""
-
-        templates = self.get_vals(data)
-        for template in templates:
-            match = self._search(template[self.field])
-            if match is not None:
-                template.update(match.groupdict())
+        match = self._search(data[self.field])
+        if match is not None:
+            data.update(match.groupdict())
         return data

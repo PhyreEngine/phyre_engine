@@ -1,5 +1,6 @@
 """Module containing the base class of components."""
 from abc import ABC, abstractmethod
+import phyre_engine
 
 class Component(ABC):
     """Base class for all component classes."""
@@ -64,3 +65,54 @@ class Component(ABC):
             pipeline.
         """
         pass #pragma: no cover
+
+class PipelineComponent(Component):
+    """
+    Base class for components that can be configured to execute another
+    pipeline.
+
+    :param pipeline: Either a :py:class:`phyre_engine.pipeline.Pipeline` class
+        or a list of component names and arguments to be passed to
+        :py:meth:`phyre_engine.pipeline.Pipeline.load`.
+
+    :param dict config: Pipeline configuration to be used for the new pipeline.
+    """
+    # pylint: disable=abstract-method
+
+    def __init__(self, pipeline, config=None):
+        if not isinstance(pipeline, phyre_engine.Pipeline):
+            pipeline = phyre_engine.Pipeline.load(pipeline)
+
+        self.pipeline = pipeline
+        self.config = config if config is not None else {}
+
+class Map(PipelineComponent):
+    """
+    Apply a child pipeline for each element in an array contained within the
+    pipeline state.
+
+    :param str field: Field over which to iterate.
+
+    .. seealso::
+
+        :py:class:`.PipelineComponent`
+            For extra class parameters.
+    """
+    REQUIRED = []
+    ADDS = []
+    REMOVES = []
+
+    def __init__(self, field, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.field = field
+
+    def run(self, data, config=None, pipeline=None):
+        """Iterate over given field, applying a child pipeline."""
+
+        pipeline = self.pipeline
+        pipe_output = []
+        for item in data[self.field]:
+            pipeline.start = item
+            pipe_output.append(pipeline.run())
+        data[self.field] = pipe_output
+        return data
