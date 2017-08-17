@@ -151,38 +151,25 @@ class ChainPDBBuilder(Component):
 
 class PDBSequence(Component):
     """
-    Read a sequence from a list of ATOM records for each template by parsing the
-    PDB chain from each template.
+    Read a sequence from the ATOM records of a PDB structure.
 
-    The templates must have the ``structure`` key defined, pointing to a PDB
-    file from which ATOM records will be parsed. This component adds the
-    ``sequence`` key to each element of the ``templates`` list in the pipeline
-    state. The value of the ``sequence`` field will be a Python string
-    consisting of single-letter amino acids.
-
-    If a ``sequence`` key is already present, the sequence metadata will be
-    retained: only the sequence itself will be altered. Otherwise, a sequence
-    record will be created. If the template has a ``name`` attribute, it will
-    be used for the ID of the sequence record.
+    The pipeline state must have the ``structure`` key defined, pointing to a
+    PDB file from which ATOM records will be parsed. This component adds the
+    ``sequence`` key to the pipeline state. The value of the ``sequence`` field
+    will be a Python string consisting of single-letter amino acids.
     """
 
-    ADDS = []
+    ADDS = ["sequence"]
     REMOVES = []
-    REQUIRED = ["templates"]
+    REQUIRED = ["structure"]
 
     def run(self, data, config=None, pipeline=None):
-        templates = self.get_vals(data)
+        structure_path = self.get_vals(data)
 
         parser = Bio.PDB.PDBParser()
-        for template in templates:
-            structure = parser.get_structure("", template["structure"])
-            chain = list(structure[0].get_chains())[0]
-            if "sequence" in template:
-                template["sequence"], _ = pdb.atom_seq(chain)
-            else:
-                atom_seq, _ = pdb.atom_seq(chain)
-                seq_id = template["name"] if "name" in template else "Atom seq"
-                template["sequence"] = atom_seq
+        structure = parser.get_structure("", structure_path)
+        chain = list(structure[0].get_chains())[0]
+        data["sequence"], _ = pdb.atom_seq(chain)
         return data
 
 class Reduce(Component):
