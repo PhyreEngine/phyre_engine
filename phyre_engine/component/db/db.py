@@ -18,21 +18,20 @@ class StructureType(Enum):
 class StructureRetriever(Component):
     """
     Downloads a structure from the RCSB, saving it with the usual naming
-    convention in a specified base directory.
+    convention in a specified base directory. The PDB code specified by the
+    ``PDB`` key of the pipeline state will be
 
     For example, if the PDB file ``4hhb.pdb`` is to be downloaded, it will be
     saved in a directory underneath the base directory as ``hh/4hhb.pdb``. The
     type of file to be downloaded can be set using the ``struc_type`` parameter
     of the constructor.
 
-    The files to be downloaded will be determined by the ``PDB`` key of each
-    element in the ``templates`` list in the pipeline state.
 
     :param .StructureType struc_type: Type of file to download.
     :param str base_dir: Base directory in which to save PDB files.
     """
 
-    REQUIRED = ["templates"]
+    REQUIRED = ["PDB"]
     ADDS = []
     REMOVES = []
 
@@ -45,19 +44,18 @@ class StructureRetriever(Component):
 
     def run(self, data, config=None, pipeline=None):
         """Run component."""
-        templates = self.get_vals(data)
-        for template in templates:
-            url = self.URL.format(
-                PDB=template["PDB"].lower(),
-                type=self.struc_type.value)
+        pdb_id = self.get_vals(data)
+        url = self.URL.format(
+            PDB=pdb_id.lower(),
+            type=self.struc_type.value)
 
-            path = pdb.pdb_path(
-                template["PDB"],
-                ".{}.gz".format(self.struc_type.value),
-                base_dir=self.base_dir)
-            path.parent.mkdir(parents=True, exist_ok=True)
+        path = pdb.pdb_path(
+            pdb_id,
+            ".{}.gz".format(self.struc_type.value),
+            base_dir=self.base_dir)
+        path.parent.mkdir(parents=True, exist_ok=True)
 
-            urllib.request.urlretrieve(url, str(path))
+        urllib.request.urlretrieve(url, str(path))
         return data
 
 class ChainPDBBuilder(Component):

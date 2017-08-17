@@ -12,10 +12,7 @@ import Bio.SeqIO
 @phyre_engine.test.requireFields("net_tests")
 class TestStructureRetriever(unittest.TestCase):
     """Test STructureRetriever component."""
-    _PIPE_STATE = {"templates": [
-        {"PDB": "12as"},
-        {"PDB": "4HHB"}
-    ]}
+    _PIPE_STATE = {"PDB": "12as"}
 
     def test_retrieve(self):
         """Try and download some files."""
@@ -33,13 +30,9 @@ class TestStructureRetriever(unittest.TestCase):
                         suffix = struc_type.value
 
                     pdb_12as = Path(tmpdir, "2a/12as.{}.gz".format(suffix))
-                    pdb_4hhb = Path(tmpdir, "hh/4hhb.{}.gz".format(suffix))
                     self.assertTrue(
                         pdb_12as.exists(),
                         "{!s} should exist".format(pdb_12as))
-                    self.assertTrue(
-                        pdb_4hhb.exists(),
-                        "{!s} should exist".format(pdb_4hhb))
 
 
 class TestChainPDBBuilder(unittest.TestCase):
