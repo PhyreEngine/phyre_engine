@@ -39,7 +39,7 @@ class MSABuilder(Component):
         hhr_path = self.basedir / "hhr"
 
         with tempfile.NamedTemporaryFile(
-            prefix="query-", suffix=".fasta") as query_file:
+            "w", prefix="query-", suffix=".fasta") as query_file:
 
             msa_name = "{}.a3m".format(template["name"])
             report_name = "{}.hhr".format(template["name"])
