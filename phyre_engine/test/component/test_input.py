@@ -1,7 +1,10 @@
 import unittest
 import tempfile
 import textwrap
-from phyre_engine.component.input import FastaInput, MultipleFastaInput
+import Bio.SeqRecord
+import Bio.Seq
+from phyre_engine.component.input import (FastaInput, MultipleFastaInput,
+                                          ConvertSeqRecord)
 
 class TestFastaInput(unittest.TestCase):
     """Test FastaInput component."""
@@ -84,3 +87,23 @@ class TestMultipleFastaInput(unittest.TestCase):
             self.assertEqual(
                 results["templates"][1]["seq_record"].name,
                 "BAR")
+
+class TestConvertSeqRecord(unittest.TestCase):
+    """Test ConvertSeqRecord component."""
+
+    _SEQ_RECORD = Bio.SeqRecord.SeqRecord(
+        Bio.Seq.Seq("AAAGGG"),
+        "ID", "NAME", "DESCRIPTION")
+
+    def test_conversion(self):
+        """Test ConvertSeqRecord on a single record."""
+        converter = ConvertSeqRecord()
+        results = converter.run({"seq_record": self._SEQ_RECORD})
+        del results["seq_record"]
+        self.assertDictEqual(
+            results, {
+                "sequence": "AAAGGG",
+                "id": "ID",
+                "name": "NAME",
+                "description": "DESCRIPTION"
+            })
