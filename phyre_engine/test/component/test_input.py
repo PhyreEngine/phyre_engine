@@ -4,6 +4,7 @@ import textwrap
 from phyre_engine.component.input import FastaInput
 
 class TestFastaInput(unittest.TestCase):
+    """Test FastaInput component."""
 
     def test_valid(self):
         """Create a valid FASTA file and read it back."""
