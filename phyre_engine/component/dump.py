@@ -5,6 +5,7 @@ parameter may be set to either a file name or output stream to determine where
 the output will be written.
 """
 import json.encoder
+import re
 import sys
 from phyre_engine.component.component import Component
 from phyre_engine.tools.util import Stream
@@ -86,7 +87,13 @@ class Dumper(Component):
     """
     Base class for dumpers.
 
+    The fields to be dumped may be chosen using the `include` and `exclude`
+    regular expressions. Exclusions are processed first, and inclusions are
+    added afterwards.
+
     :param output: A file name, stream or :py:class:`pathlib.Path` object.
+    :param str exclude: Regexp excluding all matching fields.
+    :param str include: Regexp giving the fields to be specifically incldued.
     """
     # Disable warnings for this half-implemented class.
     # pylint: disable=abstract-method
@@ -95,19 +102,40 @@ class Dumper(Component):
     REMOVES = []
     REQUIRED = []
 
-    def __init__(self, output=sys.stdout):
+    def __init__(self, output=sys.stdout, exclude=None, include=None):
         self.output = output
+        self.exclude = re.compile(exclude) if exclude is not None else None
+        self.include = re.compile(include) if include is not None else None
+
+    def _filter(self, data):
+        """Filter data to contain the required fields."""
+        filtered = {}
+
+        # Exclude matching fields if "exclude" is set
+        if self.exclude is not None:
+            for field in data:
+                if self.exclude.search(field) is None:
+                    filtered[field] = data[field]
+        else:
+            filtered = data
+
+        # Go through and explicitly include fields matching "include"
+        if self.include is not None:
+            for field in data:
+                if self.include.search(field) is not None:
+                    filtered[field] = data[field]
+        return filtered
 
 class Json(Dumper):
     """Dump the pipeline state in JSON."""
     def run(self, data, config=None, pipeline=None):
         """Dump pipeline state."""
         with Stream(self.output, "w") as out_fh:
-            json.dump(data, out_fh, cls=JsonStateEncoder)
+            json.dump(self._filter(data), out_fh, cls=JsonStateEncoder)
         return data
 
 class Yaml(Dumper):
     """Dump pipeline state in YAML."""
     def run(self, data, config=None, pipeline=None):
         with Stream(self.output, "w") as out_fh:
-            yaml.dump(data, out_fh, Dumper=YamlStateDumper)
+            yaml.dump(self._filter(data), out_fh, Dumper=YamlStateDumper)
