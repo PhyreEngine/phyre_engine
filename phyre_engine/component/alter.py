@@ -44,3 +44,21 @@ class Copy(_AlterationComponent):
         """Remove a field from the pipeline state."""
         data[self.dst] = self.copy_fn(data[self.src])
         return data
+
+class Move(_AlterationComponent):
+    """
+    Rename a field.
+
+    :param str from_field: Name of the field to be renamed.
+    :param str to_field: Name of the new field.
+    """
+
+    def __init__(self, from_field, to_field):
+        self.from_field = from_field
+        self.to_field = to_field
+
+    def run(self, data, config=None, pipeline=None):
+        """Rename a field."""
+        data[self.to_field] = data[self.from_field]
+        del data[self.from_field]
+        return data

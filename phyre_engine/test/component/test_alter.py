@@ -56,3 +56,14 @@ class TestCopy(TestAlteration):
         result["copy"][0]["frob"] = 4
         self.assertEqual(result["baz"][0]["frob"], 1)
         self.assertEqual(self.pipe_state["baz"][0]["frob"], 1)
+
+class TestMove(TestAlteration):
+    """Test Move component."""
+
+    def test_move(self):
+        """Use Move component to rename a field."""
+        move = alter.Move("baz", "qux")
+        result = move.run(self.pipe_state)
+        self.assertDictEqual(
+            result,
+            {"foo": "bar", "qux": [{"frob": 1}, 2, 3]})
