@@ -1,7 +1,7 @@
 import unittest
 import tempfile
 import textwrap
-from phyre_engine.component.input import FastaInput
+from phyre_engine.component.input import FastaInput, MultipleFastaInput
 
 class TestFastaInput(unittest.TestCase):
     """Test FastaInput component."""
@@ -52,3 +52,35 @@ class TestFastaInput(unittest.TestCase):
 
         with self.assertRaises(FastaInput.TooManySequencesError):
             FastaInput().run({"input":msa_fasta_file.name})
+
+class TestMultipleFastaInput(unittest.TestCase):
+    """Test MultipleFastaInput component."""
+
+    _FASTA = textwrap.dedent("""\
+    >FOO
+    AAAGGG
+    >BAR
+    HHHEEE
+    """)
+
+    def test_multi_seq(self):
+        """Read multiple sequences."""
+        reader = MultipleFastaInput()
+        with tempfile.NamedTemporaryFile("w") as fas_out:
+            print(self._FASTA, file=fas_out)
+            fas_out.flush()
+            results = reader.run({"input": fas_out.name})
+
+            self.assertEqual(
+                results["templates"][0]["seq_record"].seq,
+                "AAAGGG")
+            self.assertEqual(
+                results["templates"][0]["seq_record"].name,
+                "FOO")
+
+            self.assertEqual(
+                results["templates"][1]["seq_record"].seq,
+                "HHHEEE")
+            self.assertEqual(
+                results["templates"][1]["seq_record"].name,
+                "BAR")
