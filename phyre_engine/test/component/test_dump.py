@@ -1,5 +1,6 @@
 """Tests for phyre_engine.component.dump module."""
 
+import copy
 import io
 import unittest
 import json
@@ -32,6 +33,8 @@ class DumperTestBase(unittest.TestCase):
     def setUp(self):
         """Create an in-memory stream we can read and write from."""
         self.stream = io.StringIO()
+        self.pipe_input = copy.deepcopy(_PIPELINE_INPUT)
+        self.expected = copy.deepcopy(_PIPELINE_OUTPUT)
 
     def tearDown(self):
         """Close in-memory stream."""
@@ -39,18 +42,40 @@ class DumperTestBase(unittest.TestCase):
 
     def _verify_dump(self, parsed):
         return self.assertDictEqual(
-            parsed, _PIPELINE_OUTPUT,
+            parsed, self.expected,
             "Parsed dict and written dict equal")
 
 class TestJsonDumper(DumperTestBase):
     """Test JSON dumper."""
 
+    def _verify_dump(self):
+        """Verify JSON dump."""
+        self.stream.seek(0)
+        return super()._verify_dump(json.load(self.stream))
+
     def test_json(self):
         """Dump data in JSON format."""
         json_dumper = dump.Json(self.stream)
-        json_dumper.run(_PIPELINE_INPUT)
-        self.stream.seek(0)
-        self._verify_dump(json.load(self.stream))
+        json_dumper.run(self.pipe_input)
+        self._verify_dump()
+
+    def test_exclude(self):
+        """Test exclusions."""
+        json_dumper = dump.Json(self.stream, exclude="^.{3}$")
+        json_dumper.run(self.pipe_input)
+        del self.expected["foo"]
+        del self.expected["baz"]
+        del self.expected["seq"]
+        self._verify_dump()
+
+    def test_include(self):
+        """Exclude all and specifically include "seq"."""
+        json_dumper = dump.Json(self.stream, exclude="^.*$", include="^seq$")
+        json_dumper.run(self.pipe_input)
+        del self.expected["foo"]
+        del self.expected["baz"]
+        del self.expected["range"]
+        self._verify_dump()
 
     def test_range_exception(self):
         """An exception should be raised for a range with step != 1."""
@@ -60,12 +85,34 @@ class TestJsonDumper(DumperTestBase):
 class TestYamlDumper(DumperTestBase):
     """Test YAML dumper."""
 
+    def _verify_dump(self):
+        """Verify YAML dump."""
+        self.stream.seek(0)
+        return super()._verify_dump(yaml.safe_load(self.stream))
+
     def test_yaml(self):
         """Dump data in YAML format."""
         yaml_dumper = dump.Yaml(self.stream)
-        yaml_dumper.run(_PIPELINE_INPUT)
-        self.stream.seek(0)
-        self._verify_dump(yaml.safe_load(self.stream))
+        yaml_dumper.run(self.pipe_input)
+        self._verify_dump()
+
+    def test_exclude(self):
+        """Test exclusions."""
+        yaml_dumper = dump.Yaml(self.stream, exclude="^.{3}$")
+        yaml_dumper.run(self.pipe_input)
+        del self.expected["foo"]
+        del self.expected["baz"]
+        del self.expected["seq"]
+        self._verify_dump()
+
+    def test_include(self):
+        """Exclude all and specifically include "seq"."""
+        yaml_dumper = dump.Yaml(self.stream, exclude="^.*$", include="^seq$")
+        yaml_dumper.run(self.pipe_input)
+        del self.expected["foo"]
+        del self.expected["baz"]
+        del self.expected["range"]
+        self._verify_dump()
 
     def test_range_exception(self):
         """An exception should be raised for a range with step != 1."""
