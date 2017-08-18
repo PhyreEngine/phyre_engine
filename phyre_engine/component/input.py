@@ -112,4 +112,5 @@ class ConvertSeqRecord(Component):
         data["id"] = seq_record.id
         data["name"] = seq_record.name
         data["description"] = seq_record.description
+        return data
 
