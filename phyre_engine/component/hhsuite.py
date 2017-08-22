@@ -74,8 +74,9 @@ class HHSuiteTool(Component):  #pylint: disable=abstract-method
                     # Write temporary file and set option
                     temp_query = tempfile.NamedTemporaryFile(
                         "w", prefix="query-", suffix=".fasta")
-                    Bio.SeqIO.write(
-                        data[self.input_type.value], temp_query, "fasta")
+                    print(
+                        ">{name}\n{sequence}".format(**data),
+                        file=temp_query)
                     temp_query.flush()
                     options["input"] = temp_query.name
                     yield options
