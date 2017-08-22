@@ -92,12 +92,9 @@ class TestFunctions(unittest.TestCase):
 
     def test_remark_read_write(self):
         """Test that we can read and write custom REMARK fields."""
-
-        # Dump random array to REMARK line and see if we can read it back.
-        data = random.sample(range(0, 1000), 1000)
+        nonsense = ["foo", "bar", "baz"]
         with io.StringIO() as buffer:
-            pdb.write_json_remark(buffer, data, 240)
+            pdb.write_remark(buffer, nonsense, 123)
             buffer.seek(0)
-            self.assertListEqual(
-                pdb.read_json_remark(buffer, 240), data,
-                "Read and write data to REMARK field.")
+            retrieved_nonsense = pdb.read_remark(buffer, 123)
+            self.assertListEqual(nonsense, retrieved_nonsense)
