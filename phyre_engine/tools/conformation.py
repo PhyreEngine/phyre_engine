@@ -6,6 +6,8 @@ use.
 from abc import ABC, abstractmethod
 from Bio.PDB.Chain import Chain
 from Bio.PDB.Residue import Residue
+import Bio.Alphabet.IUPAC
+import Bio.SeqUtils
 import logging
 import functools
 
@@ -286,4 +288,19 @@ class PopulationMutationSelector(PopulationConformationSelector):
                 sanitised_chain.add(self.clean_residue(conf_res))
             else:
                 sanitised_chain.add(res)  #
+        return sanitised_chain
+
+class StandardAASelector(ConformationSelector):
+    """
+    Remove all non-standard amino acids from a chain.
+    """
+    ALPHABET = set(Bio.SeqUtils.seq3(aa).upper()
+                   for aa in Bio.Alphabet.IUPAC.protein.letters)
+
+    def select(self, chain):
+        """Remove all non-standard amino acids."""
+        sanitised_chain = Chain(chain.get_id())
+        for res in chain:
+            if res.get_resname().upper() in self.ALPHABET:
+                sanitised_chain.add(res.copy())
         return sanitised_chain

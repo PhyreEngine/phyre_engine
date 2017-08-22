@@ -4,7 +4,7 @@ import phyre_engine.tools.conformation as conformation
 from Bio.PDB import PDBParser
 from phyre_engine.tools.conformation import (PopulationConformationSelector,
                                              PopulationMutationSelector,
-    PopulationMicroHetSelector)
+                                             StandardAASelector)
 import Bio.PDB.Atom
 
 
@@ -192,6 +192,26 @@ ATOM     37  NZ BLYS A   3       8.293   9.541  19.864  0.50 65.48           N
             self.assertAlmostEqual(
                 conf[3]["CB"].get_coord()[0],
                 8.440, 3, "Chose conformation B")
+
+class TestStandardAASelector(unittest.TestCase):
+    """Test the StandardAASelector conformation selector."""
+
+    _SAMPLE_PDB = """\
+ATOM      2  CA  PRO A   1       3.746  20.507  21.289  0.83 65.19           C
+ATOM     15  CA  FOO A   2       6.861  18.244  21.377  1.00 60.65           C
+HETATM   25  CA  BAR A   3       7.674  14.952  23.095  0.50 60.74           C
+"""
+
+    def setUp(self):
+        with io.StringIO(self._SAMPLE_PDB) as pdb_in:
+            self.chain = PDBParser().get_structure("sample", pdb_in)[0]["A"]
+
+    def test_selector(self):
+        """Remove non-standard ATOM and HETATM records."""
+        selector = StandardAASelector()
+        cleaned = selector.select(self.chain)
+        self.assertEqual(len(list(cleaned.get_residues())), 1)
+        self.assertEqual(cleaned[1].get_resname(), "PRO")
 
 if __name__ == "__main__":
     unittest.main()
