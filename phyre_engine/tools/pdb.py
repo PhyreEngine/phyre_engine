@@ -137,7 +137,7 @@ def renumber(chain, new_id=" "):
 
     for res_index, res in enumerate(chain):
         sanitised_res = Residue(
-            (' ', res_index + 1, ' '),
+            (res.get_id()[0], res_index + 1, ' '),
             res.get_resname(),
             res.get_segid())
         mapping.append((res_index + 1, res.get_id()))
