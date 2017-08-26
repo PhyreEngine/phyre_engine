@@ -1,88 +1,122 @@
+"""Test components in the :py:mod:`phyre_engine.component.modelling` module."""
+
+import copy
 import os.path
+import pathlib
+import shutil
+import tempfile
+import textwrap
 import unittest
-import Bio.Seq
-import Bio.Alphabet.IUPAC
-import Bio.SeqUtils
+import phyre_engine.tools.pdb as pdb
 import phyre_engine.test
 from phyre_engine.component.modelling import HomologyModeller
-from phyre_engine.tools.hhsuite.parser import Hit
+import Bio.PDB.PDBParser
 
 DATA_DIR = os.path.join(os.path.dirname(phyre_engine.test.__file__), 'data')
 
 class TestHomologyModeller(unittest.TestCase):
+    """
+    Test HomologyModeller component.
 
-    def _test_12as(self, mmcif_dir):
-        query_seq = Bio.Seq.Seq("AYIAKQRQISFVKSHFSRQLEERLGLIEVQAPILSRVGDGTQDNL",
-                Bio.Alphabet.IUPAC.protein)
+    This simple test takes a minimal query sequence, template and alignment and
+    generates a model. The query sequence ``PAG`` is aligned to a template with
+    sequence ``IY`` as follows:
 
-        hit = Hit(name="12AS_A")
-        hit.aln = [
-            {"i": 1, "j":4},
-            {"i": 2, "j":5},
-            {"i": 3, "j":6},
-            {"i": 7, "j":7},
-            {"i": 8, "j":8},
-        ]
+    .. code-block:: none
 
-        data = {"hits": [hit], "sequence": query_seq}
-        modeller = HomologyModeller(mmcif_dir)
-        data = modeller.run(data)
+        >query/template
+        PAG
+        -IY
 
-        self.assertTrue("models" in data, "models key added")
-        self.assertEqual(len(data["models"]), 1, "Got 1 model for 1 hit")
+    The template has an additional ``AMP`` ``HETATM`` that should not affect the
+    modelling.
 
-        model = data["models"][0]
-        residues = list(model.get_residues())
-        self.assertEqual(len(residues), 5, "Got 5 residues")
+    The resulting model should contain the residues ``AG`` numbered 2 and 3,
+    inheriting coordinates from residue 1 and 2 of the template structure.
+    """
 
-        query_three = [Bio.SeqUtils.seq3(aa).upper() for aa in query_seq]
+    _QUERY_SEQ = "PAG"
+    _TEMPLATE_PDB = textwrap.dedent("""\
+        REMARK 150 PY
+        REMARK 156 [1, 2]
+        REMARK 161 [[' ', 4, ' '], [' ', 5, ' '], ['H_AMP', 331, ' ']]
+        ATOM      2  CA  ILE A   1      12.501  39.048  28.539  1.00 30.68
+        ATOM      7  CA  TYR A   2      15.552  39.410  26.282  1.00  8.51
+        HETATM 5121  N   AMP A 331      29.722  14.604   9.802  1.00 12.15
+    """)
+    _ALIGNMENT = [(2, 1), (3, 2)]
 
-        # Make sure template residues were named correctly
-        self.assertEqual(residues[0].get_resname(), query_three[0], "Residue 1")
-        self.assertEqual(residues[1].get_resname(), query_three[1], "Residue 2")
-        self.assertEqual(residues[2].get_resname(), query_three[2], "Residue 3")
-        self.assertEqual(residues[3].get_resname(), query_three[6], "Residue 4")
-        self.assertEqual(residues[4].get_resname(), query_three[7], "Residue 5")
+    def setUp(self):
+        """Create a temporary pipeline state in `self.state`."""
 
-        # Check that atoms have the correct ID
-        self.assertIs(residues[0], model[1]["A"][1], "ID of residue 1")
-        self.assertIs(residues[1], model[1]["A"][2], "ID of residue 2")
-        self.assertIs(residues[2], model[1]["A"][3], "ID of residue 3")
-        self.assertIs(residues[3], model[1]["A"][7], "ID of residue 7")
-        self.assertIs(residues[4], model[1]["A"][8], "ID of residue 8")
+        # Save dummy template to library.
+        self.pdb_lib_dir = pathlib.Path(tempfile.mkdtemp())
+        template_file = (self.pdb_lib_dir / "xy" / "1xyz" / "1xyz_A.pdb")
+        template_file.parent.mkdir(parents=True)
+        with template_file.open("w") as template_out:
+            template_out.write(self._TEMPLATE_PDB)
 
-        # Check coordinates of a few atoms to verify. Check to 3 decimal places,
-        # which is all that is given in the MMCIF file.
-        atom_1_n_coords = residues[0]["N"].get_coord()
-        self.assertAlmostEqual(atom_1_n_coords[0], 11.751, 3, msg="X of 1N")
-        self.assertAlmostEqual(atom_1_n_coords[1], 37.846, 3, msg="Y of 1N")
-        self.assertAlmostEqual(atom_1_n_coords[2], 29.016, 3, msg="Z of 1N")
+        # Create empty directory for storing models and chdir there.
+        self.model_dir = pathlib.Path(tempfile.mkdtemp())
+        self.orig_dir = os.getcwd()
+        os.chdir(str(self.model_dir))
 
-        atom_8_ca_coords = residues[4]["CA"].get_coord()
-        self.assertAlmostEqual(atom_8_ca_coords[0], 16.137, 3, msg="X of 8CA")
-        self.assertAlmostEqual(atom_8_ca_coords[1], 34.313, 3, msg="Y of 8CA")
-        self.assertAlmostEqual(atom_8_ca_coords[2], 27.425, 3, msg="Z of 8CA")
+        # Create pipeline state that can be modified without consequence.
+        self.state = {
+            "sequence": copy.deepcopy(self._QUERY_SEQ),
+            "templates": [
+                {
+                    "PDB": "1xyz",
+                    "chain": "A",
+                    "alignment": copy.deepcopy(self._ALIGNMENT),
+                    "rank": 1
+                }
+            ]
+        }
 
-    def test_auth_seq_id(self):
-        """Build a model given an alignment.
+        self.modeller = HomologyModeller(str(self.pdb_lib_dir))
+        self.results = self.modeller.run(self.state)
 
-        The MMCIF template file does contain ``auth_seq_id`` fields, so this
-        test tests the conversion from sequence index to ``auth_seq_id``.
-        """
-        self._test_12as(os.path.join(DATA_DIR, "mmcif"))
+    def tearDown(self):
+        """Remove temporary directories."""
+        os.chdir(self.orig_dir)
+        shutil.rmtree(str(self.pdb_lib_dir))
+        shutil.rmtree(str(self.model_dir))
 
+    def test_model_exists(self):
+        """Generated model must exist in pipeline state and on disk."""
+        template = self.results["templates"][0]
+        self.assertIn(
+            "model", template,
+            "Added 'model' field.")
+        self.assertTrue(
+            pathlib.Path(template["model"]).exists(),
+            "Created a file for model.")
 
-    # We currently expect a failure when parsing MMCIF files without proper
-    # auth fields, because MMCIFParser does not handle them correctly.
-    @unittest.expectedFailure
-    def test_label_seq_id(self):
-        """Build a model given an alignment.
-
-        The MMCIF template file has no auth IDs, so this tests the ability to
-        read label ids only.
-        """
-        self._test_12as(os.path.join(DATA_DIR, "mmcif_label_only"))
-
+    def test_model_seq(self):
+        """Model must contain residues 2 & 3, mapped to 1 & 2 from template."""
+        template = self.results["templates"][0]
+        pdb_parser = Bio.PDB.PDBParser(QUIET=True)
+        model_structure = pdb_parser.get_structure("model", template["model"])
+        model_chain = model_structure[0]["A"]
+        model_seq, model_residues = pdb.atom_seq(model_chain)
+        self.assertEqual(
+            model_seq, "AG",
+            "Alignment obeyed: model contains residues 2 & 3.")
+        self.assertEqual(
+            model_residues[0].get_id(),
+            (' ', 2, ' '),
+            "First residue is residue 2")
+        self.assertEqual(
+            model_residues[1].get_id(),
+            (' ', 3, ' '),
+            "Second residue is residue 3")
+        self.assertAlmostEqual(
+            model_residues[0]["CA"].get_coord()[0], 12.501, 3,
+            msg="X coord of residue 2 inherited from template")
+        self.assertAlmostEqual(
+            model_residues[1]["CA"].get_coord()[0], 15.552, 3,
+            msg="X coord of residue 3 inherited from template")
 
 if __name__ == "__main__":
     unittest.main()
