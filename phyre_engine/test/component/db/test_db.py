@@ -8,6 +8,7 @@ import phyre_engine.test.data
 import phyre_engine.test.tools.test_pdb
 from pathlib import Path
 import shutil
+import textwrap
 import Bio.SeqIO
 import Bio.PDB.PDBParser
 
@@ -231,6 +232,56 @@ class TestReduceExpand(unittest.TestCase):
         self.assertListEqual(
             sorted(result["list"], key=lambda e: e["x"]),
             sorted(self._FULL_LIST, key=lambda e: e["x"]))
+
+class TestAnnotateCATrace(unittest.TestCase):
+    """Test AnnotateCATrace component."""
+
+    _CA_TRACE = textwrap.dedent("""\
+        REMARK 150 AA
+        REMARK 156 [1, 2]
+        REMARK 161 [[' ', 4, ' '], [' ', 5, ' '], [' ', 6, ' ']]
+        ATOM      2  CA  ALA A   1      12.501  39.048  28.539  1.00 30.68
+        ATOM      7  CA  ALA A   2      15.552  39.410  26.282  1.00  8.51
+        ATOM     32  CB  ALA A   3      16.137  34.313  27.425  1.00  4.96
+    """)
+
+    _NON_CA_TRACE = textwrap.dedent("""\
+        REMARK 150 AA
+        REMARK 156 [1, 2]
+        REMARK 161 [[' ', 4, ' '], [' ', 5, ' '], [' ', 6, ' ']]
+        ATOM      2  CA  ALA A   1      12.501  39.048  28.539  1.00 30.68
+        ATOM      5  CB  ALA A   1      12.902  39.919  29.730  1.00 16.77
+        ATOM      7  CA  ALA A   2      15.552  39.410  26.282  1.00  8.51
+        ATOM     32  CB  ALA A   3      16.137  34.313  27.425  1.00  4.96
+    """)
+
+    def setUp(self):
+        """Write mock structures to PDB files."""
+        self.template_dir = Path(tempfile.mkdtemp())
+        self.ca_pdb = (self.template_dir / "ca_trace.pdb")
+        self.bb_pdb = (self.template_dir / "backbone.pdb")
+
+        with self.ca_pdb.open("w") as pdb_out:
+            pdb_out.write(self._CA_TRACE)
+
+        with self.bb_pdb.open("w") as pdb_out:
+            pdb_out.write(self._NON_CA_TRACE)
+
+    def tearDown(self):
+        """Remove temporary files."""
+        shutil.rmtree(str(self.template_dir))
+
+    def test_annotate_ca_trace(self):
+        """Check that a CA trace is marked with ``ca_trace = True``."""
+        annotator = db.AnnotateCATrace()
+        result = annotator.run({"structure": str(self.ca_pdb)})
+        self.assertTrue(result["ca_trace"], "Annotated as CA trace")
+
+    def test_annotate_non_ca_trace(self):
+        """Check that a PDB with backbone is marked ``ca_trace = False.``"""
+        annotator = db.AnnotateCATrace()
+        result = annotator.run({"structure": str(self.bb_pdb)})
+        self.assertFalse(result["ca_trace"], "Annotated as not a CA trace")
 
 
 if __name__ == "__main__":
