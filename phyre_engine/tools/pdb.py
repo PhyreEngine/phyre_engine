@@ -128,9 +128,8 @@ def renumber(chain, new_id=" "):
     :return: A 2-tuple containing the following:
 
         1. The new :py:class:`Bio.PDB.Chain.Chain` object.
-        2. A list of 2-tuples containing the new residue index and old
-           residue ID. The new residue index is an integer and the old is
-           the 3-tuple returned by :py:meth:`Bio.PDB.Chain.Chain.get_id`.
+        2. A list of tuples containing the old residue ID, as returned by
+          :py:meth:`Bio.PDB.Chain.Chain.get_id`.
     """
     mapping = []
     sanitised_chain = Chain(new_id)
@@ -140,7 +139,7 @@ def renumber(chain, new_id=" "):
             (res.get_id()[0], res_index + 1, ' '),
             res.get_resname(),
             res.get_segid())
-        mapping.append((res_index + 1, res.get_id()))
+        mapping.append(res.get_id())
 
         for atom in res:
             sanitised_res.add(atom.copy())

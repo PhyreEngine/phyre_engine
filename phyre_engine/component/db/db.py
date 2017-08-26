@@ -65,23 +65,109 @@ class ChainPDBBuilder(Component):
     state. The ``structure`` field, containing the file path of the new PDB file
     is added.
 
-    Sometimes it is useful to preserve the arcane mappings used by the authors
-    of PDB structures. For our purposes, we are often mapping between sequence
-    and structure, so it is useful to treat PDB files as arrays of residues. To
-    preserve the mappings, then, we write a JSON-encoded array of residue IDs
-    to the header of the PDB file under ``REMARK 149`` (the decimal ascii codes
-    of "P" and "E" added together).
+    The chains written by this component are renumbered consecutively starting
+    from 1 without any insertion codes. Unless an extra filter is added using
+    the `conf_sel` argument, all residue and atom types are written to the PDB
+    file.
 
-    If the ``conf_sel`` parameter is not supplied (i.e. the default value of
-    ``None`` is used), then the selectors
-    :py:class:`phyre_engine.tool.conformation.PopulationMutationSelection` and
-    :py:class:`phyre_engine.tool.conformation.PopulationMicroHetSelector` are
-    applied in turn. To disable filtering, pass an empty list.
+    Each PDB file written by this component will contain a ``REMARK 161`` (the
+    sum of the decimal ascii codes "T" and "M") field. The ``REMARK 161`` fields
+    will contain a JSON-formatted list of original author-assigned IDs in
+    Biopython format. This will look like this:
+
+    .. code-block:: none
+
+        REMARK 161 [
+        REMARK 161     [' ', 3, ' '],
+        REMARK 161     [' ', 3, 'A'],
+        ...
+
+    And so on. Template residue IDs are given in three parts: a hetero flag,
+    the residue ID and an insertion code. In this case, residue 1 in the chain
+    PDB is mapped to residue 3 in the original template, and residue 2 maps to
+    residue 3A.
+
+    This component will also generate the "canonical" sequence of a PDB
+    structure. This sequence is generated from all residues in the ``ATOM``
+    records of the PDB file that are standard amino acids and have a ``CA``
+    atom. This sequence is written as a single line to ``REMARK 150`` (ASCII
+    "C" + "S" for Canonical Sequence).
+
+    Finally, a ``REMARK 156`` ("S" + "I" for Sequence Index) will be written
+    containing the *renumbered* residue ID corresponding to the canonical
+    sequence.
+
+    For example, we might start with the following original PDB file (with
+    everything left of the residue index excised for legibility):
+
+    .. code-block:: none
+
+        ATOM      1 CA A  ALA A 10
+        ATOM      2 CA A  GLY A 11
+        HETATM    3 CA A  AMP A 11A
+        ATOM      4 CB A  ALA A 12
+
+    This PDB file will be renumbered beginning from 1, and insertion codes will
+    be stripped. It will then look like this:
+
+    .. code-block:: none
+
+        REMARK 161 [
+        REMARK 161     [' ', 10, ' '],
+        REMARK 161     [' ', 11, ' '],
+        REMARK 161     ['H_AMP', 11, 'A'],
+        REMARK 161     [' ', 12, ' ']
+        REMARK 161 ]
+        ATOM      1 CA A  ALA A 1
+        ATOM      2 CA A  GLY A 2
+        HETATM    3 CA A  AMP A 3
+        ATOM      4 CB A  ALA A 4
+
+    Next, the canonical sequence and sequence mapping will be added. Residues 3
+    and 4 will not be included in the sequence: residue 3 is a ``HETATM`` and
+    residue 4 does not contain a ``CA`` atom. The mapping is onto the
+    *renumbered* residue IDs:
+
+    .. code-block:: none
+
+        REMARK 161 (unchanged)
+        REMARK 150 AG
+        REMARK 156 [1, 2]
+        ATOM      1 CA A  ALA A 1
+        ATOM      2 CA A  GLY A 2
+        HETATM    3 CA A  AMP A 3
+        ATOM      4 CB A  ALA A 4
+
+    .. warning::
+
+        This module may write JSON in any (valid) format, not necessarily as it
+        is shown in these examples. At the moment, JSON data is actually written
+        on a single line. I hope that this doesn't break too many programs.
+
+    .. note::
+
+        If the ``conf_sel`` parameter is not supplied (i.e. the default value of
+        ``None`` is used), then the selectors
+        :py:class:`phyre_engine.tool.conformation.PopulationMutationSelection`
+        and
+        :py:class:`phyre_engine.tool.conformation.PopulationMicroHetSelector`
+        are applied in turn. To disable filtering, pass an empty list.
     """
 
     REQUIRED = ["PDB", "chain"]
     ADDS = ["structure"]
     REMOVES  = []
+
+    #: Number used in ``REMARK`` fields for the JSON-encoded mapping between
+    #: the current residue index and the residue ID assigned by the author of
+    #: the original structure.
+    ORIG_MAPPING_REMARK_NUM = 161
+
+    #: ``REMARK`` number of the canonical sequence.
+    CANONICAL_SEQ_REMARK_NUM = 150
+
+    #: ``REMARK`` number of the canonical sequence residue IDs.
+    CANONICAL_INDICES_REMARK_NUM = 156
 
     class MissingSourceError(RuntimeError):
         """Raised when an MMCIF file is unexpectedly missing."""
@@ -140,10 +226,25 @@ class ChainPDBBuilder(Component):
 
             for selector in self.conf_sel:
                 chain = selector.select(chain)
-            mapping, chain = pdb.renumber(chain, ".")
+            mapping, chain = pdb.renumber(chain, "A")
+
+            # Original -> renumbered mapping
+            renum_map = json.dumps(mapping)
+            # Canonical sequence
+            canonical_seq, canonical_res = pdb.atom_seq(chain)
+            # Indices of the canonical sequence
+            canon_map = json.dumps([ r.get_id()[1] for r in canonical_res ])
 
             with pdb_file.open("w") as pdb_out:
-                pdb.write_json_remark(pdb_out, mapping, 149)
+                pdb.write_remark(
+                    pdb_out, [canonical_seq],
+                    self.CANONICAL_SEQ_REMARK_NUM)
+                pdb.write_remark(
+                    pdb_out, canon_map.split("\n"),
+                    self.CANONICAL_INDICES_REMARK_NUM)
+                pdb.write_remark(
+                    pdb_out, renum_map.split("\n"),
+                    self.ORIG_MAPPING_REMARK_NUM)
                 pdbio.set_structure(chain)
                 pdbio.save(pdb_out)
         data["structure"] = str(pdb_file)
@@ -165,11 +266,12 @@ class PDBSequence(Component):
 
     def run(self, data, config=None, pipeline=None):
         structure_path = self.get_vals(data)
-
-        parser = Bio.PDB.PDBParser()
-        structure = parser.get_structure("", structure_path)
-        chain = list(structure[0].get_chains())[0]
-        data["sequence"], _ = pdb.atom_seq(chain)
+        with open(structure_path, "r") as pdb_in:
+            canonical_sequence = "".join(
+                pdb.read_remark(
+                    pdb_in,
+                    ChainPDBBuilder.CANONICAL_SEQ_REMARK_NUM))
+            data["sequence"] = canonical_sequence
         return data
 
 class Reduce(Component):
