@@ -39,7 +39,7 @@ class TestHomologyModeller(unittest.TestCase):
     _TEMPLATE_PDB = textwrap.dedent("""\
         REMARK 150 PY
         REMARK 156 [1, 2]
-        REMARK 161 [[' ', 4, ' '], [' ', 5, ' '], ['H_AMP', 331, ' ']]
+        REMARK 161 [[" ", 4, " "], [" ", 5, " "], ["H_AMP", 331, " "]]
         ATOM      2  CA  ILE A   1      12.501  39.048  28.539  1.00 30.68
         ATOM      7  CA  TYR A   2      15.552  39.410  26.282  1.00  8.51
         HETATM 5121  N   AMP A 331      29.722  14.604   9.802  1.00 12.15

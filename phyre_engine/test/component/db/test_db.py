@@ -239,7 +239,7 @@ class TestAnnotateCATrace(unittest.TestCase):
     _CA_TRACE = textwrap.dedent("""\
         REMARK 150 AA
         REMARK 156 [1, 2]
-        REMARK 161 [[' ', 4, ' '], [' ', 5, ' '], [' ', 6, ' ']]
+        REMARK 161 [[" ", 4, " "], [" ", 5, " "], [" ", 6, " "]]
         ATOM      2  CA  ALA A   1      12.501  39.048  28.539  1.00 30.68
         ATOM      7  CA  ALA A   2      15.552  39.410  26.282  1.00  8.51
         ATOM     32  CB  ALA A   3      16.137  34.313  27.425  1.00  4.96
@@ -248,7 +248,7 @@ class TestAnnotateCATrace(unittest.TestCase):
     _NON_CA_TRACE = textwrap.dedent("""\
         REMARK 150 AA
         REMARK 156 [1, 2]
-        REMARK 161 [[' ', 4, ' '], [' ', 5, ' '], [' ', 6, ' ']]
+        REMARK 161 [[" ", 4, " "], [" ", 5, " "], [" ", 6, " "]]
         ATOM      2  CA  ALA A   1      12.501  39.048  28.539  1.00 30.68
         ATOM      5  CB  ALA A   1      12.902  39.919  29.730  1.00 16.77
         ATOM      7  CA  ALA A   2      15.552  39.410  26.282  1.00  8.51
