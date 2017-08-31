@@ -1,6 +1,7 @@
 from phyre_engine.component import Component
 import phyre_engine.tools.pdb as pdb
 import phyre_engine.tools.conformation
+from phyre_engine.tools.template import Template
 from enum import Enum
 import pathlib
 import urllib.request
@@ -205,7 +206,6 @@ class ChainPDBBuilder(Component):
         pdb_id, chain = self.get_vals(data)
 
         parser = Bio.PDB.MMCIFParser()
-        pdbio = Bio.PDB.PDBIO()
 
         source_file = pdb.find_pdb(pdb_id, base_dir=self.mmcif_dir)
         if source_file is None:
@@ -226,27 +226,10 @@ class ChainPDBBuilder(Component):
 
             for selector in self.conf_sel:
                 chain = selector.select(chain)
-            mapping, chain = pdb.renumber(chain, "A")
-
-            # Original -> renumbered mapping
-            renum_map = json.dumps(mapping)
-            # Canonical sequence
-            canonical_seq, canonical_res = pdb.atom_seq(chain)
-            # Indices of the canonical sequence
-            canon_map = json.dumps([ r.get_id()[1] for r in canonical_res ])
+            template = Template.build(chain)
 
             with pdb_file.open("w") as pdb_out:
-                pdb.write_remark(
-                    pdb_out, [canonical_seq],
-                    self.CANONICAL_SEQ_REMARK_NUM)
-                pdb.write_remark(
-                    pdb_out, canon_map.split("\n"),
-                    self.CANONICAL_INDICES_REMARK_NUM)
-                pdb.write_remark(
-                    pdb_out, renum_map.split("\n"),
-                    self.ORIG_MAPPING_REMARK_NUM)
-                pdbio.set_structure(chain)
-                pdbio.save(pdb_out)
+                template.write(pdb_out)
         data["structure"] = str(pdb_file)
         return data
 
