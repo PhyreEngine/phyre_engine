@@ -275,16 +275,8 @@ class AnnotateCATrace(Component):
         """Add a ``ca_trace`` field."""
         structure_file = self.get_vals(data)
         # Read list of residues in canonical sequence
-        with open(structure_file, "r") as struc_in:
-            canon_res_indices = json.loads(
-                "".join(
-                    pdb.read_remark(
-                        struc_in,
-                        ChainPDBBuilder.CANONICAL_INDICES_REMARK_NUM)))
-
-        parser = Bio.PDB.PDBParser()
-        structure = parser.get_structure("template", structure_file)
-        residues = [structure[0]["A"][i] for i in canon_res_indices]
+        template = Template.load(structure_file)
+        residues = [template.chain[i] for i in template.canonical_indices]
 
         for res in residues:
             if len(res) != 1 or "CA" not in res:
