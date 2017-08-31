@@ -9,6 +9,7 @@ import unittest
 import Bio.PDB.PDBParser
 import phyre_engine.component.backbone as backbone
 import phyre_engine.test
+import phyre_engine.tools.pdb as pdb
 
 
 class BaseBackboneTest(unittest.TestCase):
@@ -50,6 +51,11 @@ class BaseBackboneTest(unittest.TestCase):
 class TestPD2CA2main(BaseBackboneTest):
     """Construct a backbone with pd2_ca2main."""
 
+    def has_remark(self, template):
+        """Ensure REMARK 999 was written containing backbone provenance."""
+        with open(template, "r") as template_in:
+            self.assertGreater(len(pdb.read_remark(template_in, 999)), 1)
+
     def test_reconstruction(self):
         """Reconstruct a backbone."""
         config = phyre_engine.test.config["tools"]["pd2_ca2main"]
@@ -59,3 +65,4 @@ class TestPD2CA2main(BaseBackboneTest):
             **config)
         result = constructor.run({"structure": str(self.ca_trace)})
         self.has_backbone(result["structure"])
+        self.has_remark(result["structure"])
