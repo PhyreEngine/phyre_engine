@@ -10,6 +10,7 @@ import Bio.PDB.Residue
 from phyre_engine.component import Component
 import phyre_engine.tools.pdb as pdb
 from phyre_engine.component.db.db import ChainPDBBuilder
+from phyre_engine.tools.template import Template
 
 BACKBONE_ATOMS = {"N", "C", "CA", "O"} # Set of backbone atoms
 
@@ -49,7 +50,6 @@ class HomologyModeller(Component):
     def run(self, data, config=None, pipeline=None):
         """Build a model."""
         templates, query_seq = self.get_vals(data)
-        parser = Bio.PDB.PDBParser()
         pdb_io = Bio.PDB.PDBIO()
 
         for template in templates:
@@ -58,8 +58,7 @@ class HomologyModeller(Component):
             chain = template["chain"]
 
             template_file = pdb.pdb_path(pdb_id, ".pdb", chain, self.chain_dir)
-            template_struc = parser.get_structure(pdb_id, str(template_file))
-            template_chain = list(template_struc[0].get_chains())[0]
+            db_template = Template.load(template_file)
 
             model_name = "model from {}_{}".format(pdb_id, chain)
             model_structure = Bio.PDB.Structure.Structure(model_name)
@@ -68,19 +67,16 @@ class HomologyModeller(Component):
             model_model.add(model_chain)
             model_structure.add(model_model)
 
-            # Get mapping of sequence index to residue ID from the REMARK field
-            # of the PDB file.
-            with template_file.open("r") as template_in:
-                canonical_seq_map = json.loads(
-                    "".join(
-                        pdb.read_remark(
-                            template_in,
-                            ChainPDBBuilder.CANONICAL_INDICES_REMARK_NUM)))
-
             for residue_pair in alignment:
+                # Residue indices
                 i, j = residue_pair[0:2]
 
-                template_res = template_chain[canonical_seq_map[j - 1]]
+                # Residue ID from canonical sequence map
+                j_id = db_template.canonical_indices[j - 1]
+
+                # Template residue
+                template_res = db_template.chain[j_id]
+
                 query_res_type = Bio.SeqUtils.seq3(query_seq[i - 1]).upper()
                 query_res = Bio.PDB.Residue.Residue(
                     (" ", i, " "),
