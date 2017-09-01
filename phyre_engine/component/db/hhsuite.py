@@ -1,11 +1,12 @@
 import phyre_engine.tools.hhsuite.tool as hh
+from phyre_engine.tools.template import Template
 from phyre_engine.component import Component
-import Bio.SeqIO
 import os
 import tempfile
 import fileinput
 import pathlib
 import logging
+import Bio.SeqUtils
 
 log = lambda: logging.getLogger(__name__)
 
@@ -77,7 +78,13 @@ class MSABuilder(Component):
         return data
 
 class AddSecondaryStructure(Component):
-    """Add predicted and actual secondary structure to MSAs."""
+    """
+    Add predicted and actual secondary structure to MSAs.
+
+    This component is not very smart, and simply calls the ``addss.pl`` script
+    included in hh-suite. This means that paths to PSIPRED and legacy BLAST must
+    be set up in ``HHPaths.pm``.
+    """
 
     REQUIRED = ["a3m"]
     ADDS = []
@@ -105,7 +112,57 @@ class AddSecondaryStructure(Component):
 
         return data
 
+class AddDSSP(Component):
+    """
+    Add secondary structure information to MSAs produced by hhblits using
+    `DSSP <http://swift.cmbi.ru.nl/gv/dssp/>`_.
 
+    This sets the ``>ss_dssp`` and ``>aa_dssp`` fields in the MSA pointed to by
+    the ``a3m`` key. If those lines are already present in the MSA nothing is
+    done.
+
+    This component requires the ``secondary_structure`` key of the pipeline
+    state as the source of secondary structure data. It also requires the
+    ``structure`` field to point to a template structure so the secondary
+    structure can be matched to the canonical sequence.
+    """
+    REQUIRED = ["a3m", "secondary_structure", "structure"]
+    ADDS = []
+    REMOVES = []
+
+    def run(self, data, config=None, pipeline=None):
+        """Add ``>ss_dssp`` and ``>aa_dssp`` fields."""
+        a3m, sec_struc, structure = self.get_vals(data)
+        template = Template.load(structure)
+
+        # Keep residues in the canonical sequence
+        ss_dssp = ""
+        aa_dssp = ""
+        canonical_ids = set(template.canonical_indices)
+        for ss_tuple in sec_struc:
+            res_id, ss_state = ss_tuple[0:2]
+
+            if res_id in canonical_ids:
+                residue = template.chain[res_id]
+                ss_dssp += ss_state
+                aa_dssp += Bio.SeqUtils.seq1(residue.get_resname())
+        self.update_a3m(a3m, ss_dssp, aa_dssp)
+        return data
+
+    def update_a3m(self, a3m, ss_dssp, aa_dssp):
+        """
+        If `a3m` does not contain ``ss_dssp`` or ``aa_dssp`` lines, add them.
+        """
+        # First, check if the "ss_dssp" or "aa_dssp" lines are present
+        with open(a3m, "r") as a3m_in:
+            a3m_lines = a3m_in.readlines()
+
+        with open(a3m, "w") as a3m_out:
+            if not any(ln.startswith(">aa_dssp") for ln in a3m_lines):
+                a3m_out.write(">aa_dssp\n{}\n".format(aa_dssp))
+            if not any(ln.startswith(">ss_dssp") for ln in a3m_lines):
+                a3m_out.write(">ss_dssp\n{}\n".format(ss_dssp))
+            a3m_out.writelines(a3m_lines)
 
 class HMMBuilder(Component):
     """Use hhmake to build an hhm file from an a3m file."""
