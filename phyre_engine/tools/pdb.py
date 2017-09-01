@@ -128,9 +128,8 @@ def renumber(chain, new_id=" "):
     :return: A 2-tuple containing the following:
 
         1. The new :py:class:`Bio.PDB.Chain.Chain` object.
-        2. A list of 2-tuples containing the new residue index and old
-           residue ID. The new residue index is an integer and the old is
-           the 3-tuple returned by :py:meth:`Bio.PDB.Chain.Chain.get_id`.
+        2. A list of tuples containing the old residue ID, as returned by
+          :py:meth:`Bio.PDB.Chain.Chain.get_id`.
     """
     mapping = []
     sanitised_chain = Chain(new_id)
@@ -140,46 +139,32 @@ def renumber(chain, new_id=" "):
             (res.get_id()[0], res_index + 1, ' '),
             res.get_resname(),
             res.get_segid())
-        mapping.append((res_index + 1, res.get_id()))
+        mapping.append(res.get_id())
 
         for atom in res:
             sanitised_res.add(atom.copy())
         sanitised_chain.add(sanitised_res)
     return mapping, sanitised_chain
 
-def _chunk_string(string, size):
-    """Split string into equal length chunks. Used for dumping JSON data into
-    the REMARK section."""
-    return (string[i:i + size] for i in range(0, len(string), size))
-
-def write_json_remark(stream, data, remark_num):
+def write_remark(stream, data, remark_num):
     """
-    Dump JSON-formatted data to a stream. Data will be written in a REMARK field
-    and wrapped to 80 characters.
+    Write lines of data to a numbered ``REMARK`` field.
 
     :param stream: File handle to which data will be written.
-    :param data: Data that will be converted to JSON and written to the stream.
+    :param list[str] data: Lines of data to write.
     :param int remark_num: Numeric ID of the REMARK to write.
     """
-    json_str = json.dumps(data)
-    for map_line in _chunk_string(json_str, 69):
-        print("REMARK {:3d} ".format(remark_num) + map_line, file=stream)
+    for line in data:
+        print("REMARK {:3d} {}".format(remark_num, line), file=stream)
 
-def read_json_remark(stream, remark_num):
-    """
-    Read and parse JSON data from a numbered REMARK field of a PDB file.
-    Arguments are the same as for :py:func:`.write_json_remark`.
-    """
-    json_str = read_remark(stream, remark_num, "")
-    return json.loads(json_str)
-
-def read_remark(stream, remark_num, join="\n"):
+def read_remark(stream, remark_num):
     """
     Read all REMARK lines with the given number from a PDB file.
 
     :param stream: File handle from which to read data.
     :param int remark_num: Number of the remark to read.
-    :param str join: String used to join lines.
+    :return: List of lines with trailing newline stripped.
+    :rtype: list[str]
     """
     remark_lines = []
     search_regex = re.compile("^REMARK +{} (.*)$".format(remark_num))
@@ -187,4 +172,4 @@ def read_remark(stream, remark_num, join="\n"):
         match = search_regex.match(line)
         if match is not None:
             remark_lines.append(match.group(1))
-    return join.join(remark_lines)
+    return remark_lines

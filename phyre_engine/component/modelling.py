@@ -1,190 +1,93 @@
 """Module providing utilities for homology modelling."""
 
+import json
 import Bio.SeqUtils
 import Bio.PDB.Structure
 import Bio.PDB.Model
 import Bio.PDB.Chain
-from Bio.PDB.Residue import Residue
-from Bio.PDB import MMCIFParser
-from Bio.PDB.MMCIF2Dict import MMCIF2Dict
+import Bio.PDB.PDBIO
+import Bio.PDB.Residue
 from phyre_engine.component import Component
-import os.path
+import phyre_engine.tools.pdb as pdb
+from phyre_engine.component.db.db import ChainPDBBuilder
+from phyre_engine.tools.template import Template
 
 BACKBONE_ATOMS = {"N", "C", "CA", "O"} # Set of backbone atoms
 
-
 class HomologyModeller(Component):
-    """For each hit, generate a model.
+    """
+    Generate a model for each element of the ``templates`` field in the pipeline
+    state.
 
-    For the moment, we will do the parsing of hhsearch files from here. In
-    actuality, we will have a separate component to parse those files so this
-    can be more generic.
+    This modeller requires pre-generated PDB files for each chain in the
+    ``templates`` list. Each PDB template *must* contain the ``REMARK`` fields
+    written by :py:class:`phyre_engine.component.db.db.ChainPDBBuilder` so that
+    the sequence alignment can be correctly mapped onto the PDB structure. Each
+    template must contain an ``alignment`` key containing the mapping between
+    the query sequence and the template sequence.
+
+    This component will add the ``model`` key to each template in the pipeline
+    state. This will contain a file path pointing to the generated model.
+
+    :param str chain_dir: Top-level directory containing the PDB chains.
+    :param str model_name: Python template string, formatted with all the
+        elements of each template.
+
+    .. seealso::
+
+        :py:class:`phyre_engine.component.db.db.ChainPDBBuilder`
+            For generating PDB files of the correct format for use as templates.
     """
 
-    REQUIRED = ['sequence', 'hits']
-    ADDS     = ['models']
-    REMOVES  = []
+    REQUIRED = ["templates", "sequence"]
+    ADDS = ["model"]
+    REMOVES = []
 
-    def __init__(self, mmcif_dir):
-        """
-        Create a new modeller.
-
-        :param str mmcif_dir: Directory containing MMCIF files.
-        """
-        self.mmcif_dir = mmcif_dir
+    def __init__(self, chain_dir, model_name="{rank:02d}-{PDB}_{chain}.pdb"):
+        self.chain_dir = chain_dir
+        self.model_name = model_name
 
     def run(self, data, config=None, pipeline=None):
-        """
-        Run the modeller.
-        """
+        """Build a model."""
+        templates, query_seq = self.get_vals(data)
+        pdb_io = Bio.PDB.PDBIO()
 
-        query_seq, hits = self.get_vals(data)
+        for template in templates:
+            alignment = template["alignment"]
+            pdb_id = template["PDB"]
+            chain = template["chain"]
 
-        models = []
-        for hit in hits:
-            model_structure = self._map_aln_to_struc(query_seq, hit)
-            models.append(model_structure)
+            template_file = pdb.pdb_path(pdb_id, ".pdb", chain, self.chain_dir)
+            db_template = Template.load(template_file)
 
-        data["models"] = models
+            model_name = "model from {}_{}".format(pdb_id, chain)
+            model_structure = Bio.PDB.Structure.Structure(model_name)
+            model_model = Bio.PDB.Model.Model(1)
+            model_chain = Bio.PDB.Chain.Chain("A")
+            model_model.add(model_chain)
+            model_structure.add(model_model)
+
+            for residue_pair in alignment:
+                # Residue indices
+                i, j = residue_pair[0:2]
+
+                # Residue ID from canonical sequence map
+                j_id = db_template.canonical_indices[j - 1]
+
+                # Template residue
+                template_res = db_template.chain[j_id]
+
+                query_res_type = Bio.SeqUtils.seq3(query_seq[i - 1]).upper()
+                query_res = Bio.PDB.Residue.Residue(
+                    (" ", i, " "),
+                    query_res_type, " ")
+                for atom in template_res:
+                    if atom.get_name() in BACKBONE_ATOMS:
+                        query_res.add(atom.copy())
+                model_chain.add(query_res)
+
+            model_file = self.model_name.format(**template)
+            pdb_io.set_structure(model_structure)
+            pdb_io.save(model_file)
+            template["model"] = model_file
         return data
-
-    def _parse_pdb_id(self, hit):
-        """Return a tuple indicating the PDB ID and chain."""
-
-        #The first word (i.e. before the first space char) of the name is the 
-        #PDB code + chain. The PDB code and chain are separated by an
-        #underscore.
-        full_id = hit.info["name"].split(maxsplit=1)[0]
-        return tuple(full_id.split("_"))
-
-    def _find_mmcif_file(self, pdb_id):
-        """Finds the MMCIF file corresponding to the ID given in pdb_id.
-
-        We assume that the directory structure and names are identical to those
-        on the RCSB's FTP server. That is, structure ``12as`` would be in
-        ``<root>/2a/12as.cif``.
-
-        :param str pdb_id: PDB code.
-        """
-
-        middle = pdb_id[1:3].lower()
-        file   = "{}.cif".format(pdb_id.lower())
-        path   = os.path.join(self.mmcif_dir, middle, file)
-        return path
-
-
-    def _map_aln_to_struc(self, query_seq, hit):
-        """Map a sequence alignment to a structure.
-
-        This method assumes that the sequence alignment is based on the
-        *sequence* of a structure file; that is, the ``SEQRES`` records  or the
-        ``label_seq_id``.
-        """
-
-        mmcif_parser = MMCIFParser()
-
-        pdb_code, pdb_chain = self._parse_pdb_id(hit)
-        mmcif_file = self._find_mmcif_file(pdb_code)
-        structure = mmcif_parser.get_structure(hit.info["name"], mmcif_file)
-        chain = structure[0][pdb_chain]
-
-        # Init new structure
-        model_structure = Bio.PDB.Structure.Structure(
-                "model from {}_{}".format(pdb_code, pdb_chain))
-        model_model = Bio.PDB.Model.Model(1)
-        model_chain = Bio.PDB.Chain.Chain("A")
-        model_model.add(model_chain)
-        model_structure.add(model_model)
-
-        # Get mapping of simple 1-based index to full atom IDs
-        label_to_auth = self._auth_to_label_ids(mmcif_file, pdb_chain)
-
-        for aln_pos in hit.aln:
-            #indices i and j are the query and template indices
-            #respectively. We want to create a model residue that is
-            #identical to the template residue but has different identifiers
-            #and residue type.
-            i = aln_pos["i"]
-            j = aln_pos["j"]
-
-            # The residue may be missing from the template structure, in which
-            # case we just skip it. The default param for get() will be used if
-            # auth_seq_id was not defined in the mmcif file, and is just the
-            # label_seq_id.
-            auth_asym_id = label_to_auth.get(j, j)
-            if not auth_asym_id in chain:
-                continue
-            template_res = chain[auth_asym_id]
-
-            #Remember that the sequence object is basically just a string,
-            #and so is zero-indexed. Structure indices are based on
-            #label_seq_id, so are one-indexed.
-            query_res_type = Bio.SeqUtils.seq3(query_seq[i-1]).upper()
-            query_res = Residue((" ", i, " "), query_res_type, " ")
-            for atom in template_res:
-                if atom.get_name() in BACKBONE_ATOMS:
-                    query_res.add(atom.copy())
-            model_chain.add(query_res)
-        return model_structure
-
-
-    def _auth_to_label_ids(self, mmcif_file, pdb_chain):
-        """
-        Build a mapping of ``label_seq_id`` fields to ``auth_seq_id`` fields.
-
-        Sequence alignments do not have any idea what identifier the author of
-        a structure assigned to which residue, and are most sensibly indexed
-        from 1. The author-assigned fields of structures may be ordered
-        completely arbitrarily, and so we would prefer to use the
-        ``label_seq_id`` field when working with sequence alignments. Biopython
-        prefers author-assigned IDs, so this method allows us to build a
-        mapping between a label ID and author ID.
-
-        :param str mmcif_file: File from which to parse mappings.
-        :param `Bio.PDB.Structure` structure: Structure object.
-        :param str pdb_chain: The chain of interest.
-
-        :return:
-            Dictionary mapping ``label_seq_id`` to the full ID tuples of
-            ``(group, auth_seq_id, pdbx_PDB_ins_code)`` used by BioPython to
-            index residues.
-        """
-
-        # Sequence alignments index from 1, because they don't care what the
-        # sequence identifiers the authors of a PDB file assigned to their
-        # residues. Bio.PDB uses the author-assigned identifiers if they are
-        # available, but the label_seq_id identifier would be much more
-        # suitable. We build a map of label_seq_id IDs to auth_seq_ids so that
-        # we can find a residue by its label_seq_id.
-        #
-        # If the structure does not contain an auth_seq_id then Bio.PDB will
-        # use the label_seq_id, which is mandatory, so we will just build an
-        # identity dict in that case.
-
-        mmcif_dict = MMCIF2Dict(mmcif_file)
-        label_to_auth = {}
-        if "_atom_site.auth_seq_id" in mmcif_dict:
-            labels = mmcif_dict["_atom_site.label_seq_id"]
-            auths  = mmcif_dict["_atom_site.auth_seq_id"]
-            chains = mmcif_dict["_atom_site.auth_asym_id"]
-            group  = mmcif_dict["_atom_site.group_PDB"]
-            icodes = mmcif_dict["_atom_site.pdbx_PDB_ins_code"]
-
-            #Get model numbers of available or just use a default value of
-            model_nums = None
-            if "_atom_site.pdbx_PDB_model_num" in mmcif_dict:
-                model_nums = mmcif_dict["_atom_site.pdbx_PDB_model_num"]
-            else:
-                model_nums = ["1"] * len(labels)
-
-            #Filter to only contain ATOM records from the first model with
-            #the desired chain. Store the icode as well as the auth_seq_id
-            generator = zip(labels, auths, chains, model_nums, group, icodes)
-            for res_id in generator:
-                if (res_id[2] == pdb_chain
-                    and res_id[3] == "1"
-                    and res_id[4] == "ATOM"):
-
-                    icode = res_id[5] if res_id[5] != "?" else " "
-                    label_to_auth[int(res_id[0])] = (' ', int(res_id[1]), icode)
-        return label_to_auth

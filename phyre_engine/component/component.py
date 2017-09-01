@@ -116,3 +116,32 @@ class Map(PipelineComponent):
             pipe_output.append(pipeline.run())
         data[self.field] = pipe_output
         return data
+
+class Conditional(PipelineComponent):
+    """
+    Apply a child pipeline if the pipeline state contains a particular field
+    and that field evaluates as ``True``.
+
+    :param str field: Field to check.
+
+    .. seealso::
+
+        :py:class:`.PipelineComponent`
+            For extra class parameters.
+    """
+    REQUIRED = []
+    ADDS = []
+    REMOVES = []
+
+    def __init__(self, field, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.field = field
+
+    def run(self, data, config=None, pipeline=None):
+        """Run child pipeline if `self.field` is ``True``."""
+        if self.field in data and data[self.field]:
+            pipeline = self.pipeline
+            pipeline.start = data
+            pipe_output = pipeline.run()
+            data.update(pipe_output)
+        return data
