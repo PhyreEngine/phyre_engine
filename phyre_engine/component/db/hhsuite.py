@@ -70,7 +70,6 @@ class MSABuilder(Component):
             template["hhr"] = str(hhr_file)
 
     def run(self, data, config=None, pipeline=None):
-        templates = self.get_vals(data)
         (self.basedir / "a3m").mkdir(exist_ok=True)
         (self.basedir / "hhr").mkdir(exist_ok=True)
 
