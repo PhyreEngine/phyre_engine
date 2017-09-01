@@ -5,6 +5,7 @@ import importlib
 from collections import namedtuple
 import pickle
 import pathlib
+import time
 
 #: Allows the state of the pipeline to be saved.
 #: :param int current_component: Index of the currently-running component. This
@@ -12,6 +13,12 @@ import pathlib
 #:     checkpoint.
 #: :param dict state: Data in the pipeline.
 Checkpoint = namedtuple("Checkpoint", ["current_component", "state"])
+
+#: A point in time.
+#: :param str component: Name of the most recently run component, or `None`.
+#: :param float wall: Wall-clock time in fractional seconds since the epoch.
+#: :param float process: Process time in fractional seconds.
+TimeInfo = namedtuple("TimeInfo", "component wall process")
 
 class Pipeline:
     """Pipeline containing a list of components to be executed.
@@ -101,9 +108,22 @@ class Pipeline:
         if checkpoint is None:
             checkpoint = Checkpoint(start_index, copy.copy(self.start))
 
+        if self.config is not None and self.config.get("timer", False):
+            if "timer" not in checkpoint.state:
+                current_time = TimeInfo(None, time.time(), time.process_time())
+                checkpoint.state["timer"] = [dict(current_time._asdict())]
+
         for cmpt in self.components[checkpoint.current_component:]:
             self.validate_runtime(checkpoint.state, cmpt)
             state = cmpt.run(checkpoint.state, self.config, self)
+
+            # Add timing information if we are recording it
+            if self.config is not None and self.config.get("timer", False):
+                current_time = TimeInfo(
+                    type(cmpt).__name__,
+                    time.time(), time.process_time())
+                state["timer"].append(dict(current_time._asdict()))
+
             checkpoint = Checkpoint(checkpoint.current_component + 1, state)
 
             if self.checkpoint is not None:
