@@ -2,6 +2,7 @@ from phyre_engine.component import Component
 import phyre_engine.tools.pdb as pdb
 import phyre_engine.tools.conformation
 from phyre_engine.tools.template import Template
+import phyre_engine.logging
 from enum import Enum
 import pathlib
 import urllib.request
@@ -224,9 +225,16 @@ class ChainPDBBuilder(Component):
                     pdb_in)
                 chain = structure[0][chain]
 
-            for selector in self.conf_sel:
-                chain = selector.select(chain)
-            template = Template.build(chain)
+            # Store all captured log output in REMARK 999
+            general_logger = logging.getLogger("phyre_engine")
+            with phyre_engine.logging.capture_log(general_logger) as log_buf:
+                # Select conformations.
+                for selector in self.conf_sel:
+                    chain = selector.select(chain)
+                template = Template.build(chain)
+
+                log_buf.seek(0)
+                template.remarks[999].extend(log_buf.readlines())
 
             with pdb_file.open("w") as pdb_out:
                 template.write(pdb_out)
