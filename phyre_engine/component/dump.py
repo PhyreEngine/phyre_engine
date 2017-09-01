@@ -139,3 +139,4 @@ class Yaml(Dumper):
     def run(self, data, config=None, pipeline=None):
         with Stream(self.output, "w") as out_fh:
             yaml.dump(self._filter(data), out_fh, Dumper=YamlStateDumper)
+        return data
