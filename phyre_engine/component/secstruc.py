@@ -15,6 +15,7 @@ import sys
 from phyre_engine.component.component import Component
 from phyre_engine.tools.external import ExternalTool
 
+DSSPResidue = namedtuple("DSSPResidue", "residue_id sec_struc")
 class DSSP(Component):
     """
     Calculate secondary structure state using
@@ -32,7 +33,6 @@ class DSSP(Component):
     REMOVES = []
 
     MKDSSP = ExternalTool()
-    ResidueSecStruc = namedtuple("ResidueSecStruc", "residue_id sec_struc")
 
     def __init__(self, bin_dir=None):
         self.bin_dir = bin_dir
@@ -53,8 +53,8 @@ class DSSP(Component):
         data["secondary_structure"] = dssp_mapping
         return data
 
-    @classmethod
-    def parse_dssp(cls, dssp_lines):
+    @staticmethod
+    def parse_dssp(dssp_lines):
         """
         Parse lines of output from DSSP.
 
@@ -82,5 +82,5 @@ class DSSP(Component):
                 if sec_struc == ' ':
                     sec_struc = 'C'
 
-                dssp_mapping.append(cls.ResidueSecStruc(int(res_id), sec_struc))
+                dssp_mapping.append(DSSPResidue(int(res_id), sec_struc))
         return dssp_mapping
