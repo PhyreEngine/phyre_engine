@@ -1,6 +1,9 @@
 """Module containing the base class of components."""
 from abc import ABC, abstractmethod
+import logging
 import phyre_engine
+
+log = lambda: logging.getLogger(__package__)
 
 class Component(ABC):
     """Base class for all component classes."""
@@ -144,4 +147,34 @@ class Conditional(PipelineComponent):
             pipeline.start = data
             pipe_output = pipeline.run()
             data.update(pipe_output)
+        return data
+
+class TryCatch(PipelineComponent):
+    """
+    Run a child pipeline, catching and logging any exceptions that are raised.
+
+    .. seealso::
+
+        :py:class:`.PipelineComponent`
+            For class parameters.
+    """
+    REQUIRED = []
+    ADDS = []
+    REMOVES = []
+
+    def __init__(self, logger=None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.logger = logger if logger is not None else log()
+
+    def run(self, data, config=None, pipeline=None):
+        """Run child pipeline, ignoring errors."""
+        try:
+            pipeline = self.pipeline
+            pipeline.start = data
+            pipe_output = pipeline.run()
+            return pipe_output
+        except Exception as error:
+            self.logger.error(
+                "TryCatch: Ignoring exception %s",
+                error, exc_info=True)
         return data

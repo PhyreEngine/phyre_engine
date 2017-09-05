@@ -1,7 +1,8 @@
 import copy
+import logging
 import unittest
 from phyre_engine.component import Component
-from phyre_engine.component.component import Map, Conditional
+from phyre_engine.component.component import Map, Conditional, TryCatch
 import phyre_engine.pipeline
 
 class Double(Component):
@@ -100,3 +101,35 @@ class TestConditional(unittest.TestCase):
 
             results = cond_cmpt.run(start_state)
             self.assertDictEqual(results, end_state)
+
+class TestTryCatch(unittest.TestCase):
+    """Test the TryCatch component."""
+
+    class _RaisingComponent(Component):
+        """Raises an exception when run."""
+        REQUIRED = []
+        ADDS = []
+        REMOVES = []
+
+        def run(self, data, config=None, pipeline=None):
+            raise RuntimeError("Deliberately raising an exception.")
+
+    def test_raise(self):
+        """Ensure that our dummy component correctly raises an error."""
+        raise_pipe = phyre_engine.pipeline.Pipeline([self._RaisingComponent()])
+        with self.assertRaises(RuntimeError):
+            raise_pipe.run()
+
+    def test_trycatch(self):
+        """Squash an exception with the TryCatch component."""
+        raise_pipe = phyre_engine.pipeline.Pipeline([self._RaisingComponent()])
+        initial_state = {"foo": "bar"}
+
+        # Use a dummy logger to avoid false error messages on the console
+        logger = logging.getLogger("null")
+        logger.disabled = True
+
+        trycatch = TryCatch(pipeline=raise_pipe, logger=logger)
+
+        results = trycatch.run(copy.deepcopy(initial_state))
+        self.assertDictEqual(initial_state, results)
