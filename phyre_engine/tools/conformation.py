@@ -226,9 +226,15 @@ class PopulationMicroHetSelector(PopulationConformationSelector):
                         # Keep atoms without alternate locations
                         sanitised_res.add(atom)
                     else:
-                        # Keep the first conformation
-                        conformation = atom.disordered_get(chosen)
-                        sanitised_res.add(self.clean_atom(conformation))
+                        try:
+                            # Keep the chosen conformation
+                            conformation = atom.disordered_get(chosen)
+                            sanitised_res.add(self.clean_atom(conformation))
+                        except KeyError:
+                            # This occurs when an atom is not present in the
+                            # chosen conformation.
+                            pass
+
                 sanitised_chain.add(sanitised_res)
             else:
                 sanitised_chain.add(res)
