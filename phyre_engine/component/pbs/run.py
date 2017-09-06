@@ -50,9 +50,12 @@ def main():  # IGNORE:C0111
 
             pipeline.start = state
             data = pipeline.run()
+
+            data["qsub_complete"] = True
+
             state_fh.seek(0)
             state_fh.truncate()
-            pickle.dump(qsub.CompletedState(data), state_fh)
+            pickle.dump(data, state_fh)
 
         return 0
     except KeyboardInterrupt:

@@ -29,13 +29,6 @@ nodes, and gathering the results of each pipeline so serial processing can
 resume.
 """
 
-#: Sub-pipeline and data slice used by each worker.
-SubPipeline = collections.namedtuple("SubPipeline", ["pipeline"])
-
-#: Used to save data when a worker is complete
-CompletedState = collections.namedtuple(
-    "CompletedState", ["data"])
-
 # File name templates
 WORKER_STATE = "state-{}.pickle"
 RESUME_PIPELINE = "pipeline.pickle"
@@ -86,8 +79,9 @@ class RemoteJob(RemoteJobBase):
     def state(self):
         with self.state_file.open("rb") as state_in:
             data = pickle.load(state_in)
-            if not isinstance(data, CompletedState):
+            if "qsub_complete" not in data:
                 raise exception.UncompletedState(self.state_file)
+            del data["qsub_complete"]
             return data.data
 
 class RemoteArrayJob(RemoteJobBase):
@@ -120,14 +114,15 @@ class RemoteArrayJob(RemoteJobBase):
         for state_file in self.state_files:
             with state_file.open("rb") as state_in:
                 partial_state = pickle.load(state_in)
-                if not isinstance(partial_state, CompletedState):
+                if "qsub_complete" not in partial_state:
                     raise exception.UncompletedState(state_file)
+                del partial_state["qsub_complete"]
 
                 if full_state is None:
-                    full_state = partial_state.data
+                    full_state = partial_state
                 else:
                     full_state[self.join_var].extend(
-                        partial_state.data[self.join_var])
+                        partial_state[self.join_var])
         return full_state
 
     def __repr__(self):
