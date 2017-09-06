@@ -54,4 +54,43 @@ class SeqValidator(Component):
             self.seq = seq
             self.alphabet = alphabet
 
+class SeqLenFilter(Component):
+    """
+    Raise an exception when a sequence has a length outside of the specified
+    range. Sequences of length :math:`l` will be retained by this filter if
+    :math:`L_\text{min} \le l L_\text{max}`, where :math:`L_\text{min}` and
+    :math:`L_\text{max}` are the `min` and `max` parameters passed to this
+    filter.
 
+    :param int min: Minimum sequence length (inclusive).
+    :param int max: Maximum sequence length (inclusive).
+    """
+
+    class SeqLenError(RuntimeError):
+        """Raised when a sequence length is invalid."""
+
+        _ERR_MSG = "Sequence of length {} outside of length range {}-{}"
+        def __init__(self, seq_len, min_len, max_len):
+            super().__init__(
+                self._ERR_MSG.format(seq_len, min_len, max_len))
+
+    REQUIRED = ["sequence"]
+    ADDS = []
+    REMOVES = []
+
+    def __init__(self, min_len, max_len):
+        self.seq_range = range(min_len, max_len + 1)
+
+    def run(self, data, config=None, pipeline=None):
+        """
+        Filter sequences by length.
+
+        :raises phyre_engine.component.validated.SeqLenFilter.SeqLenError: When
+            the sequence falls outside of allowed range.
+        """
+        sequence = self.get_vals(data)
+        if len(sequence) not in self.seq_range:
+            raise self.SeqLenError(
+                len(sequence),
+                self.seq_range.start, self.seq_range.stop - 1)
+        return data
