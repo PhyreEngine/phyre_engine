@@ -162,9 +162,14 @@ class TryCatch(PipelineComponent):
     ADDS = []
     REMOVES = []
 
-    def __init__(self, logger=None, *args, **kwargs):
+    def __init__(self, logger=None, log_level=logging.ERROR, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.logger = logger if logger is not None else log()
+
+        # Allow string log levels that we look up via getattr
+        if isinstance(log_level, str):
+            log_level = getattr(logging, log_level)
+        self.log_level = log_level
 
     def run(self, data, config=None, pipeline=None):
         """Run child pipeline, ignoring errors."""
@@ -174,7 +179,8 @@ class TryCatch(PipelineComponent):
             pipe_output = pipeline.run()
             return pipe_output
         except Exception as error:
-            self.logger.error(
+            self.logger.log(
+                self.log_level,
                 "TryCatch: Ignoring exception %s",
                 error, exc_info=True)
         return data

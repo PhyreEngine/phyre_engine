@@ -1,4 +1,5 @@
 import copy
+import io
 import logging
 import unittest
 from phyre_engine.component import Component
@@ -114,6 +115,29 @@ class TestTryCatch(unittest.TestCase):
         def run(self, data, config=None, pipeline=None):
             raise RuntimeError("Deliberately raising an exception.")
 
+    class _LogCapture:
+        """Simple context manager for capturing log output."""
+        def __init__(self):
+            self.log_buffer = io.StringIO()
+            logger = logging.getLogger("test_logger")
+            logger.setLevel(logging.DEBUG)
+            handler = logging.StreamHandler(self.log_buffer)
+            formatter = logging.Formatter("%(levelname)s")
+            handler.setFormatter(formatter)
+            handler.setLevel(logging.DEBUG)
+            logger.addHandler(handler)
+            self.logger = logger
+
+        def __enter__(self):
+            return self.logger
+
+        def __exit__(self, _exc_type, _exc_value, _traceback):
+            self.log_buffer.seek(0)
+            self.log_contents = self.log_buffer.read()
+
+        def __str__(self):
+            return self.log_contents
+
     def test_raise(self):
         """Ensure that our dummy component correctly raises an error."""
         raise_pipe = phyre_engine.pipeline.Pipeline([self._RaisingComponent()])
@@ -126,10 +150,25 @@ class TestTryCatch(unittest.TestCase):
         initial_state = {"foo": "bar"}
 
         # Use a dummy logger to avoid false error messages on the console
-        logger = logging.getLogger("null")
-        logger.disabled = True
-
-        trycatch = TryCatch(pipeline=raise_pipe, logger=logger)
-
-        results = trycatch.run(copy.deepcopy(initial_state))
+        capture = self._LogCapture()
+        with capture as logger:
+            trycatch = TryCatch(pipeline=raise_pipe, logger=logger)
+            results = trycatch.run(copy.deepcopy(initial_state))
         self.assertDictEqual(initial_state, results)
+
+    def test_logging(self):
+        """Test log contents after running TryCatch."""
+        raise_pipe = phyre_engine.pipeline.Pipeline([self._RaisingComponent()])
+        initial_state = {"foo": "bar"}
+
+        # Use a dummy logger to avoid false error messages on the console
+        for log_level in ("ERROR", "WARN", "INFO"):
+            with self.subTest(log_level=log_level):
+                capture = self._LogCapture()
+                with capture as logger:
+                    trycatch = TryCatch(
+                        pipeline=raise_pipe,
+                        logger=logger,
+                        log_level=log_level)
+                    trycatch.run(copy.deepcopy(initial_state))
+                self.assertRegex(str(capture), "^" + log_level)
