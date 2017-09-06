@@ -1,6 +1,6 @@
 """Module containing classes for validating parsed sequences."""
 from phyre_engine.component import Component
-import Bio.Alphabet
+import Bio.Alphabet.IUPAC
 
 class SeqValidator(Component):
     """
