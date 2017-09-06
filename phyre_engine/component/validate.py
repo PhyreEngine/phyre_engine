@@ -62,6 +62,9 @@ class SeqLenFilter(Component):
     :math:`L_\text{max}` are the `min` and `max` parameters passed to this
     filter.
 
+    Either `min` or `max` may bet set to `None`, in which case that end of the
+    allowed sequence length range is open-ended.
+
     :param int min: Minimum sequence length (inclusive).
     :param int max: Maximum sequence length (inclusive).
     """
@@ -78,8 +81,9 @@ class SeqLenFilter(Component):
     ADDS = []
     REMOVES = []
 
-    def __init__(self, min_len, max_len):
-        self.seq_range = range(min_len, max_len + 1)
+    def __init__(self, min_len=None, max_len=None):
+        self.min_len = min_len
+        self.max_len = max_len
 
     def run(self, data, config=None, pipeline=None):
         """
@@ -89,8 +93,8 @@ class SeqLenFilter(Component):
             the sequence falls outside of allowed range.
         """
         sequence = self.get_vals(data)
-        if len(sequence) not in self.seq_range:
-            raise self.SeqLenError(
-                len(sequence),
-                self.seq_range.start, self.seq_range.stop - 1)
+        seq_len = len(sequence)
+        if (self.min_len is not None and seq_len < self.min_len
+            or self.max_len is not None and seq_len > self.max_len):
+            raise self.SeqLenError(len(sequence), self.min_len, self.max_len)
         return data

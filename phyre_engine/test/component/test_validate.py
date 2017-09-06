@@ -43,3 +43,13 @@ class TestSeqLenFilter(unittest.TestCase):
         filt.run({"sequence": "A" * 5})
         filt.run({"sequence": "A" * 7})
         filt.run({"sequence": "A" * 10})
+
+    def test_open_max(self):
+        """Test sequence length filter with no maximum."""
+        filt = SeqLenFilter(5, None)
+        filt.run({"sequence": "A" * 1000})
+
+    def test_open_min(self):
+        """Test sequence length filter with no minimum."""
+        filt = SeqLenFilter(None, 10)
+        filt.run({"sequence": ""})
