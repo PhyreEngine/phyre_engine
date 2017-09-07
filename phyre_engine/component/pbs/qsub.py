@@ -5,11 +5,11 @@ import abc
 import os
 import math
 import copy
+import json
 import pickle
 from pathlib import Path
 import subprocess
 import tempfile
-import phyre_engine
 import collections
 import xml.etree.ElementTree as ET
 import sys
@@ -28,13 +28,6 @@ certain field, queueing a sub-pipeline on each subset of data data on separate
 nodes, and gathering the results of each pipeline so serial processing can
 resume.
 """
-
-#: Sub-pipeline and data slice used by each worker.
-SubPipeline = collections.namedtuple("SubPipeline", ["pipeline"])
-
-#: Used to save data when a worker is complete
-CompletedState = collections.namedtuple(
-    "CompletedState", ["data"])
 
 # File name templates
 WORKER_STATE = "state-{}.pickle"
@@ -86,8 +79,9 @@ class RemoteJob(RemoteJobBase):
     def state(self):
         with self.state_file.open("rb") as state_in:
             data = pickle.load(state_in)
-            if not isinstance(data, CompletedState):
+            if "qsub_complete" not in data:
                 raise exception.UncompletedState(self.state_file)
+            del data["qsub_complete"]
             return data.data
 
 class RemoteArrayJob(RemoteJobBase):
@@ -120,14 +114,15 @@ class RemoteArrayJob(RemoteJobBase):
         for state_file in self.state_files:
             with state_file.open("rb") as state_in:
                 partial_state = pickle.load(state_in)
-                if not isinstance(partial_state, CompletedState):
+                if "qsub_complete" not in partial_state:
                     raise exception.UncompletedState(state_file)
+                del partial_state["qsub_complete"]
 
                 if full_state is None:
-                    full_state = partial_state.data
+                    full_state = partial_state
                 else:
                     full_state[self.join_var].extend(
-                        partial_state.data[self.join_var])
+                        partial_state[self.join_var])
         return full_state
 
     def __repr__(self):
@@ -137,35 +132,46 @@ class RemoteArrayJob(RemoteJobBase):
             join_var=repr(self.join_var))
 
 class BaseQsub(Component):
-    def __init__(
-            self, storage_dir, worker_pipeline,
-            name, worker_config=None, qsub_args=None):
+    """
+    Base class for components making use of the :manpage:`qsub(1)` command.
+
+    This class contains tools for serialising a pipeline.
+
+    :param str storage_dir: Storage directory in which to save pipeline state
+        and standard output/error files.
+    :param dict pipeline: Pipeline specification as expected by
+        :py:meth:`phyre_engine.pipeline.Pipeline.load`.
+    :param str name: Name of the job.
+    :param list[str] qsub_args: Extra arguments to pass to qsub.
+    """
+
+    def __init__(self, storage_dir, pipeline, name, qsub_args=None):
         self.storage_dir = Path(storage_dir)
-
-        # Load pipeline if it isn't already a Pipeline object
-        if not isinstance(worker_pipeline, phyre_engine.Pipeline):
-            worker_pipeline = phyre_engine.Pipeline.load(worker_pipeline)
-        self.worker_pipeline = worker_pipeline
-
+        self.pipeline = pipeline
         self.name = name
-        self.worker_config = worker_config if worker_config is not None else {}
         self.qsub_args = qsub_args if qsub_args is not None else []
 
-    def _save_pipeline(self, pickle_path, data, master_config):
+    def _save_pipeline(self, pipe_path, base_config):
         """
-        Save the current pipeline to a pickle named after the node that we are
-        going to be contacting.
+        Save pipeline specification to a JSON file. If `base_config` is
+        supplied, it is used as the "base" configuration: any configuration
+        set in "pipeline.config" overwrites the base configuration.
         """
+        if base_config is None:
+            base_config = {}
+        original_config = self.pipeline.get("config", {})
+        try:
+            self.pipeline["config"] = copy.deepcopy(base_config)
+            self.pipeline["config"].update(original_config)
+            with pipe_path.open("w") as pipe_out:
+                json.dump(self.pipeline, pipe_out)
+        finally:
+            self.pipeline["config"] = original_config
 
-        # Overwrite any sections of our config with
-        config = copy.copy(master_config)
-        config.update(self.worker_config)
-
-        with pickle_path.open("wb") as state_out:
-            pipe = copy.copy(self.worker_pipeline)
-            pipe.config = config
-            pipe.start = data
-            pickle.dump(SubPipeline(pipe), state_out)
+    def _save_state(self, state_path, state):
+        """Pickle pipeline state and save it to state_path."""
+        with state_path.open("wb") as state_out:
+            pickle.dump(state, state_out)
 
     def _qsub(self, script, stdout_dir, stderr_dir=None, extra=None):
 
@@ -253,11 +259,11 @@ class Slice(BaseQsub):
             state = copy.copy(data)
             state[self.split_var] = data_slice
 
-            super()._save_pipeline(pickle_path, state, config)
+            super()._save_state(pickle_path, state)
             saved_states.append(pickle_path)
         return saved_states
 
-    def run(self, data, config, pipeline):
+    def run(self, data, config=None, pipeline=None):
         """
         Start an array job (``-t``) with qsub.
         """
@@ -270,9 +276,13 @@ class Slice(BaseQsub):
         stdout_dir.mkdir()
         stderr_dir.mkdir()
 
+        pipeline_path = job_dir / "pipeline.json"
+        self._save_pipeline(pipeline_path, config)
         pickles = self._slice_state(job_dir, data, config)
 
-        script = jobscript.StartScript(str(job_dir / self._STATE_READ_NAME))
+        script = jobscript.StartScript(
+            str(pipeline_path),
+            str(job_dir / self._STATE_READ_NAME))
         qsub_args = ["-t", "0-{}".format(len(pickles) - 1)]
 
         job_id = self._qsub(script, stdout_dir, stderr_dir, qsub_args)
@@ -322,13 +332,16 @@ class ContactNodes(BaseQsub):
         stdout_dir.mkdir()
         stderr_dir.mkdir()
 
+        pipeline_path = job_dir / "pipeline.json"
+        self._save_pipeline(pipeline_path, config)
+
         if "qsub_jobs" not in data:
             data["qsub_jobs"] = []
 
         for node in self.nodes:
             pickle_path = job_dir / self._PICKLE_NAME.format(node=node)
-            self._save_pipeline(pickle_path, data, config)
-            script = StartScript(pickle_path)
+            self._save_state(pickle_path, data)
+            script = StartScript(str(pipeline_path), str(pickle_path))
 
             qsub_args = ["-lnodes={}".format(node)]
             job_id = self._qsub(script, stdout_dir, stderr_dir, qsub_args)
@@ -540,13 +553,15 @@ class Detach(BaseQsub):
             tempfile.mkdtemp("detach", "qsub", str(self.storage_dir)))
 
         pickle_path = job_dir / self._PICKLE_NAME
+        pipeline_path = job_dir / "pipeline.json"
         stdout_dir = job_dir / "stdout"
         stderr_dir = job_dir / "stderr"
         stdout_dir.mkdir()
         stderr_dir.mkdir()
 
-        self._save_pipeline(pickle_path, data, config)
-        script = jobscript.StartScript(pickle_path)
+        self._save_pipeline(pipeline_path, config)
+        self._save_state(pickle_path, data)
+        script = jobscript.StartScript(str(pipeline_path), str(pickle_path))
         qsub_args = self._depend_args(data)
         job_id = self._qsub(script, stdout_dir, stderr_dir, qsub_args)
         job = RemoteJob(job_id, pickle_path)
