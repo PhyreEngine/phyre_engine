@@ -11,8 +11,6 @@ import logging
 import collections
 import json
 
-log = lambda: logging.getLogger(__name__)
-
 class StructureType(Enum):
     PDB = "pdb"
     MMCIF = "cif"
@@ -210,7 +208,7 @@ class ChainPDBBuilder(Component):
 
         source_file = pdb.find_pdb(pdb_id, base_dir=self.mmcif_dir)
         if source_file is None:
-            log().error(
+            self.logger.error(
                 "Could not find MMCIF file '%s' in '%s'",
                 pdb_id, self.mmcif_dir)
             raise self.MissingSourceError(pdb_id)
@@ -346,7 +344,7 @@ class Reduce(Component):
             fields = tuple(element[f] for f in self.compare_fields)
             identical[fields].append(element)
 
-        log().info(
+        self.logger.info(
             ("Reduced '%s' with %d elements to %d non-identical elements by "
              "fields %s"),
             self.item_list, len(data[self.item_list]),
@@ -414,7 +412,7 @@ class Expand(Component):
                 for clus_member in clus_members[1:]:
                     expanded = self._update(representative, clus_member)
                     extra.append(expanded)
-        log().info(
+        self.logger.info(
             "Adding %d templates to the %d already present.",
             len(extra), len(data[self.item_list]))
         data[self.item_list].extend(extra)

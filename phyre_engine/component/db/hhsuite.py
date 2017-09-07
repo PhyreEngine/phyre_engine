@@ -5,10 +5,7 @@ import os
 import tempfile
 import fileinput
 import pathlib
-import logging
 import Bio.SeqUtils
-
-log = lambda: logging.getLogger(__name__)
 
 class MSABuilder(Component):
     """
@@ -106,7 +103,7 @@ class AddSecondaryStructure(Component):
         a3m = self.get_vals(data)
 
         cmd_line = [self.addss, "-i", a3m]
-        log().debug("Running %s", cmd_line)
+        self.logger.debug("Running %s", cmd_line)
         hh.run(cmd_line, check=True, HHLIB=self.HHLIB)
 
         return data
@@ -337,7 +334,7 @@ class DatabaseBuilder(Component):
                     positional=[ffdata, ffindex],
                     flags=["sort"],
                     options={"file_list": index.name})
-                log().debug("Running command %s", cmd_line)
+                self.logger.debug("Running command %s", cmd_line)
                 hh.run(cmd_line, check=True)
                 ff_dbs[file_type] = db_name
 
