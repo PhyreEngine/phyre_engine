@@ -205,6 +205,21 @@ class BaseQsub(Component):
 class Slice(BaseQsub):
     r"""
     Run a pipeline in parallel on separate nodes.
+
+    :param str split_var: Name of a list to distribute across nodes.
+    :param str join_var: Name of the list on which to merge jobs.
+    :param int max_jobs: Maximum number of parallel jobs to run. Data will be
+        grouped into a maximum of this number of approximately equal chunks.
+
+    .. seealso::
+
+        :py:class:`.BaseQsub`
+            For arguments relating to qsub.
+
+    .. note::
+
+        If there are no items present in `split_var` a :py:exc:`ValueError` will
+        be raised when this component is run.
     """
     REQUIRED = []
     ADDS = ["qsub_jobs"]
@@ -264,6 +279,10 @@ class Slice(BaseQsub):
         """
         Start an array job (``-t``) with qsub.
         """
+        if len(data[self.split_var]) == 0:
+            raise ValueError(
+                "Cannot split on list '{}' containing no items".format(
+                    self.split_var))
 
         # Get a unique directory underneath the storage directory.
         job_dir = Path(tempfile.mkdtemp("slice", "qsub", str(self.storage_dir)))
