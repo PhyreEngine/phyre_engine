@@ -13,12 +13,9 @@ import tempfile
 import collections
 import xml.etree.ElementTree as ET
 import sys
-import logging
 from subprocess import CalledProcessError
 from phyre_engine.component.pbs.jobscript import StartScript
 import time
-
-log = lambda: logging.getLogger(__name__)
 
 r"""
 Components for running sub-pipelines on PBS nodes.

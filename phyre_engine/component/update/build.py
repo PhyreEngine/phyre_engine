@@ -1,5 +1,4 @@
 from phyre_engine.component.component import Component
-import logging
 import subprocess
 from pathlib import Path
 import collections.abc
@@ -9,8 +8,6 @@ try:
     from yaml import CSafeLoader as SafeLoader, CSafeDumper as SafeDumper
 except ImportError:
     from yaml import SafeLoader, SafeDumper
-
-log = lambda: logging.getLogger(__name__)
 
 class Build(Component):
     """
@@ -67,7 +64,7 @@ class Build(Component):
 
         for cmd in self.build_commands[name]:
             formatted_cmd = cmd.format(**{k: str(v) for k, v in tool.items()})
-            log().info("Running `%s' for tool `%s'", formatted_cmd, name)
+            self.logger.info("Running `%s' for tool `%s'", formatted_cmd, name)
             subprocess.run([formatted_cmd], shell=True, check=True)
 
     def run(self, data, config=None, pipeline=None):

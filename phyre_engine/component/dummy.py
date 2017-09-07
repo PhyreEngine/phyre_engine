@@ -1,10 +1,7 @@
 from phyre_engine.component.component import Component
-import logging
 import time
 import pickle
 import os
-
-log = lambda: logging.getLogger(__name__)
 
 class Dummy(Component):
     ADDS = []
@@ -16,7 +13,7 @@ class Dummy(Component):
         self.add = add if add is not None else []
 
     def run(self, data, config=None, pipeline=None):
-        log().warning("Dummy warning: %s", self.prefix)
+        self.logger.warning("Dummy warning: %s", self.prefix)
         data[self.prefix] = self.add
         return data
 
@@ -73,9 +70,9 @@ class LogTest(Component):
     REQUIRED = []
 
     def run(self, data, config=None, pipeline=None):
-        log().debug("Debug message")
-        log().info("Info message")
-        log().warn("Warning message")
-        log().error("Error message")
-        log().critical("Critical error message")
+        self.logger.debug("Debug message")
+        self.logger.info("Info message")
+        self.logger.warn("Warning message")
+        self.logger.error("Error message")
+        self.logger.critical("Critical error message")
         return data

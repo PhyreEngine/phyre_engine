@@ -44,9 +44,13 @@ def main():  # IGNORE:C0111
 
             # Initialise loggers
             if "logging" in pipeline.config:
-                logging.config.dictConfig(pipeline.config["logging"])
+                log_config = pipeline.config["logging"]
             else:
-                logging.config.dictConfig(phyre_engine.run.default_log_config())
+                log_config = phyre_engine.run.default_log_config()
+
+            if "disable_existing_loggers" not in log_config:
+                log_config["disable_existing_loggers"] = False
+            logging.config.dictConfig(log_config)
 
             pipeline.start = state
             data = pipeline.run()

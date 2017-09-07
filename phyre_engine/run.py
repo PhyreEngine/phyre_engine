@@ -89,6 +89,7 @@ def arg_parser():
 def default_log_config():
     return {
         'version': 1,
+        'disable_existing_loggers': False,
         'formatters': {
             'simple': {
                 'format': '{levelname} : {asctime} : {name} : {message}',
@@ -128,6 +129,14 @@ def dummy_pipeline():
 def init_logging(logging_dict):
     if logging_dict is None:
         logging_dict = default_log_config()
+
+    # We usually want to keep (and reload) loggers, so we set
+    # disable_existing_loggers to False by default. If the user really wants, it
+    # can be overridden.
+    dis_logs = "disable_existing_loggers"
+    if dis_logs not in logging_dict:
+        logging_dict[dis_logs] = False
+
     logging.config.dictConfig(logging_dict)
     return logging_dict
 

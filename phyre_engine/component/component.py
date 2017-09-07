@@ -3,8 +3,6 @@ from abc import ABC, abstractmethod
 import logging
 import phyre_engine
 
-log = lambda: logging.getLogger(__package__)
-
 class Component(ABC):
     """Base class for all component classes."""
 
@@ -22,6 +20,12 @@ class Component(ABC):
     @abstractmethod
     def REMOVES(self):
         pass
+
+    @property
+    def logger(self):
+        """Get a logger named for this component."""
+        logger_name = ".".join((type(self).__module__, type(self).__qualname__))
+        return logging.getLogger(logger_name)
 
     #: A string specifying a configuration section, or ``None`` if no external
     #: configuration is used.
@@ -181,7 +185,7 @@ class TryCatch(PipelineComponent):
             *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.pass_through = pass_through
-        self.logger = logger if logger is not None else log()
+        self.err_logger = logger if logger is not None else self.logger
 
         # Allow string log levels that we look up via getattr
         if isinstance(log_level, str):
@@ -196,7 +200,7 @@ class TryCatch(PipelineComponent):
             pipe_output = pipeline.run()
             return pipe_output
         except Exception as error:
-            self.logger.log(
+            self.err_logger.log(
                 self.log_level,
                 "TryCatch: Ignoring exception %s",
                 error, exc_info=True)
