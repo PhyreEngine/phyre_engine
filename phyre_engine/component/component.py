@@ -92,7 +92,8 @@ class PipelineComponent(Component):
 class Map(PipelineComponent):
     """
     Apply a child pipeline for each element in an array contained within the
-    pipeline state.
+    pipeline state. If the child pipeline returns `None`, it will not be
+    included in the results.
 
     :param str field: Field over which to iterate.
 
@@ -116,7 +117,9 @@ class Map(PipelineComponent):
         pipe_output = []
         for item in data[self.field]:
             pipeline.start = item
-            pipe_output.append(pipeline.run())
+            pipeline_results = pipeline.run()
+            if pipeline_results is not None:
+                pipe_output.append(pipeline_results)
         data[self.field] = pipe_output
         return data
 
@@ -153,6 +156,17 @@ class TryCatch(PipelineComponent):
     """
     Run a child pipeline, catching and logging any exceptions that are raised.
 
+    :param bool pass_through: If an exception is raised in the child pipeline
+        and this is `True`, the original pipeline state is retained. Otherwise,
+        if an exception is raised and this is `False` this component will return
+        `None` as the pipeline state.
+
+    :param logger: Optional logger object. The default value is the module-level
+        logger for this module.
+
+    :param int log_level: The level at which to log events. This may
+        alternatively be specified as a string.
+
     .. seealso::
 
         :py:class:`.PipelineComponent`
@@ -162,8 +176,11 @@ class TryCatch(PipelineComponent):
     ADDS = []
     REMOVES = []
 
-    def __init__(self, logger=None, log_level=logging.ERROR, *args, **kwargs):
+    def __init__(
+            self, pass_through=False, logger=None, log_level=logging.ERROR,
+            *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.pass_through = pass_through
         self.logger = logger if logger is not None else log()
 
         # Allow string log levels that we look up via getattr
@@ -183,4 +200,6 @@ class TryCatch(PipelineComponent):
                 self.log_level,
                 "TryCatch: Ignoring exception %s",
                 error, exc_info=True)
-        return data
+            if self.pass_through:
+                return data
+            return None

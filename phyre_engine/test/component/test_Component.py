@@ -61,6 +61,13 @@ class TestMap(unittest.TestCase):
             ]
         }
 
+    class _NoneComponent(Component):
+        ADDS = []
+        REMOVES = []
+        REQUIRED = []
+        def run(self, data, config=None, pipeline=None):
+            return None
+
     def test_map_pipeline(self):
         """Run Map with Pipeline as input."""
         components = [Double()]
@@ -77,6 +84,16 @@ class TestMap(unittest.TestCase):
 
         results = map_cmpt.run(self.state)
         self.assertDictEqual(results, self.expected_state)
+
+    def test_exclude_none(self):
+        """Map should discard results when the child pipeline returns None."""
+        components = [self._NoneComponent()]
+        pipeline = phyre_engine.pipeline.Pipeline(components)
+        map_cmpt = Map("values", pipeline)
+
+        results = map_cmpt.run(self.state)
+        self.assertDictEqual(results, {"values": []})
+
 
 class TestConditional(unittest.TestCase):
     """Test the phyre_engine.component.Conditional class."""
@@ -154,7 +171,14 @@ class TestTryCatch(unittest.TestCase):
         with capture as logger:
             trycatch = TryCatch(pipeline=raise_pipe, logger=logger)
             results = trycatch.run(copy.deepcopy(initial_state))
-        self.assertDictEqual(initial_state, results)
+            # pass_through = False, so results is None
+            self.assertIsNone(results)
+
+        with capture as logger:
+            trycatch = TryCatch(
+                pipeline=raise_pipe, logger=logger, pass_through=True)
+            results = trycatch.run(copy.deepcopy(initial_state))
+            self.assertDictEqual(initial_state, results)
 
     def test_logging(self):
         """Test log contents after running TryCatch."""
