@@ -171,7 +171,14 @@ class TestTryCatch(unittest.TestCase):
         with capture as logger:
             trycatch = TryCatch(pipeline=raise_pipe, logger=logger)
             results = trycatch.run(copy.deepcopy(initial_state))
-        self.assertDictEqual(initial_state, results)
+            # pass_through = False, so results is None
+            self.assertIsNone(results)
+
+        with capture as logger:
+            trycatch = TryCatch(
+                pipeline=raise_pipe, logger=logger, pass_through=True)
+            results = trycatch.run(copy.deepcopy(initial_state))
+            self.assertDictEqual(initial_state, results)
 
     def test_logging(self):
         """Test log contents after running TryCatch."""
