@@ -24,10 +24,9 @@ except ImportError:
 
 class DumpAction(Action):
     def __call__(self, parser, namespace, values, option_string=None):
-        config = {}
-        config.update({"logging": default_log_config()})
-        config.update(dummy_pipeline())
-        yaml.dump(config, sys.stdout, SafeDumper, default_flow_style=False)
+        yaml.dump(
+            dummy_pipeline(),
+            sys.stdout, SafeDumper, default_flow_style=False)
         sys.exit(0)
 
 class StoreStartingValue(Action):
@@ -114,6 +113,7 @@ def dummy_pipeline():
     return {
         'pipeline': {
             'checkpoint': 'checkpoint_file.chk',
+            'config': {'logging': default_log_config()},
             'components': [
                 'phyre_engine.component.input.FastaInput',
                 'phyre_engine.component.validate.SeqValidator', {
@@ -126,19 +126,22 @@ def dummy_pipeline():
         }
     }
 
-def init_logging(logging_dict):
-    if logging_dict is None:
-        logging_dict = default_log_config()
+def init_logging(pipeline):
+    config = pipeline.get("config", {})
+    LOGGING = "logging"
+    DISABLE_LOGS = "disable_existing_loggers"
 
-    # We usually want to keep (and reload) loggers, so we set
-    # disable_existing_loggers to False by default. If the user really wants, it
-    # can be overridden.
-    dis_logs = "disable_existing_loggers"
-    if dis_logs not in logging_dict:
-        logging_dict[dis_logs] = False
+    if LOGGING not in config:
+        config[LOGGING] = default_log_config()
+    else:
+        # We usually want to keep (and reload) loggers, so we set
+        # disable_existing_loggers to False by default. If the user really
+        # wants, it can be overridden.
+        if DISABLE_LOGS not in config[LOGGING]:
+            config[LOGGING][DISABLE_LOGS] = False
 
-    logging.config.dictConfig(logging_dict)
-    return logging_dict
+    pipeline["config"] = config
+    logging.config.dictConfig(config[LOGGING])
 
 def construct_yaml_tuple(self, node):
     # Used to convert sequences from lists to tuples. Only applies to lists
@@ -171,15 +174,7 @@ def main():  # IGNORE:C0111
             config["pipeline"]["start"].update(args.start)
 
         # Set up logging if a logging section was given in the pipeline
-        log_conf = init_logging(config.get("logging", None))
-
-
-        # We want to pass the logging config into the pipeline config if it is
-        # not already set.
-        if "config" not in config["pipeline"]:
-            config["pipeline"]["config"] = {}
-        if "logging" not in config["pipeline"]["config"]:
-            config["pipeline"]["config"]["logging"] = log_conf
+        init_logging(config["pipeline"])
 
         # Load a pipeline
         pipeline = Pipeline.load(config["pipeline"])
