@@ -10,10 +10,50 @@ import Bio.PDB
 import logging
 import collections
 import json
+import xml.etree.ElementTree
 
 class StructureType(Enum):
     PDB = "pdb"
     MMCIF = "cif"
+
+class PDBList(Component):
+    """
+    Reads (after optionally downloading) a list of PDB IDs in the format
+    supplied by `https://www.rcsb.org/pdb/rest/getCurrent`_. For each PDB ID a
+    dictionary is added to the ``templates`` list. Each element of ``templates``
+    will contain the PDB ID in the key ``PDB``.
+
+    :param str file: File containing PDB IDs. If this parameter is not supplied,
+        it is downloaded from the RCSB website.
+    """
+    ADDS = ["templates"]
+    REQUIRED = []
+    REMOVES = []
+
+    PDB_ID_URL = "https://www.rcsb.org/pdb/rest/getCurrent"
+
+    def __init__(self, file=None):
+        self.file = file
+
+    @staticmethod
+    def parse_xml(xml_str):
+        """Parse XML file containing PDB IDs into a list of templates."""
+        templates = []
+        root = xml.etree.ElementTree.fromstring(xml_str)
+        for pdb_elem in root:
+            templates.append({"PDB": pdb_elem.attrib["structureId"]})
+        return templates
+
+    def run(self, data, config=None, pipeline=None):
+        """Read a list of PDB IDs."""
+        if self.file is not None:
+            with open(self.file, "r") as file_in:
+                xml_contents = file_in.read()
+        else:
+            with urllib.request.urlopen(self.PDB_ID_URL) as conn:
+                xml_contents = conn.read()
+        data["templates"] = self.parse_xml(xml_contents)
+        return data
 
 class StructureRetriever(Component):
     """

@@ -39,6 +39,33 @@ class TestStructureRetriever(unittest.TestCase):
                         pdb_12as.exists(),
                         "{!s} should exist".format(pdb_12as))
 
+class TestPDBList(unittest.TestCase):
+    """Test PDBList component."""
+
+    _XML_DATA = r"""<?xml version='1.0' standalone='no' ?>
+    <current>
+      <PDB structureId="100D" />
+      <PDB structureId="101D" />
+    </current>
+    """
+
+    def test_file_parsing(self):
+        """Read PDB IDs from a file."""
+        with tempfile.NamedTemporaryFile("w") as xml_file:
+            xml_file.write(self._XML_DATA)
+            xml_file.flush()
+            pdb_list = db.PDBList(xml_file.name)
+            results = pdb_list.run({})
+            self.assertListEqual(
+                results["templates"],
+                [{"PDB": "100D"}, {"PDB": "101D"}])
+
+    @phyre_engine.test.requireFields("net_tests")
+    def test_download(self):
+        """Read PDB IDs from the RCSB website."""
+        pdb_list = db.PDBList()
+        results = pdb_list.run({})
+        self.assertGreater(len(results["templates"]), 0)
 
 class TestChainPDBBuilder(unittest.TestCase):
     """Test ChainPDBBuilder class"""
