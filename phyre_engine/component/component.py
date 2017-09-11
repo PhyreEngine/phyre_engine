@@ -81,17 +81,46 @@ class PipelineComponent(Component):
     :param pipeline: Either a :py:class:`phyre_engine.pipeline.Pipeline` class
         or a list of component names and arguments to be passed to
         :py:meth:`phyre_engine.pipeline.Pipeline.load`.
-
-    :param dict config: Pipeline configuration to be used for the new pipeline.
+    :param bool discard_config: If `True`, the pipeline configuration at runtime
+        is completely discarded. Otherwise, it is updated with the pipeline
+        configuration specified when this component is created.
     """
     # pylint: disable=abstract-method
 
-    def __init__(self, pipeline, config=None):
+    def __init__(self, pipeline, discard_config=False):
         if not isinstance(pipeline, phyre_engine.Pipeline):
             pipeline = phyre_engine.Pipeline.load(pipeline)
 
         self.pipeline = pipeline
-        self.config = config if config is not None else {}
+        self.discard_config = discard_config
+
+        self.pipeline_config = pipeline.config
+        if self.pipeline_config is None:
+            self.pipeline_config = {}
+
+    def config(self, runtime_config):
+        """
+        If this component belongs to a pipeline, it will be associated with the
+        pipeline configuration, which is only known at runtime. The default
+        behaviour of this component is to base the configuration of the child
+        pipeline on the runtime configuration. If a pipeline configuration is
+        supplied to this class, it is used to update the runtime configuration.
+        This can be overridden by the `discard_config` parameter.
+
+        This component should be used to set the configuration of the child
+        pipeline given a runtime configuration.
+        """
+        if self.discard_config:
+            return self.pipeline_config
+        else:
+            pipe_config = self.pipeline_config
+            if runtime_config is not None:
+                updated_config = runtime_config.copy()
+            else:
+                updated_config = {}
+            updated_config.update(pipe_config)
+            return updated_config
+
 
 class Map(PipelineComponent):
     """
@@ -121,6 +150,7 @@ class Map(PipelineComponent):
         pipe_output = []
         for item in data[self.field]:
             pipeline.start = item
+            pipeline.config = self.config(config)
             pipeline_results = pipeline.run()
             if pipeline_results is not None:
                 pipe_output.append(pipeline_results)
@@ -151,6 +181,7 @@ class Conditional(PipelineComponent):
         """Run child pipeline if `self.field` is ``True``."""
         if self.field in data and data[self.field]:
             pipeline = self.pipeline
+            pipeline.config = self.config(config)
             pipeline.start = data
             pipe_output = pipeline.run()
             data.update(pipe_output)
@@ -196,6 +227,7 @@ class TryCatch(PipelineComponent):
         """Run child pipeline, ignoring errors."""
         try:
             pipeline = self.pipeline
+            pipeline.config = self.config(config)
             pipeline.start = data
             pipe_output = pipeline.run()
             return pipe_output
