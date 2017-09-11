@@ -68,6 +68,13 @@ class TestMap(unittest.TestCase):
         def run(self, data, config=None, pipeline=None):
             return None
 
+    class _ListComponent(Component):
+        ADDS = []
+        REMOVES = []
+        REQUIRED = []
+        def run(self, data, config=None, pipeline=None):
+            return [1, 2, 3]
+
     def test_map_pipeline(self):
         """Run Map with Pipeline as input."""
         components = [Double()]
@@ -93,6 +100,15 @@ class TestMap(unittest.TestCase):
 
         results = map_cmpt.run(self.state)
         self.assertDictEqual(results, {"values": []})
+
+    def test_extend_list(self):
+        """Child pipelines may return multiple items in a list."""
+        components = [self._ListComponent()]
+        pipeline = phyre_engine.pipeline.Pipeline(components)
+        map_cmpt = Map("values", pipeline)
+
+        results = map_cmpt.run(self.state)
+        self.assertDictEqual(results, {"values": [1, 2, 3] * 3})
 
 
 class TestConditional(unittest.TestCase):
