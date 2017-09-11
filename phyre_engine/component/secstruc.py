@@ -72,9 +72,6 @@ class DSSP(Component):
                 aa_type = line[13]
                 sec_struc = line[16]
 
-                # Bail if we didn't read a residue ID.
-                if not res_id.strip():
-                    break
                 # Ignore missing residues.
                 if aa_type == '!':
                     continue
