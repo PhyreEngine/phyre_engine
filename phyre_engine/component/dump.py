@@ -32,6 +32,12 @@ class JsonStateEncoder(json.JSONEncoder):
         a step other than 1 will result on a :py:exc:`TypeError` being raised.
     """
 
+    def encode(self, obj, *args, **kwargs):
+        if isinstance(obj, tuple) and getattr(obj, "_asdict", None) is not None:
+            return super().encode(obj._asdict(), *args, **kwargs)
+        else:
+            return super().encode(obj, *args, **kwargs)
+
     def default(self, o):
         """Called to encode a."""
         # Disable warnings about hidden method; this is the recommended usage.
@@ -55,6 +61,8 @@ class YamlStateDumper(SafeDumper):
         super().__init__(*args, **kwargs)
         self.add_representer(Bio.SeqRecord.SeqRecord, self._serialise_seqrecord)
         self.add_representer(range, self._serialise_range)
+        # Required so we can serialise namedtuples
+        self.add_multi_representer(tuple, self._serialise_tuple)
 
     @staticmethod
     def _serialise_seqrecord(dumper, record):
@@ -74,6 +82,11 @@ class YamlStateDumper(SafeDumper):
             "tag:yaml.org,2002:seq",
             serialise_range(range_obj))
 
+    @staticmethod
+    def _serialise_tuple(dumper, tuple_obj):
+        return dumper.represent_sequence(
+            "tag:yaml.org,2002:seq",
+            tuple(tuple_obj))
 
 def serialise_seqrecord(record):
     """Use :py:mod:`Bio.SeqIO` to generate a FASTA sequence."""
