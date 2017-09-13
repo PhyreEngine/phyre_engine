@@ -10,10 +10,50 @@ import Bio.PDB
 import logging
 import collections
 import json
+import xml.etree.ElementTree
 
 class StructureType(Enum):
     PDB = "pdb"
     MMCIF = "cif"
+
+class PDBList(Component):
+    """
+    Reads (after optionally downloading) a list of PDB IDs in the format
+    supplied by `https://www.rcsb.org/pdb/rest/getCurrent`_. For each PDB ID a
+    dictionary is added to the ``templates`` list. Each element of ``templates``
+    will contain the PDB ID in the key ``PDB``.
+
+    :param str file: File containing PDB IDs. If this parameter is not supplied,
+        it is downloaded from the RCSB website.
+    """
+    ADDS = ["templates"]
+    REQUIRED = []
+    REMOVES = []
+
+    PDB_ID_URL = "https://www.rcsb.org/pdb/rest/getCurrent"
+
+    def __init__(self, file=None):
+        self.file = file
+
+    @staticmethod
+    def parse_xml(xml_str):
+        """Parse XML file containing PDB IDs into a list of templates."""
+        templates = []
+        root = xml.etree.ElementTree.fromstring(xml_str)
+        for pdb_elem in root:
+            templates.append({"PDB": pdb_elem.attrib["structureId"]})
+        return templates
+
+    def run(self, data, config=None, pipeline=None):
+        """Read a list of PDB IDs."""
+        if self.file is not None:
+            with open(self.file, "r") as file_in:
+                xml_contents = file_in.read()
+        else:
+            with urllib.request.urlopen(self.PDB_ID_URL) as conn:
+                xml_contents = conn.read()
+        data["templates"] = self.parse_xml(xml_contents)
+        return data
 
 class StructureRetriever(Component):
     """
@@ -60,10 +100,11 @@ class StructureRetriever(Component):
 
 class ChainPDBBuilder(Component):
     """
-    Extract a chain from an MMCIF file and save it as a PDB file. The PDB ID
-    and chain ID are given by the ``PDB`` and ``chain`` fields of the pipeline
-    state. The ``structure`` field, containing the file path of the new PDB file
-    is added.
+    Extract each chain from an MMCIF file and save it as a PDB file. The PDB ID
+    must be given by the ``PDB`` field of the pipeline state. This component
+    returns a *list* of elements, one for each field. Each element will contain
+    the fields ``chain``, giving the chain ID, as well as ``structure``,
+    containing the file path of the new PDB file.
 
     The chains written by this component are renumbered consecutively starting
     from 1 without any insertion codes. Unless an extra filter is added using
@@ -144,6 +185,13 @@ class ChainPDBBuilder(Component):
         is shown in these examples. At the moment, JSON data is actually written
         on a single line. I hope that this doesn't break too many programs.
 
+    .. warning::
+
+        This component returns a *list* of items which will almost certainly
+        break any components in the pipeline after this. This component should
+        be wrapped in a :py:class:`phyre_engine.component.component.Map`
+        component, which will take care of merging the output of this component.
+
     .. note::
 
         If the ``conf_sel`` parameter is not supplied (i.e. the default value of
@@ -154,7 +202,7 @@ class ChainPDBBuilder(Component):
         are applied in turn. To disable filtering, pass an empty list.
     """
 
-    REQUIRED = ["PDB", "chain"]
+    REQUIRED = ["PDB"]
     ADDS = ["structure"]
     REMOVES  = []
 
@@ -202,9 +250,9 @@ class ChainPDBBuilder(Component):
 
     def run(self, data, config=None, pipeline=None):
         """Run the component."""
-        pdb_id, chain = self.get_vals(data)
+        pdb_id = self.get_vals(data)
 
-        parser = Bio.PDB.MMCIFParser()
+        parser = Bio.PDB.FastMMCIFParser()
 
         source_file = pdb.find_pdb(pdb_id, base_dir=self.mmcif_dir)
         if source_file is None:
@@ -213,31 +261,49 @@ class ChainPDBBuilder(Component):
                 pdb_id, self.mmcif_dir)
             raise self.MissingSourceError(pdb_id)
 
-        pdb_file = pdb.pdb_path(pdb_id, ".pdb", chain, self.pdb_dir)
-        pdb_file.parent.mkdir(parents=True, exist_ok=True)
+        results = []
+        self.logger.debug(
+            "Extracting chains from %s (%s)",
+            pdb_id, source_file)
 
-        if not pdb_file.exists() or self.overwrite:
-            with pdb.open_pdb(source_file) as pdb_in:
-                structure = parser.get_structure(
-                    "{}_{}".format(pdb_id, chain),
-                    pdb_in)
-                chain = structure[0][chain]
+        with pdb.open_pdb(source_file) as pdb_in:
+            structure = parser.get_structure(pdb_id, pdb_in)
+            self.logger.debug(
+                "Found %d chains in %s",
+                len(list(structure.get_chains())), pdb_id)
 
-            # Store all captured log output in REMARK 999
-            general_logger = logging.getLogger("phyre_engine")
-            with phyre_engine.logging.capture_log(general_logger) as log_buf:
-                # Select conformations.
-                for selector in self.conf_sel:
-                    chain = selector.select(chain)
-                template = Template.build(chain)
+            for chain in structure[0]:
+                pdb_file = pdb.pdb_path(pdb_id, ".pdb", chain.id, self.pdb_dir)
+                pdb_file.parent.mkdir(parents=True, exist_ok=True)
 
-                log_buf.seek(0)
-                template.remarks[999].extend(log_buf.readlines())
+                result = data.copy()
+                result["chain"] = chain.id
+                result["structure"] = str(pdb_file)
 
-            with pdb_file.open("w") as pdb_out:
-                template.write(pdb_out)
-        data["structure"] = str(pdb_file)
-        return data
+                if not pdb_file.exists() or self.overwrite:
+                    self.logger.debug(
+                        "Extracting chain %s from PDB %s",
+                        chain.id, pdb_id)
+
+                    # Store all captured log output in REMARK 999
+                    general_logger = logging.getLogger("phyre_engine")
+                    with phyre_engine.logging.capture_log(general_logger) as log_buf:
+                        # Select conformations.
+                        for selector in self.conf_sel:
+                            chain = selector.select(chain)
+                        template = Template.build(chain)
+
+                        log_buf.seek(0)
+                        template.remarks[999].extend(log_buf.readlines())
+
+                    with pdb_file.open("w") as pdb_out:
+                        template.write(pdb_out)
+                else:
+                    self.logger.debug(
+                        "Skipping chain %s of PDB %s: it already exists at %s",
+                        chain.id, pdb_id, pdb_file)
+                results.append(result)
+        return results
 
 class PDBSequence(Component):
     """

@@ -39,6 +39,33 @@ class TestStructureRetriever(unittest.TestCase):
                         pdb_12as.exists(),
                         "{!s} should exist".format(pdb_12as))
 
+class TestPDBList(unittest.TestCase):
+    """Test PDBList component."""
+
+    _XML_DATA = r"""<?xml version='1.0' standalone='no' ?>
+    <current>
+      <PDB structureId="100D" />
+      <PDB structureId="101D" />
+    </current>
+    """
+
+    def test_file_parsing(self):
+        """Read PDB IDs from a file."""
+        with tempfile.NamedTemporaryFile("w") as xml_file:
+            xml_file.write(self._XML_DATA)
+            xml_file.flush()
+            pdb_list = db.PDBList(xml_file.name)
+            results = pdb_list.run({})
+            self.assertListEqual(
+                results["templates"],
+                [{"PDB": "100D"}, {"PDB": "101D"}])
+
+    @phyre_engine.test.requireFields("net_tests")
+    def test_download(self):
+        """Read PDB IDs from the RCSB website."""
+        pdb_list = db.PDBList()
+        results = pdb_list.run({})
+        self.assertGreater(len(results["templates"]), 0)
 
 class TestChainPDBBuilder(unittest.TestCase):
     """Test ChainPDBBuilder class"""
@@ -57,7 +84,7 @@ class TestChainPDBBuilder(unittest.TestCase):
 
     def _build(self):
         builder = db.ChainPDBBuilder(str(self.mmcif_dir), str(self.pdb_dir))
-        results = builder.run({"PDB": "12as", "chain": "A"})
+        results = builder.run({"PDB": "12as"})
         return results
 
     def tearDown(self):
@@ -67,7 +94,7 @@ class TestChainPDBBuilder(unittest.TestCase):
     def test_create_chain(self):
         """Create a PDB file from a minimal MMCIF."""
         results = self._build()
-        pdb_12as_A_path = Path(results["structure"])
+        pdb_12as_A_path = Path(results[0]["structure"])
         self.assertTrue(
             pdb_12as_A_path.exists(),
             "PDB file containing chain was created.")
@@ -75,7 +102,7 @@ class TestChainPDBBuilder(unittest.TestCase):
     def test_template(self):
         """Ensure that template metadata is correct."""
         results = self._build()
-        template = Template.load(results["structure"])
+        template = Template.load(results[0]["structure"])
         self.assertListEqual(
             template.mapping,
             minimal.ORIG_MAPPING)

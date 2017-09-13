@@ -126,7 +126,8 @@ class Map(PipelineComponent):
     """
     Apply a child pipeline for each element in an array contained within the
     pipeline state. If the child pipeline returns `None`, it will not be
-    included in the results.
+    included in the results. If it returns a list, then each element of the list
+    is added to the pipeline state.
 
     :param str field: Field over which to iterate.
 
@@ -153,7 +154,10 @@ class Map(PipelineComponent):
             pipeline.config = self.config(config)
             pipeline_results = pipeline.run()
             if pipeline_results is not None:
-                pipe_output.append(pipeline_results)
+                if isinstance(pipeline_results, list):
+                    pipe_output.extend(pipeline_results)
+                else:
+                    pipe_output.append(pipeline_results)
         data[self.field] = pipe_output
         return data
 
