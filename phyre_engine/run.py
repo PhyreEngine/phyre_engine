@@ -9,6 +9,7 @@ PhyreEngine pipeline. Unless you're an expert, this script is probably all that
 you need to run a pipeline.
 '''
 
+import logging
 import logging.config
 import sys
 
@@ -154,6 +155,8 @@ def construct_yaml_tuple(self, node):
 def main():  # IGNORE:C0111
     '''Command line options.'''
 
+    # Before doing anything, tell the loggers to capture warnings.
+    logging.captureWarnings(True)
     try:
         parser = arg_parser()
         args = parser.parse_args()

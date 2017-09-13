@@ -10,6 +10,7 @@ this script, long-running tests or tests with dependencies on external tools
 will not be run.
 '''
 
+import logging
 import sys
 
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
@@ -56,6 +57,8 @@ def construct_yaml_tuple(self, node):
     return tuple(seq)
 
 def _main():
+    # Capture warnings with the logger
+    logging.captureWarnings(True)
     try:
         parser = arg_parser()
         args = parser.parse_args()
