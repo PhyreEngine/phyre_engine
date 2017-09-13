@@ -262,8 +262,16 @@ class ChainPDBBuilder(Component):
             raise self.MissingSourceError(pdb_id)
 
         results = []
+        self.logger.debug(
+            "Extracting chains from %s (%s)",
+            pdb_id, source_file)
+
         with pdb.open_pdb(source_file) as pdb_in:
             structure = parser.get_structure(pdb_id, pdb_in)
+            self.logger.debug(
+                "Found %d chains in %s",
+                len(list(structure.get_chains())), pdb_id)
+
             for chain in structure[0]:
                 pdb_file = pdb.pdb_path(pdb_id, ".pdb", chain.id, self.pdb_dir)
                 pdb_file.parent.mkdir(parents=True, exist_ok=True)
@@ -273,6 +281,10 @@ class ChainPDBBuilder(Component):
                 result["structure"] = str(pdb_file)
 
                 if not pdb_file.exists() or self.overwrite:
+                    self.logger.debug(
+                        "Extracting chain %s from PDB %s",
+                        chain.id, pdb_id)
+
                     # Store all captured log output in REMARK 999
                     general_logger = logging.getLogger("phyre_engine")
                     with phyre_engine.logging.capture_log(general_logger) as log_buf:
@@ -286,6 +298,10 @@ class ChainPDBBuilder(Component):
 
                     with pdb_file.open("w") as pdb_out:
                         template.write(pdb_out)
+                else:
+                    self.logger.debug(
+                        "Skipping chain %s of PDB %s: it already exists at %s",
+                        chain.id, pdb_id, pdb_file)
                 results.append(result)
         return results
 
