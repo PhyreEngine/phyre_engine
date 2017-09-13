@@ -27,7 +27,15 @@ class LoaderTestBase(unittest.TestCase):
 
     def _verify_load(self, loaded):
         """Check that the loaded pipeline is equal to self.expected."""
-        self.assertDictEqual(loaded, self.expected)
+        # We don't care about whether lists were loaded as tuples or lists, so
+        # we can't just use assertDictEqual
+        self.assertSequenceEqual(loaded.keys(), self.expected.keys())
+        if "qux" in loaded:
+            self.assertEqual(loaded["qux"], self.expected["qux"])
+        if "foo" in loaded:
+            self.assertEqual(loaded["foo"], self.expected["foo"])
+        if "baz" in loaded:
+            self.assertSequenceEqual(loaded["baz"], self.expected["baz"])
 
 class TestYaml(LoaderTestBase):
     """Test Yaml loader."""

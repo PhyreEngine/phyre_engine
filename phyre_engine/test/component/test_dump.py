@@ -41,9 +41,18 @@ class DumperTestBase(unittest.TestCase):
         self.stream.close()
 
     def _verify_dump(self, parsed):
-        return self.assertDictEqual(
-            parsed, self.expected,
-            "Parsed dict and written dict equal")
+        # Can't just use assertDictEqual because we don't care whether lists
+        # were deserialised as lists or tuples.
+        self.assertSequenceEqual(parsed.keys(), self.expected.keys())
+
+        if "foo" in parsed:
+            self.assertEqual(parsed["foo"], self.expected["foo"])
+        if "seq" in parsed:
+            self.assertEqual(parsed["seq"], self.expected["seq"])
+        if "baz" in parsed:
+            self.assertSequenceEqual(parsed["baz"], self.expected["baz"])
+        if "range" in parsed:
+            self.assertSequenceEqual(parsed["range"], self.expected["range"])
 
 class TestJsonDumper(DumperTestBase):
     """Test JSON dumper."""
