@@ -252,7 +252,7 @@ class ChainPDBBuilder(Component):
         """Run the component."""
         pdb_id = self.get_vals(data)
 
-        parser = Bio.PDB.MMCIFParser()
+        parser = Bio.PDB.FastMMCIFParser()
 
         source_file = pdb.find_pdb(pdb_id, base_dir=self.mmcif_dir)
         if source_file is None:
