@@ -1,6 +1,7 @@
 """
 Module containing a base class for running external tools.
 """
+import collections.abc
 from pathlib import Path
 from enum import Enum
 
@@ -25,6 +26,7 @@ class ExternalTool:
         mapping the string ``database`` to the flag ``-d``.
 
     *   Automatically adding leading dashes to options.
+
 
     :param dict[str, str] flag_map: Mapping of human-readable names to argument
         names.
@@ -67,6 +69,10 @@ class ExternalTool:
         """
         Get a command line for the given tool.
 
+        If a list is passed as the value of an option, the option flag will be
+        repeated. For example, the `options` map ``{"d": [1, 2]}`` would give
+        the command line ``-d 1 -d 2``.
+
         :param tuple(str, str) executable: Optional directory path, and name of
             the executable to run. This can be a single string, in which case it
             should either be an absolute path or the name of a command on the
@@ -104,13 +110,22 @@ class ExternalTool:
         for flag in flags:
             optional_args.append(self._remap_flag(flag))
 
-        for flag, value in options.items():
-            value = str(value)
+        for flag, all_values in options.items():
             flag = self._remap_flag(flag)
-            if self.join_options:
-                optional_args.append(self.join_options.join([flag, value]))
-            else:
-                optional_args.extend([flag, value])
+
+            # If value a string or anything else non-iterable, convert it to a
+            # list so we don't have to differentiate between single values and
+            # lists of values later.
+            if (isinstance(all_values, str)
+                or not isinstance(all_values, collections.abc.Iterable)):
+                all_values = [all_values]
+
+            for value in all_values:
+                value = str(value)
+                if self.join_options:
+                    optional_args.append(self.join_options.join([flag, value]))
+                else:
+                    optional_args.extend([flag, value])
 
         # Add positional arguments
         if self.positional_location == Positional.LAST:
