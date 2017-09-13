@@ -3,7 +3,8 @@ import io
 import logging
 import unittest
 from phyre_engine.component import Component
-from phyre_engine.component.component import Map, Conditional, TryCatch
+from phyre_engine.component.component import (Map, Conditional, TryCatch,
+                                              PipelineComponent)
 import phyre_engine.pipeline
 
 class Double(Component):
@@ -15,6 +16,7 @@ class Double(Component):
     def run(self, data, config=None, pipeline=None):
         data["num"] *= 2
         return data
+
 
 class TestComponent(unittest.TestCase):
     """Test non-abstract methods in the Component abstract base class."""
@@ -40,6 +42,41 @@ class TestComponent(unittest.TestCase):
         a, b = TestComponent.MockComponentList().get_vals(data)
         self.assertEqual(a, 123)
         self.assertEqual(b, 456)
+
+class TestPipelineComponent(unittest.TestCase):
+    """Test PipelineComponent."""
+
+    class SubPipeline(PipelineComponent):
+        """Simple pipeline component that returns nothing."""
+        ADDS = []
+        REMOVES = []
+        REQUIRED = []
+        def run(self, data, config=None, pipeline=None):
+            pass
+
+    _RUNTIME_CONFIG = {"foo": "bar"}
+    _STATIC_CONFIG = {"baz": "qux"}
+
+    def test_update_config(self):
+        """Update runtime config with static config."""
+        pipeline = phyre_engine.pipeline.Pipeline(
+            [], config=self._STATIC_CONFIG)
+        sub_pipe = self.SubPipeline(pipeline)
+
+        self.assertDictEqual(
+            sub_pipe.config(self._RUNTIME_CONFIG),
+            {"foo": "bar", "baz": "qux"})
+
+    def test_discard_config(self):
+        """Discard runtime config, replacing with static config."""
+        pipeline = phyre_engine.pipeline.Pipeline(
+            [], config=self._STATIC_CONFIG)
+        sub_pipe = self.SubPipeline(pipeline, discard_config=True)
+
+        self.assertDictEqual(
+            sub_pipe.config(self._RUNTIME_CONFIG),
+            self._STATIC_CONFIG)
+
 
 class TestMap(unittest.TestCase):
     """Test the phyre_engine.component.Map class."""
