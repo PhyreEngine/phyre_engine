@@ -23,13 +23,21 @@ import functools
 #: Can be set by the test runner
 config = None
 
-def requireConfig(func):
-    """Decorator used to skip a test if the test configuration is not set."""
-    if config is None:
-        return unittest.skip("Test requires configuration to be set")(func)
-    return func
+# Use the default config
+DEFAULT_CONFIG = object()
 
-def requireFields(fields, parents=None):
+def requireConfig(override_config=DEFAULT_CONFIG):
+    """Decorator used to skip a test if the test configuration is not set."""
+    if override_config is DEFAULT_CONFIG:
+        override_config = config
+
+    def decorator(obj):
+        if override_config is None:
+            return unittest.skip("Test requires configuration to be set")(obj)
+        return obj
+    return decorator
+
+def requireFields(fields, parents=None, override_config=DEFAULT_CONFIG):
     """
     Decorator used to skip a test if the given fields are not set in the test
     configuration.
@@ -71,7 +79,10 @@ def requireFields(fields, parents=None):
     :param list[str] parents: Section of the configuration in which fields must
         be present.
     """
-    if config is None:
+    if override_config is DEFAULT_CONFIG:
+        override_config = config
+
+    if override_config is None:
         return unittest.skip("Test requires configuration to be set")
 
     # Convert single fields to a dict
@@ -83,7 +94,7 @@ def requireFields(fields, parents=None):
     parents = parents if parents is not None else []
 
     # pylint: disable=unsubscriptable-object, unsupported-membership-test
-    config_section = config
+    config_section = override_config
     for i, parent in enumerate(parents):
         if parent not in config_section:
             return unittest.skip(
