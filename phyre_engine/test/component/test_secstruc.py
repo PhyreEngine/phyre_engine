@@ -53,17 +53,8 @@ AUTHOR                                                                          
     """
 
     _DUMMY_STATES = [
-        (1, 'C'),
-        (2, 'C'),
-        (3, 'H'),
-        (4, 'H'),
-        (5, 'H'),
-        (6, 'H'),
-        (7, 'H'),
-        (8, 'H'),
-        (9, 'H'),
-        (10, 'H'),
-        (11, 'H')
+        ('C',), ('C',), ('H',), ('H',), ('H',), ('H',), ('H',), ('H',),
+        ('H',), ('H',), ('H',)
     ]
 
     def test_parsing(self):
@@ -76,4 +67,11 @@ AUTHOR                                                                          
         """Try and run mkdssp on a PDB file."""
         dssp = secstruc.DSSP(**phyre_engine.test.config["tools"]["dssp"])
         results = dssp.run({"structure": str(PDB_FILE)})
-        self.assertGreater(len(results["secondary_structure"]), 0)
+        self.assertGreater(len(results["secondary_structure"]["dssp"]), 0)
+
+    @phyre_engine.test.requireFields("dssp", ["tools"])
+    def test_length_mismatch(self):
+        """Mismatch in sequence/ss length raises exception."""
+        dssp = secstruc.DSSP(**phyre_engine.test.config["tools"]["dssp"])
+        with self.assertRaises(secstruc.LengthMismatchError):
+            dssp.run({"structure": str(PDB_FILE), "sequence": "AAA"})

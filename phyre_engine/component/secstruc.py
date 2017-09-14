@@ -2,11 +2,28 @@
 This module contains components for calculating the secondary structure of a
 protein according to various methods.
 
-Each of these components will add a ``secondary_structure`` key to the pipeline
-state, which will contain a list of named tuples. The exact contents of each
-tuple is component-specific, but the first two elements must be named
-``residue_id`` and ``sec_struc``. These correspond to the ID of the residue with
-secondary structure state ``sec_struc``.
+Each of these components will add a list to the ``secondary_structure`` mapping
+in the pipeline state, indexed by the name of the tool. The list that is added
+must contain a list of (possibly named) tuples of the same length as the query
+sequence. The exact contents of each tuple is component-specific, but the first
+element must contain the secondary structure state.
+
+For example, after running predictor ``foo`` the pipeline state might look like
+this:
+
+.. code-block::
+
+    {
+        # Various keys required to run the predictor,
+        "secondary_structure": {
+            ``foo``: [
+                ("C", 0.4, ...), # Coil, some value of 0.4, any extra values
+                ("C", 0.1, ...),
+                ("E", 0.2, ...),
+                # ...
+            ]
+        }
+
 """
 
 from collections import namedtuple
@@ -15,7 +32,9 @@ import sys
 from phyre_engine.component.component import Component
 from phyre_engine.tools.external import ExternalTool
 
-DSSPResidue = namedtuple("DSSPResidue", "residue_id sec_struc")
+SECONDARY_STRUCTURE_KEY = "secondary_structure"
+
+DSSPResidue = namedtuple("DSSPResidue", "ss")
 class DSSP(Component):
     """
     Calculate secondary structure state using
@@ -23,15 +42,18 @@ class DSSP(Component):
 
     This component requires the ``structure`` field to be set, otherwise it has
     no source of tertiary structure from which to calculate the secondary
-    structure.
+    structure. If the ``sequence`` field is set, then an exception will be
+    raised if the output from DSSP does not contain exactly the same number of
+    residues as the sequence.
 
     :param str bin_dir: Directory containing the ``mkdssp`` executable, if it is
         not in the system ``$PATH``.
     """
     REQUIRED = ["structure"]
-    ADDS = ["secondary_structure"]
+    ADDS = [SECONDARY_STRUCTURE_KEY]
     REMOVES = []
 
+    TOOL_NAME = "dssp"
     MKDSSP = ExternalTool()
 
     def __init__(self, bin_dir=None):
@@ -41,16 +63,24 @@ class DSSP(Component):
         """Calculate ``secondary_structure`` key."""
         structure = self.get_vals(data)
 
+        # Create secondary_structure key if it is not present
+        if SECONDARY_STRUCTURE_KEY not in data:
+            data[SECONDARY_STRUCTURE_KEY] = {}
+
         # Run DSSP on the structure file and read the output
         mkdssp_cmd_line = self.MKDSSP(
             (self.bin_dir, "mkdssp"),
             options={"input": structure})
         dssp_proc = subprocess.run(
-            mkdssp_cmd_line,
+            mkdssp_cmd_line, universal_newlines=True,
             check=True, stdout=subprocess.PIPE)
-        dssp_lines = dssp_proc.stdout.decode(sys.stdout.encoding).split("\n")
-        dssp_mapping = self.parse_dssp(dssp_lines)
-        data["secondary_structure"] = dssp_mapping
+        dssp_mapping = self.parse_dssp(dssp_proc.stdout.split("\n"))
+
+        if "sequence" in data:
+            if len(data["sequence"]) != len(dssp_mapping):
+                raise LengthMismatchError(dssp_mapping, data["sequence"])
+
+        data[SECONDARY_STRUCTURE_KEY][self.TOOL_NAME] = dssp_mapping
         return data
 
     @staticmethod
@@ -68,7 +98,6 @@ class DSSP(Component):
             if line.startswith("  #  RESIDUE AA"):
                 residue_section = True
             elif residue_section and len(line) > 17:
-                res_id = line[5:10]
                 aa_type = line[13]
                 sec_struc = line[16]
 
@@ -79,5 +108,20 @@ class DSSP(Component):
                 if sec_struc == ' ':
                     sec_struc = 'C'
 
-                dssp_mapping.append(DSSPResidue(int(res_id), sec_struc))
+                dssp_mapping.append(DSSPResidue(sec_struc))
         return dssp_mapping
+
+class LengthMismatchError(ValueError):
+    """
+    Raised when the number of residues in a secondary structure assignment does
+    not match the length of the query sequence.
+
+    :param list ss: Secondary structure assignment.
+    :param str sequence: Sequence for which secondary structure was assigned.
+    """
+    ERR_MSG = (
+        "Secondary structure assignment length did not match sequence length "
+        "({} and {} residues).")
+
+    def __init__(self, ss, sequence):
+        super().__init__(self.ERR_MSG.format(len(ss), len(sequence)))
