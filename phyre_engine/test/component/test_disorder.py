@@ -44,8 +44,12 @@ class TestMobiDBLite(unittest.TestCase):
         results = disorder.MobiDBLite.parse_results(self._MOBIDB_OUTPUT)
         self.assertListEqual(
             results, [
-                (True, 0.88), (True, 1.0), (True, 1.0),
-                (False, 0.0), (False, 0.0), (False, 0.0)])
+                {"assigned": "D", "confidence": {"D": 0.88, "S": 0.12}},
+                {"assigned": "D", "confidence": {"D": 1.00, "S": 0.00}},
+                {"assigned": "D", "confidence": {"D": 1.00, "S": 0.00}},
+                {"assigned": "S", "confidence": {"D": 0.00, "S": 1.00}},
+                {"assigned": "S", "confidence": {"D": 0.00, "S": 1.00}},
+                {"assigned": "S", "confidence": {"D": 0.00, "S": 1.00}}])
 
     @phyre_engine.test.requireFields("mobidb-lite", ["tools"])
     def test_mobidb_lite(self):
@@ -54,12 +58,13 @@ class TestMobiDBLite(unittest.TestCase):
         mdb = disorder.MobiDBLite(**mdb_conf)
         results = mdb.run({"sequence": self._SAMPLE_SEQ})
 
-        disorder_state = [res[0] for res in results["disorder"]["mobidb-lite"]]
-        disorder_prob = [res[1] for res in results["disorder"]["mobidb-lite"]]
-
-        # First 43 residues are disordered
-        self.assertListEqual(disorder_state, [True] * 43 + [False] * 357)
-        # Check the first few probs
         self.assertListEqual(
-            disorder_prob[0:8],
-            [0.88, 1.0, 1.0, 1.0, 0.88, 1.0, 0.88, 1.0])
+            results["disorder"]["mobidb-lite"][0:8], [
+                {"assigned": "D", "confidence": {"D": 0.88, "S": 0.12}},
+                {"assigned": "D", "confidence": {"D": 1.0, "S": 0.0}},
+                {"assigned": "D", "confidence": {"D": 1.0, "S": 0.0}},
+                {"assigned": "D", "confidence": {"D": 1.0, "S": 0.0}},
+                {"assigned": "D", "confidence": {"D": 0.88, "S": 0.12}},
+                {"assigned": "D", "confidence": {"D": 1.0, "S": 0.0}},
+                {"assigned": "D", "confidence": {"D": 0.88, "S": 0.12}},
+                {"assigned": "D", "confidence": {"D": 1.0, "S": 0.0}}])

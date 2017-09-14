@@ -130,13 +130,15 @@ class AddDSSP(Component):
         """Add ``>ss_dssp`` and ``>aa_dssp`` fields."""
         a3m, sec_struc, structure = self.get_vals(data)
         template = Template.load(structure)
+        sec_struc = sec_struc["dssp"]
 
         # Keep residues in the canonical sequence
         ss_dssp = ""
         aa_dssp = ""
         canonical_ids = set(template.canonical_indices)
-        for ss_tuple in sec_struc:
-            res_id, ss_state = ss_tuple[0:2]
+        for ss_dict in sec_struc:
+            ss_state = ss_dict["assigned"]
+            res_id = ss_dict["res_id"]
 
             if res_id in canonical_ids:
                 residue = template.chain[res_id]

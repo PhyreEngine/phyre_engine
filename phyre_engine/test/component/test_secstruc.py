@@ -9,6 +9,7 @@ PDB_FILE = Path(test_data.__file__).parent / "pdb_chains/2a/12as_A.pdb"
 
 class TestDSSP(unittest.TestCase):
     """Test DSSP component."""
+    # pylint: disable=line-too-long
 
     _DUMMY_DSSP = """\
 ==== Secondary Structure Definition by the program DSSP, CMBI version by M.L. Hekkelman/2010-10-21 ==== DATE=2017-09-01        .
@@ -53,8 +54,17 @@ AUTHOR                                                                          
     """
 
     _DUMMY_STATES = [
-        ('C',), ('C',), ('H',), ('H',), ('H',), ('H',), ('H',), ('H',),
-        ('H',), ('H',), ('H',)
+        {"assigned": "C", "res_id": 1, "confidence": {"C": 1.0, "H": 0.0, "B": 0.0, "E": 0.0, "G": 0.0, "I": 0.0, "T": 0.0, "S": 0.0}},
+        {"assigned": "C", "res_id": 2, "confidence": {"C": 1.0, "H": 0.0, "B": 0.0, "E": 0.0, "G": 0.0, "I": 0.0, "T": 0.0, "S": 0.0}},
+        {"assigned": "H", "res_id": 3, "confidence": {"C": 0.0, "H": 1.0, "B": 0.0, "E": 0.0, "G": 0.0, "I": 0.0, "T": 0.0, "S": 0.0}},
+        {"assigned": "H", "res_id": 4, "confidence": {"C": 0.0, "H": 1.0, "B": 0.0, "E": 0.0, "G": 0.0, "I": 0.0, "T": 0.0, "S": 0.0}},
+        {"assigned": "H", "res_id": 5, "confidence": {"C": 0.0, "H": 1.0, "B": 0.0, "E": 0.0, "G": 0.0, "I": 0.0, "T": 0.0, "S": 0.0}},
+        {"assigned": "H", "res_id": 6, "confidence": {"C": 0.0, "H": 1.0, "B": 0.0, "E": 0.0, "G": 0.0, "I": 0.0, "T": 0.0, "S": 0.0}},
+        {"assigned": "H", "res_id": 7, "confidence": {"C": 0.0, "H": 1.0, "B": 0.0, "E": 0.0, "G": 0.0, "I": 0.0, "T": 0.0, "S": 0.0}},
+        {"assigned": "H", "res_id": 8, "confidence": {"C": 0.0, "H": 1.0, "B": 0.0, "E": 0.0, "G": 0.0, "I": 0.0, "T": 0.0, "S": 0.0}},
+        {"assigned": "H", "res_id": 9, "confidence": {"C": 0.0, "H": 1.0, "B": 0.0, "E": 0.0, "G": 0.0, "I": 0.0, "T": 0.0, "S": 0.0}},
+        {"assigned": "H", "res_id": 10, "confidence": {"C": 0.0, "H": 1.0, "B": 0.0, "E": 0.0, "G": 0.0, "I": 0.0, "T": 0.0, "S": 0.0}},
+        {"assigned": "H", "res_id": 11, "confidence": {"C": 0.0, "H": 1.0, "B": 0.0, "E": 0.0, "G": 0.0, "I": 0.0, "T": 0.0, "S": 0.0}},
     ]
 
     def test_parsing(self):

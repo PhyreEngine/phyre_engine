@@ -30,12 +30,12 @@ class TestAddDSSP(unittest.TestCase):
     """).format(query=minimal.CANONICAL_SEQ)
 
     SEC_STRUC = [
-        (1, "H"),
-        (2, "H"),
-        (3, "E"),
-        (4, "E"),
-        (5, "C"),
-        (6, "C"),
+        {"res_id": 1, "assigned": "H"},
+        {"res_id": 2, "assigned": "H"},
+        {"res_id": 3, "assigned": "E"},
+        {"res_id": 4, "assigned": "E"},
+        {"res_id": 5, "assigned": "C"},
+        {"res_id": 6, "assigned": "C"},
     ]
 
     def setUp(self):
@@ -59,7 +59,7 @@ class TestAddDSSP(unittest.TestCase):
         self.pipeline = {
             "structure": str(structure),
             "a3m": str(a3m),
-            "secondary_structure": self.SEC_STRUC
+            "secondary_structure": {"dssp": self.SEC_STRUC}
         }
 
     def tearDown(self):

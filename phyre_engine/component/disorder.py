@@ -3,12 +3,13 @@ This module contains components for predicting the regions of a protein that are
 intrinsically disordered.
 
 Each tool in this module will a list to the ``disorder`` mapping in the pipeline
-state, indexed by the name of the tool. The list that is added must be a list of
-(possibly named) tuples of the same length as the protein sequence (in the
-``sequence`` key). The first element should contain a boolean, indicating
-whether the amino acid at that position is disordered (`True`) or not (`False`).
-The remaining elements of each tuple are optional, and may include tool-specific
-predictions such as confidence.
+state, indexed by the name of the tool. The list that is added must be the same
+length as the protein sequence (in the ``sequence`` key). Each element of the
+list should be a dictionary, which must include at least the ``assigned`` key,
+indicating the assigned state.
+
+Each tool should also, if possible, add a ``confidence`` key enumerating each
+possible state and the confidence of that state.
 
 For example, if the disorder predictor ``foo`` is run, the pipeline state
 afterwards might look like this:
@@ -16,18 +17,18 @@ afterwards might look like this:
 .. code-block::
 
     {
-        "sequence": "AG....", # Required for disorder predictors
+        "sequence": "AG...", # Required for disorder predictors
         "disorder": {
             "foo": [
-                (True, 0.5, ...), # Disordered, with some extra values
-                (True, 0.1, ...),
-                ...
+                {"assigned": "D", "confidence": {"O": 0.1, "D": 0.9}},
+                {"assigned": "D", "confidence": {"O": 0.2, "D": 0.8}},
+                # ...
             ]
         }
     }
 
 """
-import collections
+import enum
 import json
 import subprocess
 import tempfile
@@ -36,7 +37,11 @@ from phyre_engine.tools.external import ExternalTool
 
 DISORDER_KEY = "disorder"
 
-MobiDBResidue = collections.namedtuple("MobiDBResidue", "disordered prob")
+class DisorderStates(enum.Enum):
+    """Possible disorder states."""
+    ORDERED = "S"
+    DISORDERED = "D"
+
 class MobiDBLite(Component):
     """
     `MobiDB lite <http://protein.bio.unipd.it/mobidblite/>`_ is a meta-predictor
@@ -66,10 +71,17 @@ class MobiDBLite(Component):
 
     @staticmethod
     def parse_results(mobidb_output):
+        """Parse long MobiDB lite result string."""
         mdb_results = json.loads(mobidb_output)
         disorder = []
         for state, prob in zip(mdb_results["consensus"], mdb_results["p"]):
-            disorder.append(MobiDBResidue(state == "D", prob))
+            disorder.append({
+                "assigned": state,
+                "confidence": {
+                    DisorderStates.DISORDERED.value: prob,
+                    DisorderStates.ORDERED.value: 1 - prob
+                }
+            })
         return disorder
 
     def run(self, data, config=None, pipeline=None):
@@ -101,4 +113,3 @@ class MobiDBLite(Component):
             disorder = self.parse_results(mobidb_proc.stdout)
             data[DISORDER_KEY][self.TOOL_NAME] = disorder
         return data
-
