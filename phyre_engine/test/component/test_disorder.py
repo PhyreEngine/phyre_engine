@@ -54,8 +54,8 @@ class TestMobiDBLite(unittest.TestCase):
         mdb = disorder.MobiDBLite(**mdb_conf)
         results = mdb.run({"sequence": self._SAMPLE_SEQ})
 
-        disorder_state = [res[0] for res in results["disorder"]]
-        disorder_prob = [res[1] for res in results["disorder"]]
+        disorder_state = [res[0] for res in results["disorder"]["mobidb-lite"]]
+        disorder_prob = [res[1] for res in results["disorder"]["mobidb-lite"]]
 
         # First 43 residues are disordered
         self.assertListEqual(disorder_state, [True] * 43 + [False] * 357)
