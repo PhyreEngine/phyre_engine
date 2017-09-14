@@ -4,9 +4,12 @@ protein according to various methods.
 
 Each of these components will add a list to the ``secondary_structure`` mapping
 in the pipeline state, indexed by the name of the tool. The list that is added
-must contain a list of (possibly named) tuples of the same length as the query
-sequence. The exact contents of each tuple is component-specific, but the first
-element must contain the secondary structure state.
+must be the same length as the query sequence.
+
+Each element of the list must be a dictionary, which must contain an
+``assigned`` key giving the assigned secondary structure state. Where it is
+available, tools should also include a ``confidence`` key, listing each possible
+state and the confidence in that state.
 
 For example, after running predictor ``foo`` the pipeline state might look like
 this:
@@ -17,24 +20,41 @@ this:
         # Various keys required to run the predictor,
         "secondary_structure": {
             ``foo``: [
-                ("C", 0.4, ...), # Coil, some value of 0.4, any extra values
-                ("C", 0.1, ...),
-                ("E", 0.2, ...),
+                {"assigned": "C", "confidence": {"C": 0.6, "H": 0.3, "E": 0.1}},
+                {"assigned": "C", "confidence": {"C": 0.7, "H": 0.2, "E": 0.1}},
+                {"assigned": "C", "confidence": {"C": 0.8, "H": 0.1, "E": 0.1}},
+                {"assigned": "C", "confidence": {"C": 0.6, "H": 0.3, "E": 0.1}},
                 # ...
             ]
         }
 
 """
 
-from collections import namedtuple
+import enum
 import subprocess
-import sys
 from phyre_engine.component.component import Component
 from phyre_engine.tools.external import ExternalTool
 
 SECONDARY_STRUCTURE_KEY = "secondary_structure"
 
-DSSPResidue = namedtuple("DSSPResidue", "ss")
+class ThreeStateSS(enum.Enum):
+    """Possible three-state secondary structure elements."""
+    COIL = "C"
+    HELIX = "H"
+    STRAND = "E"
+
+class EightStateSS(enum.Enum):
+    """Possible eight-state secondary structure elements."""
+    COIL = "C"
+    ALPHA = "H"
+    BETA_BRIDGE = "B"
+    STRAND = "E"
+    HELIX_3 = "G"
+    HELIX_5 = "I"
+    TURN = "T"
+    BEND = "S"
+
+
 class DSSP(Component):
     """
     Calculate secondary structure state using
@@ -108,7 +128,11 @@ class DSSP(Component):
                 if sec_struc == ' ':
                     sec_struc = 'C'
 
-                dssp_mapping.append(DSSPResidue(sec_struc))
+                residue_ss = {"assigned": sec_struc, "confidence": {}}
+                for state in EightStateSS:
+                    confidence = 1.0 if state.value == sec_struc else 0.0
+                    residue_ss["confidence"][state.value] = confidence
+                dssp_mapping.append(residue_ss)
         return dssp_mapping
 
 class LengthMismatchError(ValueError):
