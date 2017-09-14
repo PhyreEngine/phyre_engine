@@ -118,6 +118,7 @@ class DSSP(Component):
             if line.startswith("  #  RESIDUE AA"):
                 residue_section = True
             elif residue_section and len(line) > 17:
+                res_id = line[5:10]
                 aa_type = line[13]
                 sec_struc = line[16]
 
@@ -128,7 +129,10 @@ class DSSP(Component):
                 if sec_struc == ' ':
                     sec_struc = 'C'
 
-                residue_ss = {"assigned": sec_struc, "confidence": {}}
+                residue_ss = {
+                    "assigned": sec_struc,
+                    "confidence": {},
+                    "res_id": int(res_id)}
                 for state in EightStateSS:
                     confidence = 1.0 if state.value == sec_struc else 0.0
                     residue_ss["confidence"][state.value] = confidence
