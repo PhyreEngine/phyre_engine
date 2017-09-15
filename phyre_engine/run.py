@@ -83,7 +83,7 @@ def arg_parser():
         help="Add a value to the initial pipeline state.")
     parser.add_argument(
         "-c", "--config", dest="config", action=StoreStartingValue, nargs=1,
-        help="Modify pipeline configuration.")
+        default={}, help="Modify pipeline configuration.")
     parser.add_argument(
         dest="pipeline", metavar="pipeline",
         help="YAML file describing the pipeline")
@@ -200,10 +200,6 @@ def main():  # IGNORE:C0111
             config["pipeline"]["config"] = {}
         for dotted_key, value in args.config.items():
             apply_dotted_key(config["pipeline"]["config"], dotted_key, value)
-
-        import pprint
-        pprint.pprint(config["pipeline"]["config"])
-        sys.exit(0)
 
         # Load a pipeline
         pipeline = Pipeline.load(config["pipeline"])
