@@ -82,6 +82,9 @@ def arg_parser():
         "-s", "--start", dest="start", action=StoreStartingValue, nargs=1,
         help="Add a value to the initial pipeline state.")
     parser.add_argument(
+        "-c", "--config", dest="config", action=StoreStartingValue, nargs=1,
+        help="Modify pipeline configuration.")
+    parser.add_argument(
         dest="pipeline", metavar="pipeline",
         help="YAML file describing the pipeline")
     return parser
@@ -152,6 +155,19 @@ def construct_yaml_tuple(self, node):
         return seq
     return tuple(seq)
 
+def apply_dotted_key(dictionary, dotted_key, value):
+    """
+    Set a key deep in a dictionary. The key is split on each dot (``.``), and
+    each level is assumed to be a nested map. For example, ``a.b.c`` will set
+    the key ``{"a": {"b": {"c": value}}}``.
+    """
+    keys = dotted_key.split(".")
+    for key in keys[:-1]:
+        if key not in dictionary:
+            dictionary[key] = {}
+        dictionary = dictionary[key]
+    dictionary[keys[-1]] = value
+
 def main():  # IGNORE:C0111
     '''Command line options.'''
 
@@ -178,6 +194,16 @@ def main():  # IGNORE:C0111
 
         # Set up logging if a logging section was given in the pipeline
         init_logging(config["pipeline"])
+
+        # Add extra configuration keys to the pipeline config
+        if "config" not in config["pipeline"]:
+            config["pipeline"]["config"] = {}
+        for dotted_key, value in args.config.items():
+            apply_dotted_key(config["pipeline"]["config"], dotted_key, value)
+
+        import pprint
+        pprint.pprint(config["pipeline"]["config"])
+        sys.exit(0)
 
         # Load a pipeline
         pipeline = Pipeline.load(config["pipeline"])
