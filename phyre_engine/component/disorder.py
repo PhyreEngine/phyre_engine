@@ -79,7 +79,7 @@ class MobiDBLite(Component):
                 "assigned": state,
                 "confidence": {
                     DisorderStates.DISORDERED.value: prob,
-                    DisorderStates.ORDERED.value: 1 - prob
+                    DisorderStates.STRUCTURED.value: 1 - prob
                 }
             })
         return disorder
