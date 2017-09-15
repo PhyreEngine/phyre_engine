@@ -45,6 +45,19 @@ ATOM   50   C CB    . ARG A 1 10  ? 20.706 33.656 30.141  1.00 19.12 ? 10  ARG A
 HETATM 5128 P P     . AMP D 3 .   ? 24.511 18.911 8.472   1.00 27.61 ? 332 AMP A P     1
 """
 
+#: Minimal template in PDB format
+MINIMAL_PDB = """\
+ATOM     2   CA  ALA A   4      12.501  39.048  28.539  1.00 30.68
+ATOM     7   CA  TYR A   5      15.552  39.410  26.282  1.00 8.51
+ATOM     19  CA  ILE A   6      17.791  39.281  29.375  1.00 23.27
+ATOM     27  CA  ALA A   7      16.004  36.186  30.742  1.00 5.20
+ATOM     32  CA  LYS A   8      16.137  34.313  27.425  1.00 4.96
+ATOM     41  CA  GLN A   9      19.794  35.327  26.885  1.00 8.15
+ATOM     50  CB  ARG A   10     20.706  33.656  30.141  1.00 19.12
+HETATM   5128P   AMP D   100    24.511  18.911  8.472   1.00 27.61
+"""
+
+
 #: Original residue IDs of mmCIF file.
 ORIG_MAPPING = [
     (' ', 4, ' '),
