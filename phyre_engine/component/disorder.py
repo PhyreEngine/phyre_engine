@@ -39,7 +39,7 @@ DISORDER_KEY = "disorder"
 
 class DisorderStates(enum.Enum):
     """Possible disorder states."""
-    ORDERED = "S"
+    STRUCTURED = "S"
     DISORDERED = "D"
 
 class MobiDBLite(Component):
@@ -110,6 +110,11 @@ class MobiDBLite(Component):
             mobidb_proc = subprocess.run(
                 command_line,
                 stdout=subprocess.PIPE, check=True, universal_newlines=True)
-            disorder = self.parse_results(mobidb_proc.stdout)
-            data[DISORDER_KEY][self.TOOL_NAME] = disorder
+
+            # Mobidb will rudely return no output when no disordered regions are
+            # found. In those cases, we just don't add the mobidb-lite key to
+            # the disordered predictor.
+            if mobidb_proc.stdout.strip():
+                disorder = self.parse_results(mobidb_proc.stdout)
+                data[DISORDER_KEY][self.TOOL_NAME] = disorder
         return data
