@@ -31,8 +31,8 @@ class QueryType(Enum):
     SEQUENCE = "sequence"
 
     #: Use the multiple sequence alignment saved in the file named by the
-    #: ``msa`` key as input.
-    MSA = "msa"
+    #: ``a3m`` key as input.
+    A3M = "a3m"
 
     #: Use the HMM pointed in the file named by the ``hmm`` key as input.
     HMM = "hmm"
@@ -106,7 +106,7 @@ class HHSuiteTool(Component):  #pylint: disable=abstract-method
         Set keys in the pipeline state depending on the options supplied to
         hhblits. The following keys may be set:
 
-        ``msa``
+        ``a3m``
             Set if the ``oa3m`` option is supplied.
 
         ``report``
@@ -115,11 +115,11 @@ class HHSuiteTool(Component):  #pylint: disable=abstract-method
         ``atab``
             Set if the ``atab`` option is supplied.
         """
-        msa = self._find_option(r"^-?oa3m$")
+        a3m = self._find_option(r"^-?oa3m$")
         report = self._find_option(r"^(?:-?o|output)$")
         atab = self._find_option(r"^-?atab$")
 
-        if msa: data["msa"] = msa
+        if a3m: data["a3m"] = a3m
         if report: data["report"] = report
         if atab: data["atab"] = atab
 
@@ -198,7 +198,7 @@ class HHSearch(HHSuiteTool):
 
     def __init__(
             self, database, *args, bin_dir=None, HHLIB=None,
-            input_type=QueryType.MSA, **kwargs):
+            input_type=QueryType.A3M, **kwargs):
 
         kwargs["database"] = database
         super().__init__(
