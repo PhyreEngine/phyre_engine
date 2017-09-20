@@ -250,7 +250,7 @@ class ReportParser(Component):
         # For each hit returned by the parser, just get each score and convert
         # it to a template dict.
         for hit in report.hits:
-            template = hit._asdict()
+            template = dict(hit._asdict())
             templates.append(template)
         data["templates"] = templates
         return data
