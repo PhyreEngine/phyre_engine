@@ -1,4 +1,7 @@
 """Test components in the :py:mod:`phyre_engine.component.hhsuite` module."""
+import copy
+import io
+import textwrap
 import unittest
 import unittest.mock
 import phyre_engine.component.hhsuite as hhsuite
@@ -31,3 +34,46 @@ class TestAlignmentToFasta(unittest.TestCase):
         self.assertEqual(
             aln2fasta.fasta(pipe_state, hit, template_seq),
             ">queryname\nJKLMNOP\n>templatename\nA-E----\n")
+
+class TestFastaParser(unittest.TestCase):
+    """Test the FastaParser component."""
+
+    FASTA = textwrap.dedent("""\
+    No 1
+    >Query
+    AAAAA
+    >Template
+    -A-A-
+
+    No 2
+    >Query
+    AA
+    >Template
+    GG
+    """)
+
+    PIPELINE = {
+        "sequence": "XXAAAAAAXX",
+        "name": "Query",
+        "templates": [
+            {"query_range": range(3, 7), "name": "foo"},
+            {"query_range": range(3, 4), "name": "bar"},
+        ]
+    }
+
+    def setUp(self):
+        """Create a copy of the pipeline."""
+        self.pipeline = copy.deepcopy(self.PIPELINE)
+        self.pipeline["pairwise_fasta"] = io.StringIO(self.FASTA)
+
+    def test_parser(self):
+        """Parse a FASTA alignment file into the fasta_alignment field."""
+        parser = hhsuite.FastaParser()
+        results = parser.run(self.pipeline)
+        self.assertEqual(
+            results["templates"][0]["fasta_alignment"],
+            ">Query\nXXAAAAAAXX\n>foo\n---A-A----\n")
+
+        self.assertEqual(
+            results["templates"][1]["fasta_alignment"],
+            ">Query\nXXAAAAAAXX\n>bar\n--GG------\n")

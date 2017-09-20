@@ -1,8 +1,13 @@
 """Parsers for hhsuite files."""
 from enum import Enum
+import collections
+import io
 import logging
 import re
 from collections import namedtuple
+import Bio.AlignIO
+from phyre_engine.tools.util import Stream
+
 
 log = lambda: logging.getLogger(__name__)
 
@@ -345,3 +350,44 @@ class Tabular:
                     # Convert to a Hit ResiduePair object
                     pairs.append(self.ResiduePair(**pair_dict))
             self.hits.append(self.Hit(name, pairs))
+
+class Fasta:
+    """Parse FASTA files from hhsearch (produced using the ``-Ofas``
+    option.
+
+    :param str file: Path of the file to parse.
+    :param str query_name: Name of the query sequence.
+    :ivar alns: List of alignments, given as a tuple of query/template pairs.
+    :vartype alns: list[tuple(str)]
+    """
+    def __init__(self, file, query_name):
+        """Parse a tabulated file produced by an hhsuite tool."""
+        self.hits = []
+        self.query_name = query_name
+        with Stream(file, "r") as fh:
+            self._parse_file(fh)
+
+    def _records(self, fh):
+        """Generator yielding records from a tabulated file.
+
+        Records are separated by blank lines.
+        """
+        record = []
+        for line in fh:
+            if not line.strip() and record:
+                yield "\n".join(record)
+                record = []
+            if not line.startswith("No "):
+                record.append(line.rstrip("\n"))
+        yield "\n".join(record)
+
+    def _parse_file(self, fh):
+        for alignments in self._records(fh):
+            try:
+                parsed_alns = Bio.AlignIO.read(io.StringIO(alignments), "fasta")
+                template_aln = parsed_alns[-1]
+                query_aln = [a for a in parsed_alns
+                             if a.id == self.query_name][0]
+                self.hits.append((str(query_aln.seq), str(template_aln.seq)))
+            except (IndexError, ValueError):
+                self.hits.append(None)
