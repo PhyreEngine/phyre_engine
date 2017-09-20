@@ -3,13 +3,14 @@ from phyre_engine.component import Component
 import phyre_engine.tools.hhsuite.tool as tools
 import phyre_engine.tools.hhsuite.parser as parser
 
-import Bio.SeqIO
 from enum import Enum
 import os
 import subprocess
 import contextlib
 import tempfile
+import textwrap
 import re
+from phyre_engine.tools.template import Template
 
 class QueryType(Enum):
     """
@@ -294,4 +295,80 @@ class TabularParser(Component):
             for hit in atab.hits:
                 templates.append(hit._asdict())
             data["templates"] = templates
+        return data
+
+class AlignmentToFasta(Component):
+    """
+    Convert an alignment--that is, a list of *i, j* pairs--into FASTA format.
+    This component must know the query sequence, and so must access the pipeline
+    state as a whole, rather than an individual hit. Each hit must contain a
+    ``template`` key pointing at a template file.
+
+    The FASTA alignment will be added to the ``fasta_alignment`` field of the
+    given query.
+
+    :param str list_key: The list containing each hit.
+    :param str q_name: The query name will be extracted from this field. By
+        default, the query name is simply "Query".
+    :param str t_name: The template name will be taken from this field. By
+        default, the template name is "Template".
+    """
+    REQUIRED = ["sequence"]
+    ADDS = []
+    REMOVES = []
+
+    def __init__(self, list_key="templates", q_name=None, t_name=None):
+        self.list_key = list_key
+        self.q_name = q_name
+        self.t_name = t_name
+
+
+    @staticmethod
+    def build_template_aln(query_seq, alignment, template):
+        # Store the template residue index, indexed by query index
+        aln_mapping = {}
+        for res_pair in alignment:
+            q_index, t_index = res_pair[0:2]
+            # The -1s are to convert from seq to array numbering
+            aln_mapping[q_index - 1] = t_index - 1
+
+        # Generate alignment
+        t_seq = ["-"] * len(query_seq)
+        for q_index, _ in enumerate(query_seq):
+            if q_index in aln_mapping:
+                t_index = aln_mapping[q_index]
+                t_seq[q_index] = template.canonical_seq[t_index]
+        return "".join(t_seq)
+
+    def _query_name(self, data):
+        return data[self.q_name] if self.q_name is not None else "Query"
+
+    def _template_name(self, hit):
+        return hit[self.q_name] if self.t_name is not None else "Template"
+
+    def fasta(self, data, hit, hit_seq):
+        return textwrap.dedent("""\
+        >{query_name}
+        {query_seq}
+        >{template_name}
+        {template_seq}
+        """).format(
+            query_name=self._query_name(data),
+            template_name=self._template_name(hit),
+            query_seq=data["sequence"],
+            template_seq=hit_seq)
+
+    def run(self, data, config=None, pipeline=None):
+        """Convert alignments to FASTA."""
+        for hit in data[self.list_key]:
+            # Skip hits that don't have the information we need.
+            if "alignment" not in hit or "template" not in hit:
+                continue
+
+            # Read template. The template sequence is the canonical sequence
+            template = Template.load(hit["template"])
+
+            template_seq = self.build_template_aln(
+                data["sequence"], hit["alignment"], template)
+            hit["fasta_alignment"] = self.fasta(data, hit, template_seq)
         return data
