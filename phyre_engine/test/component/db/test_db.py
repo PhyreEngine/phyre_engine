@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+import unittest.mock
 import phyre_engine.component.db.db as db
 import phyre_engine.tools.pdb as pdb
 from phyre_engine.tools.template import Template
@@ -239,6 +240,21 @@ class TestAnnotateCATrace(unittest.TestCase):
         result = annotator.run({"structure": str(self.bb_pdb)})
         self.assertFalse(result["ca_trace"], "Annotated as not a CA trace")
 
+class TestFindTemplate(unittest.TestCase):
+    """Test the FindTemplate component."""
 
-if __name__ == "__main__":
-    unittest.main()
+    def test_find(self):
+        """Test that the path to a template makes sense."""
+        with unittest.mock.patch("pathlib.Path.exists", return_value=True):
+            ft = db.FindTemplate("nonexistent_path")
+            results = ft.run({"PDB": "12as", "chain": "A"})
+            self.assertEqual(
+                Path(results["template"]),
+                Path("nonexistent_path/2a/12as/12as_A.pdb"))
+
+    def test_cannot_find(self):
+        """A FileNotFoundError should be raised when no template exists."""
+        with unittest.mock.patch("pathlib.Path.exists", return_value=False):
+            ft = db.FindTemplate("nonexistent_path")
+            with self.assertRaises(FileNotFoundError):
+                ft.run({"PDB": "12as", "chain": "A"})

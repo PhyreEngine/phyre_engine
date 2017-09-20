@@ -11,6 +11,7 @@ import logging
 import collections
 import json
 import xml.etree.ElementTree
+from builtins import FileNotFoundError
 
 class StructureType(Enum):
     PDB = "pdb"
@@ -482,4 +483,30 @@ class Expand(Component):
             "Adding %d templates to the %d already present.",
             len(extra), len(data[self.item_list]))
         data[self.item_list].extend(extra)
+        return data
+
+class FindTemplate(Component):
+    """
+    Using the ``PDB`` and ``chain`` fields, find the corresponding template file
+    and add it to the ``template`` field.
+
+    :param str template_dir: Root directory of the template library.
+    """
+
+    REQUIRED = ["PDB", "chain"]
+    ADDS = ["template"]
+    REMOVES = []
+
+    def __init__(self, template_dir):
+        self.template_dir = template_dir
+
+    def run(self, data, config=None, pipeline=None):
+        """Find template for a given PDB and chain."""
+        pdb_id, chain_id = self.get_vals(data)
+        pdb_path = pdb.find_pdb(pdb_id, chain_id, self.template_dir)
+        if pdb_path is None:
+            raise FileNotFoundError(
+                "No template for PDB {} (chain {}) in {}".format(
+                    pdb_id, chain_id, self.template_dir))
+        data["template"] = str(pdb_path)
         return data
