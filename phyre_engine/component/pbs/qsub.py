@@ -142,7 +142,7 @@ class BaseQsub(Component):
     :param list[str] qsub_args: Extra arguments to pass to qsub.
     """
 
-    def __init__(self, storage_dir, pipeline, name, qsub_args=None):
+    def __init__(self, pipeline, name, storage_dir=".", qsub_args=None):
         self.storage_dir = Path(storage_dir)
         self.pipeline = pipeline
         self.name = name
