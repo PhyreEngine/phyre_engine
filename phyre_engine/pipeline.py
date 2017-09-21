@@ -2,6 +2,7 @@
 
 import copy
 import importlib
+import json
 from collections import namedtuple
 import pickle
 import pathlib
@@ -54,12 +55,26 @@ class Pipeline:
     """
 
     def __init__(self, components=None, start=None, checkpoint=None,
-                 config=None):
+                 config=None, statusfile=None):
         """Initialise a new pipeline with an optional list of components."""
         self.components = components if components else []
         self.start = start if start else {}
         self.checkpoint = checkpoint
         self.config = config
+        self.statusfile = statusfile
+
+    def update_statusfile(self, current_component):
+        """
+        Write a JSON-encoded file that contains a description of all the
+        components that have been run so far.
+        """
+        with open(self.statusfile, "w") as status_out:
+            components = [type(cmpt).__name__ for cmpt in self.components]
+            json.dump({
+                "index": current_component,
+                "components": components
+                }, status_out, indent=2)
+
 
     def validate(self):
         """Validate that the inputs and outptuts of each component match.
@@ -115,6 +130,10 @@ class Pipeline:
 
         for cmpt in self.components[checkpoint.current_component:]:
             self.validate_runtime(checkpoint.state, cmpt)
+
+            if self.statusfile is not None:
+                self.update_statusfile(checkpoint.current_component)
+
             state = cmpt.run(checkpoint.state, self.config, self)
 
             # Add timing information if we are recording it

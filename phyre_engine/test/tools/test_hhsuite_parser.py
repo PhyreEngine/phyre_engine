@@ -2,7 +2,9 @@ import unittest
 from math import log10
 import phyre_engine.test.data
 import pathlib
-from phyre_engine.tools.hhsuite.parser import Report, Tabular
+from phyre_engine.tools.hhsuite.parser import Report, Tabular, Fasta
+import io
+import textwrap
 
 DATA_DIR = pathlib.Path(phyre_engine.test.data.__file__).parent / "hhsuite"
 
@@ -144,6 +146,39 @@ class TestTabularParser(unittest.TestCase):
         for i, hits in enumerate(zip(atab.hits, self._EXPECTED_HITS)):
             with self.subTest("Checking hit against known data", hit=i):
                 self._test_hits_equal(hits[0], hits[1])
+
+
+class TestFastaParser(unittest.TestCase):
+    """Test hhsuite FASTA parser."""
+
+    FASTA = textwrap.dedent("""\
+    No 1
+    >ignored
+    XXXXX
+    >Query
+    AAAAA
+    >also ignored
+    XXXXX
+    >template 1
+    -AA-A
+
+    No 2
+    >ignored
+    XXXXX
+    >Query
+    AAAAA
+    >also ignored
+    XXXXX
+    >template 2
+    GGGGG
+    """)
+
+    def test_parser(self):
+        """Parse sample FASTA data."""
+        parser = Fasta(io.StringIO(self.FASTA), "Query")
+        self.assertListEqual(
+            parser.hits,
+            [("AAAAA", "-AA-A"), ("AAAAA", "GGGGG")])
 
 if __name__ == '__main__':
     unittest.main()
