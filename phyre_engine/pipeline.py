@@ -7,6 +7,7 @@ from collections import namedtuple
 import pickle
 import pathlib
 import time
+import logging
 
 #: Allows the state of the pipeline to be saved.
 #: :param int current_component: Index of the currently-running component. This
@@ -20,6 +21,8 @@ Checkpoint = namedtuple("Checkpoint", ["current_component", "state"])
 #: :param float wall: Wall-clock time in fractional seconds since the epoch.
 #: :param float process: Process time in fractional seconds.
 TimeInfo = namedtuple("TimeInfo", "component wall process")
+
+
 
 class Pipeline:
     """Pipeline containing a list of components to be executed.
@@ -62,18 +65,23 @@ class Pipeline:
         self.checkpoint = checkpoint
         self.config = config
         self.statusfile = statusfile
+        self.logger = logging.getLogger(
+            self.__module__ + "." + type(self).__qualname__)
 
     def update_statusfile(self, current_component):
         """
         Write a JSON-encoded file that contains a description of all the
-        components that have been run so far.
+        components that have been run so far. If the pipeline was configured to
+        not use a statusfile (by setting the `statusfile` parameter), nothing is
+        written.
         """
-        with open(self.statusfile, "w") as status_out:
-            components = [type(cmpt).__name__ for cmpt in self.components]
-            json.dump({
-                "index": current_component,
-                "components": components
-                }, status_out, indent=2)
+        if self.statusfile is not None:
+            with open(self.statusfile, "w") as status_out:
+                components = [type(cmpt).__name__ for cmpt in self.components]
+                json.dump({
+                    "index": current_component,
+                    "components": components
+                    }, status_out, indent=2)
 
 
     def validate(self):
@@ -104,6 +112,71 @@ class Pipeline:
                 if removed in keys:
                     keys.remove(removed)
 
+
+    def load_checkpoint(self):
+        """
+        Load checkpoint file. Returns the deserialised checkpoint, or `None` if
+        the checkpoint could not be found or should not be used.
+        """
+        if self.checkpoint is not None:
+            checkpoint_file = pathlib.Path(self.checkpoint)
+            if checkpoint_file.exists():
+                self.logger.info("Checkpoint found at %s.", checkpoint_file)
+                with checkpoint_file.open("rb") as check_in:
+                    chk = pickle.load(check_in)
+                if chk.current_component >= len(self.components):
+                    self.logger.info("All components complete. Finishing now.")
+                else:
+                    component = self.components[chk.current_component]
+                    self.logger.info(
+                        "Checkpoint found at %s. Skipping to component %d (%s)",
+                        checkpoint_file, chk.current_component,
+                        self._component_name(component))
+                return chk
+        return None
+
+    def save_checkpoint(self, current_component, state):
+        """
+        If the pipeline is configured to use checkpoints, save the current
+        state.
+        """
+        if self.checkpoint is not None:
+            self.logger.debug("Saving checkpoint %s with current component %d",
+                              self.checkpoint, current_component)
+            checkpoint = Checkpoint(current_component, state)
+            checkpoint_file = pathlib.Path(self.checkpoint)
+            with checkpoint_file.open("wb") as check_out:
+                pickle.dump(checkpoint, check_out)
+
+    def store_timings(self, state, component):
+        """
+        Save current time in the ``timer`` field of the pipeline state.
+        This saves both the current wall-clock time and the "process" time.
+        The ``timer`` field will contain a list of dictionaries, each containing
+        the same fields as :py:class:`.TimeInfo`.
+
+        If the ``timer`` field in the pipeline configuration is not a `True`
+        value, then nothing is added to the pipeline state.
+        """
+        if self.config is not None and self.config.get("timer", False):
+            if "timer" not in state:
+                state["timer"] = []
+
+            if component is not None:
+                component_name = self._component_name(component)
+            else:
+                component_name = None
+
+            current_time = TimeInfo(component_name, time.time(),
+                                    time.process_time())
+            state["timer"].append(dict(current_time._asdict()))
+
+
+    def _component_name(self, component):
+        """A pretty name for a component based off the module and class name."""
+        return "{}.{}".format(component.__module__,
+                              type(component).__qualname__)
+
     def run(self, start_index=0):
         """Run this pipeline, executing each component in turn.
 
@@ -113,42 +186,53 @@ class Pipeline:
             promises and add a key that the next component requires.
         """
 
-        checkpoint = None
-        if self.checkpoint is not None:
-            checkpoint_file = pathlib.Path(self.checkpoint)
-            if checkpoint_file.exists():
-                with checkpoint_file.open("rb") as check_in:
-                    checkpoint = pickle.load(check_in)
-
+        # Load checkpoint or start a new pipeline if no checkpoint exists.
+        checkpoint = self.load_checkpoint()
         if checkpoint is None:
             checkpoint = Checkpoint(start_index, copy.copy(self.start))
+        current_component, state = checkpoint
 
-        if self.config is not None and self.config.get("timer", False):
-            if "timer" not in checkpoint.state:
-                current_time = TimeInfo(None, time.time(), time.process_time())
-                checkpoint.state["timer"] = [dict(current_time._asdict())]
+        # Store timing data. We pass "None" as a component to indicate that this
+        # is the reference datum. This is necessary because the process time has
+        # no absolute meaning and must be compared to a reference.
+        self.store_timings(state, None)
 
-        for cmpt in self.components[checkpoint.current_component:]:
-            self.validate_runtime(checkpoint.state, cmpt)
+        # Start from "current_component" to enable restarting from a checkpoint.
+        for cmpt in self.components[current_component:]:
+            self.logger.info("Running component %d: %s",
+                             current_component, self._component_name(cmpt))
 
-            if self.statusfile is not None:
-                self.update_statusfile(checkpoint.current_component)
+            # Raise an exception if the required keys are not present in the
+            # pipeline state.
+            self.validate_runtime(state, cmpt)
 
-            state = cmpt.run(checkpoint.state, self.config, self)
+            # Write progress information to a file if enabled.
+            self.update_statusfile(current_component)
 
-            # Add timing information if we are recording it
-            if self.config is not None and self.config.get("timer", False):
-                current_time = TimeInfo(
-                    type(cmpt).__name__,
-                    time.time(), time.process_time())
-                state["timer"].append(dict(current_time._asdict()))
+            # Actually run the component
+            state = cmpt.run(state, self.config, self)
 
-            checkpoint = Checkpoint(checkpoint.current_component + 1, state)
+            # At this point, "state" can be None. This can happen, for example,
+            # when a component runs a child pipeline. If a component in the
+            # child pipeline wants to indicate a non-fatal (i.e. non-exception)
+            # error, it can return None. The parent component can then decide
+            # how to handle that. If a component in the top-level pipeline
+            # returns None, that is an error that can be handled by the run
+            # module.
+            if state is None:
+                return None
 
-            if self.checkpoint is not None:
-                with checkpoint_file.open("wb") as check_out:
-                    pickle.dump(checkpoint, check_out)
-        return checkpoint.state
+            # Record the finish time of this component.
+            self.store_timings(state, cmpt)
+
+            # Finally, save the checkpoint file.
+            current_component += 1
+            self.save_checkpoint(current_component, state)
+
+        # Save a statfile with None as the current component
+        self.update_statusfile(None)
+
+        return state
 
 
     def validate_runtime(self, blob, component):
