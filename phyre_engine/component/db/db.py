@@ -204,7 +204,7 @@ class ChainPDBBuilder(Component):
     """
 
     REQUIRED = ["PDB"]
-    ADDS = ["structure"]
+    ADDS = ["structure", "name", "chain"]
     REMOVES  = []
 
     #: Number used in ``REMARK`` fields for the JSON-encoded mapping between
@@ -280,6 +280,7 @@ class ChainPDBBuilder(Component):
                 result = data.copy()
                 result["chain"] = chain.id
                 result["structure"] = str(pdb_file)
+                result["name"] = "{}_{}".format(pdb_id, chain.id)
 
                 if not pdb_file.exists() or self.overwrite:
                     self.logger.debug(
