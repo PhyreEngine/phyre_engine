@@ -246,7 +246,7 @@ class ChainPDBBuilder(Component):
         else:
             self.conf_sel = [
                 phyre_engine.tools.conformation.PopulationMutationSelector(),
-                phyre_engine.tools.conformation.PopulationMicroHetSelector()
+                phyre_engine.tools.conformation.PopulationMicroHetSelector, "chain"()
             ]
 
     def run(self, data, config=None, pipeline=None):
@@ -280,7 +280,7 @@ class ChainPDBBuilder(Component):
                 result = data.copy()
                 result["chain"] = chain.id
                 result["structure"] = str(pdb_file)
-                result["name"] = "{}_{}".format(pdb_id, chain.id)
+                result["name"] = "{}_{}".format(pdb_id.lower(), chain.id)
 
                 if not pdb_file.exists() or self.overwrite:
                     self.logger.debug(
