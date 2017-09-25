@@ -157,7 +157,15 @@ class Pipeline:
 
         If the ``timer`` field in the pipeline configuration is not a `True`
         value, then nothing is added to the pipeline state.
+
+        If the state is not a dictionary, then nothing is added. Components are
+        allowed to return `None` (indicating a non-fatal error) or a list
+        (indicating an expansion of the state) when they are run as part of a
+        sub-pipeline.
         """
+        if state is None or not isinstance(state, dict):
+            return
+
         if self.config is not None and self.config.get("timer", False):
             if "timer" not in state:
                 state["timer"] = []
