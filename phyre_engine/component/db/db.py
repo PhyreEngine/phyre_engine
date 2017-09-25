@@ -246,7 +246,7 @@ class ChainPDBBuilder(Component):
         else:
             self.conf_sel = [
                 phyre_engine.tools.conformation.PopulationMutationSelector(),
-                phyre_engine.tools.conformation.PopulationMicroHetSelector, "chain"()
+                phyre_engine.tools.conformation.PopulationMicroHetSelector()
             ]
 
     def run(self, data, config=None, pipeline=None):
