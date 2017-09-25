@@ -431,7 +431,10 @@ class Wait(Component):
                 if job_id in looking_for:
                     job_states.add(job_state)
 
-            if job_states == set(["C"]):
+            # If all our jobs are in the "C" state or they have disappeared
+            # entirely (which happens when the scheduler crashes or the polling
+            # interval is too long) then we assume that everything is complete.
+            if not job_states or job_states == {"C"}:
                 break
             time.sleep(self.poll_interval)
 
