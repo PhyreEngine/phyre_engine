@@ -62,9 +62,7 @@ class DSSP(Component):
 
     This component requires the ``structure`` field to be set, otherwise it has
     no source of tertiary structure from which to calculate the secondary
-    structure. If the ``sequence`` field is set, then an exception will be
-    raised if the output from DSSP does not contain exactly the same number of
-    residues as the sequence.
+    structure.
 
     :param str bin_dir: Directory containing the ``mkdssp`` executable, if it is
         not in the system ``$PATH``.
@@ -95,10 +93,6 @@ class DSSP(Component):
             mkdssp_cmd_line, universal_newlines=True,
             check=True, stdout=subprocess.PIPE)
         dssp_mapping = self.parse_dssp(dssp_proc.stdout.split("\n"))
-
-        if "sequence" in data:
-            if len(data["sequence"]) != len(dssp_mapping):
-                raise LengthMismatchError(dssp_mapping, data["sequence"])
 
         data[SECONDARY_STRUCTURE_KEY][self.TOOL_NAME] = dssp_mapping
         return data
@@ -138,18 +132,3 @@ class DSSP(Component):
                     residue_ss["confidence"][state.value] = confidence
                 dssp_mapping.append(residue_ss)
         return dssp_mapping
-
-class LengthMismatchError(ValueError):
-    """
-    Raised when the number of residues in a secondary structure assignment does
-    not match the length of the query sequence.
-
-    :param list ss: Secondary structure assignment.
-    :param str sequence: Sequence for which secondary structure was assigned.
-    """
-    ERR_MSG = (
-        "Secondary structure assignment length did not match sequence length "
-        "({} and {} residues).")
-
-    def __init__(self, ss, sequence):
-        super().__init__(self.ERR_MSG.format(len(ss), len(sequence)))

@@ -78,10 +78,3 @@ AUTHOR                                                                          
         dssp = secstruc.DSSP(**phyre_engine.test.config["tools"]["dssp"])
         results = dssp.run({"structure": str(PDB_FILE)})
         self.assertGreater(len(results["secondary_structure"]["dssp"]), 0)
-
-    @phyre_engine.test.requireFields("dssp", ["tools"])
-    def test_length_mismatch(self):
-        """Mismatch in sequence/ss length raises exception."""
-        dssp = secstruc.DSSP(**phyre_engine.test.config["tools"]["dssp"])
-        with self.assertRaises(secstruc.LengthMismatchError):
-            dssp.run({"structure": str(PDB_FILE), "sequence": "AAA"})
