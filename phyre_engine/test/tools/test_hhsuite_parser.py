@@ -153,32 +153,41 @@ class TestFastaParser(unittest.TestCase):
 
     FASTA = textwrap.dedent("""\
     No 1
-    >ignored
+    >q_seq1
     XXXXX
     >Query
     AAAAA
-    >also ignored
+    >t_seq1
     XXXXX
     >template 1
     -AA-A
 
     No 2
-    >ignored
+    >q_seq1
     XXXXX
     >Query
     AAAAA
-    >also ignored
+    >t_seq1
     XXXXX
     >template 2
     GGGGG
     """)
 
+    PARSED_FASTA = [
+        {
+            "query": {"q_seq1": "XXXXX", "sequence": "AAAAA"},
+            "template": {"t_seq1": "XXXXX", "sequence": "-AA-A"},
+        },
+        {
+            "query": {"q_seq1": "XXXXX", "sequence": "AAAAA"},
+            "template": {"t_seq1": "XXXXX", "sequence": "GGGGG"},
+        }
+    ]
+
     def test_parser(self):
         """Parse sample FASTA data."""
         parser = Fasta(io.StringIO(self.FASTA), "Query")
-        self.assertListEqual(
-            parser.hits,
-            [("AAAAA", "-AA-A"), ("AAAAA", "GGGGG")])
+        self.assertListEqual(parser.hits, self.PARSED_FASTA)
 
 if __name__ == '__main__':
     unittest.main()

@@ -352,13 +352,38 @@ class Tabular:
             self.hits.append(self.Hit(name, pairs))
 
 class Fasta:
-    """Parse FASTA files from hhsearch (produced using the ``-Ofas``
-    option.
+    """
+    Parse FASTA files from hhsearch (produced using the ``-Ofas`` option.
+    Alignments will be stored in the `hits` attribute. Each element of `hits`
+    will be a dictionary, containing the keys ``query`` and ``template``. Those
+    will contain dictionaries with elements named for each sequence in the FASTA
+    file and values corresponding to the sequences
+
+    >>> from phyre_engine.tools.hhsuite.parser import Fasta
+    >>> parser = Fasta("/path/to/fasta/file", "QueryName")
+    >>> parser.hits
+    [
+        {
+            "query": {
+                "ss_pred": "CCHH...",
+                "ss_conf": "8899...",
+                "Consensus": "XXAI...",
+                "sequence": "AGAI..."
+            },
+            "template": {
+                "ss_pred": "CCHH...",
+                "ss_conf": "7789...",
+                "ss_dssp": "CCHT...",
+                "Consensus": "XXAI...",
+                "sequence": "GGAI..."
+            }
+        }
+    ]
 
     :param str file: Path of the file to parse.
     :param str query_name: Name of the query sequence.
     :ivar alns: List of alignments, given as a tuple of query/template pairs.
-    :vartype alns: list[tuple(str)]
+    :vartype alns: list[dict(str, dict(str, str))]
     """
     def __init__(self, file, query_name):
         """Parse a tabulated file produced by an hhsuite tool."""
@@ -383,11 +408,27 @@ class Fasta:
 
     def _parse_file(self, fh):
         for alignments in self._records(fh):
+            aln_dict = {"query": {}, "template": {}}
             try:
+                # The alignment is split into sections. Everything before the
+                # query sequence goes in the query, everything after in the
+                # template.
+                section = "query"
+
                 parsed_alns = Bio.AlignIO.read(io.StringIO(alignments), "fasta")
-                template_aln = parsed_alns[-1]
-                query_aln = [a for a in parsed_alns
-                             if a.id == self.query_name][0]
-                self.hits.append((str(query_aln.seq), str(template_aln.seq)))
+                for i, aln in enumerate(parsed_alns):
+                    key_name = aln.id
+                    if aln.id == self.query_name or i == len(parsed_alns) - 1:
+                        # If the name of the sequence is the query name, then
+                        # this is the query sequence. If the alignment is the
+                        # last in the list, this is the template sequence.
+                        key_name = "sequence"
+                    aln_dict[section][key_name] = str(aln.seq)
+
+                    # Everything before the query is query-specific
+                    if aln.id == self.query_name:
+                        section = "template"
             except (IndexError, ValueError):
-                self.hits.append(None)
+                pass # This is bad, but not unexpected
+            finally:
+                self.hits.append(aln_dict)

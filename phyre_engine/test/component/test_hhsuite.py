@@ -48,6 +48,8 @@ class TestFastaParser(unittest.TestCase):
     No 2
     >Query
     AA
+    >foo
+    -A
     >Template
     GG
     """)
@@ -56,8 +58,8 @@ class TestFastaParser(unittest.TestCase):
         "sequence": "XXAAAAAAXX",
         "name": "Query",
         "templates": [
-            {"query_range": range(3, 7), "name": "foo"},
-            {"query_range": range(3, 4), "name": "bar"},
+            {"query_range": range(3, 7)},
+            {"query_range": range(3, 4)},
         ]
     }
 
@@ -71,9 +73,9 @@ class TestFastaParser(unittest.TestCase):
         parser = hhsuite.FastaParser()
         results = parser.run(self.pipeline)
         self.assertEqual(
-            results["templates"][0]["fasta_alignment"],
-            ">Query\nXXAAAAAAXX\n>foo\n---A-A----\n")
+            results["templates"][0]["sequence_alignments"],
+            {"sequence": "---A-A----"})
 
         self.assertEqual(
-            results["templates"][1]["fasta_alignment"],
-            ">Query\nXXAAAAAAXX\n>bar\n--GG------\n")
+            results["templates"][1]["sequence_alignments"],
+            {"foo": "---A------", "sequence": "--GG------"})
