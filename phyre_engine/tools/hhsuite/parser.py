@@ -407,7 +407,7 @@ class Fasta:
         yield "\n".join(record)
 
     def _parse_file(self, fh):
-        for alignments in self._records(fh):
+        for i, alignments in enumerate(self._records(fh)):
             aln_dict = {"query": {}, "template": {}}
             try:
                 # The alignment is split into sections. Everything before the
@@ -429,6 +429,6 @@ class Fasta:
                     if aln.id == self.query_name:
                         section = "template"
             except (IndexError, ValueError):
-                pass # This is bad, but not unexpected
+                log().warning("Error parsing alignment %d", i, exc_info=True)
             finally:
                 self.hits.append(aln_dict)
