@@ -11,6 +11,7 @@ import tempfile
 import textwrap
 import re
 from phyre_engine.tools.template import Template
+import math
 
 class QueryType(Enum):
     """
@@ -327,6 +328,9 @@ class FastaParser(Component):
     If no alignment was generated for a hit or that
     alignment could not be parsed, ``sequence_alignments`` will be empty.
 
+    If the ``alignment`` key is present in the template, the residue-pair
+    confidences will be used to generate a string of confidence values.
+
     To ignore certain sequences, specify them in the ``ignore`` key.
     """
     REQUIRED = ["templates", "sequence", "name", "pairwise_fasta"]
@@ -335,6 +339,30 @@ class FastaParser(Component):
 
     def __init__(self, ignore=()):
         self.ignore = ignore
+
+    @staticmethod
+    def _add_confidence(query_seq, template):
+        # First, index the alignment by query index. Offset by 1 to
+        # convert between residue numbering and array numbering
+        aln_map = {aln.i - 1: aln for aln in template["alignment"]}
+
+        # Start with gaps everywhere
+        confidence_str = ["-"] * len(query_seq)
+
+        # query_index gives the residue index, and query_str_index
+        # gives the index in the query string.
+        query_index = 0
+        for query_str_index, residue in enumerate(query_seq):
+            if residue == "-":
+                continue
+            if query_index in aln_map:
+                residue_pair = aln_map[query_index]
+                conf_value = math.floor(residue_pair.probab * 10)
+                if conf_value >= 10:
+                    conf_value = 9
+                confidence_str[query_str_index] = str(conf_value)
+            query_index += 1
+        template["sequence_alignments"]["confidence"] = "".join(confidence_str)
 
     def run(self, data, config=None, pipeline=None):
         templates, sequence, qname, fasta = self.get_vals(data)
@@ -352,6 +380,10 @@ class FastaParser(Component):
                     + query_seq
                     + sequence[template["query_range"].stop:])
                 template["sequence_alignments"]["query"] = query_seq
+
+                # Write confidence string
+                if "alignment" in template:
+                    self._add_confidence(query_seq, template)
 
                 for seq_name, seq in hit["template"].items():
                     if seq_name in self.ignore:

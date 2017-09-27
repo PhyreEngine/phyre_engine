@@ -6,6 +6,7 @@ import unittest
 import unittest.mock
 import phyre_engine.component.hhsuite as hhsuite
 import phyre_engine.tools.template as template
+import collections
 
 class TestAlignmentToFasta(unittest.TestCase):
     """Test the AlignmentToFasta component."""
@@ -63,6 +64,12 @@ class TestFastaParser(unittest.TestCase):
         ]
     }
 
+    Pair = collections.namedtuple("Pair", "i j probab")
+    ALIGNMENTS = [
+        [Pair(4, 1, 0.5), Pair(5, 2, 0.4)],
+        [Pair(5, 4, 0.3)],
+    ]
+
     def setUp(self):
         """Create a copy of the pipeline."""
         self.pipeline = copy.deepcopy(self.PIPELINE)
@@ -90,6 +97,22 @@ class TestFastaParser(unittest.TestCase):
         parser = hhsuite.FastaParser(ignore={"foo"})
         results = parser.run(self.pipeline)
         self.assertNotIn("foo", results["templates"][1]["sequence_alignments"])
+
+    def test_confidences(self):
+        """Test generation of confidence string from alignment pairs."""
+
+        # Add alignments to pipeline
+        for hit, aln in zip(self.pipeline["templates"], self.ALIGNMENTS):
+            hit["alignment"] = aln
+
+        parser = hhsuite.FastaParser()
+        results = parser.run(self.pipeline)
+        self.assertEqual(
+            results["templates"][0]["sequence_alignments"]["confidence"],
+            "---5-4-----")
+        self.assertEqual(
+            results["templates"][1]["sequence_alignments"]["confidence"],
+            "----3-----")
 
 class TestA3MSSParser(unittest.TestCase):
     """Test the A3MSSParser."""
