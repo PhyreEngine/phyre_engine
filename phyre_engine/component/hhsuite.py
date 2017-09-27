@@ -318,11 +318,11 @@ class FastaParser(Component):
 
     .. code-block:: python
         “sequence_alignments”: {
-            “ss_pred”:  “-----CCHH...",
-            “ss_conf”:  “-----8899....”,
-            “ss_dssp”:  “-----CCTH...",  #Optionally
-            “template”: “-----IDLE...”,
-            “confidence”: “-----8899..."
+            "ss_pred":  "-----CCHH...",
+            "ss_conf":  "-----8899....",
+            "ss_dssp":  "-----CCTH...",  #Optionally
+            "template": "-----IDLE...",
+            "confidence": "-----8899..."
         }
 
     If no alignment was generated for a hit or that
