@@ -399,10 +399,10 @@ class Fasta:
         """
         record = []
         for line in fh:
-            if not line.strip() and record:
+            if line.startswith("No") and record:
                 yield "\n".join(record)
                 record = []
-            if not line.startswith("No "):
+            else:
                 record.append(line.rstrip("\n"))
         yield "\n".join(record)
 
