@@ -339,8 +339,15 @@ class FastaParser(Component):
         for template, hit in zip(templates, parsed_alignments.hits):
             if hit is None:
                 continue
-
             template["sequence_alignments"] = {}
+
+            query_seq = hit["query"]["sequence"]
+            query_seq = (
+                sequence[:template["query_range"].start - 1]
+                + query_seq
+                + sequence[template["query_range"].stop:])
+            template["sequence_alignments"]["query"] = query_seq
+
             for seq_name, seq in hit["template"].items():
             # Pad query and template according to start/end of query alignment
                 seq = (

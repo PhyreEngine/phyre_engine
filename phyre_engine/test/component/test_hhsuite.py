@@ -41,13 +41,13 @@ class TestFastaParser(unittest.TestCase):
     FASTA = textwrap.dedent("""\
     No 1
     >Query
-    AAAAA
+    AB-CDE
     >Template
-    -A-A-
+    -A-A--
 
     No 2
     >Query
-    AA
+    AB
     >foo
     -A
     >Template
@@ -55,7 +55,7 @@ class TestFastaParser(unittest.TestCase):
     """)
 
     PIPELINE = {
-        "sequence": "XXAAAAAAXX",
+        "sequence": "XXABCDEFXX",
         "name": "Query",
         "templates": [
             {"query_range": range(3, 7)},
@@ -73,9 +73,14 @@ class TestFastaParser(unittest.TestCase):
         parser = hhsuite.FastaParser()
         results = parser.run(self.pipeline)
         self.assertEqual(
-            results["templates"][0]["sequence_alignments"],
-            {"sequence": "---A-A----"})
+            results["templates"][0]["sequence_alignments"], {
+                "sequence": "---A-A-----",
+                "query": "XXAB-CDEFXX"
+        })
 
         self.assertEqual(
-            results["templates"][1]["sequence_alignments"],
-            {"foo": "---A------", "sequence": "--GG------"})
+            results["templates"][1]["sequence_alignments"], {
+                "foo": "---A------",
+                "sequence": "--GG------",
+                "query": "XXABCDEFXX"
+        })
