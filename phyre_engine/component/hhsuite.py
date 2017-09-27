@@ -327,10 +327,14 @@ class FastaParser(Component):
     If no alignment was generated for a hit or that
     alignment could not be parsed, ``sequence_alignments`` will be empty.
 
+    To ignore certain sequences, specify them in the ``ignore`` key.
     """
     REQUIRED = ["templates", "sequence", "name", "pairwise_fasta"]
     ADDS = []
     REMOVES = []
+
+    def __init__(self, ignore=()):
+        self.ignore = ignore
 
     def run(self, data, config=None, pipeline=None):
         templates, sequence, qname, fasta = self.get_vals(data)
@@ -349,7 +353,11 @@ class FastaParser(Component):
             template["sequence_alignments"]["query"] = query_seq
 
             for seq_name, seq in hit["template"].items():
-            # Pad query and template according to start/end of query alignment
+                if seq_name in self.ignore:
+                    continue
+
+                # Pad query and template according to start/end of query
+                # alignment
                 seq = (
                     "-" * (template["query_range"].start - 1)
                     + seq

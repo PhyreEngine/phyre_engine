@@ -85,6 +85,12 @@ class TestFastaParser(unittest.TestCase):
                 "query": "XXABCDEFXX"
         })
 
+    def test_ignore(self):
+        """Ignored sequences should be removed."""
+        parser = hhsuite.FastaParser(ignore={"foo"})
+        results = parser.run(self.pipeline)
+        self.assertNotIn("foo", results["templates"][1]["sequence_alignments"])
+
 class TestA3MSSParser(unittest.TestCase):
     """Test the A3MSSParser."""
 
