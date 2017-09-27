@@ -345,24 +345,28 @@ class FastaParser(Component):
                 continue
             template["sequence_alignments"] = {}
 
-            query_seq = hit["query"]["sequence"]
-            query_seq = (
-                sequence[:template["query_range"].start - 1]
-                + query_seq
-                + sequence[template["query_range"].stop:])
-            template["sequence_alignments"]["query"] = query_seq
+            try:
+                query_seq = hit["query"]["sequence"]
+                query_seq = (
+                    sequence[:template["query_range"].start - 1]
+                    + query_seq
+                    + sequence[template["query_range"].stop:])
+                template["sequence_alignments"]["query"] = query_seq
 
-            for seq_name, seq in hit["template"].items():
-                if seq_name in self.ignore:
-                    continue
+                for seq_name, seq in hit["template"].items():
+                    if seq_name in self.ignore:
+                        continue
 
-                # Pad query and template according to start/end of query
-                # alignment
-                seq = (
-                    "-" * (template["query_range"].start - 1)
-                    + seq
-                    + "-" * (len(sequence) - template["query_range"].stop))
-                template["sequence_alignments"][seq_name] = seq
+                    # Pad query and template according to start/end of query
+                    # alignment
+                    seq = (
+                        "-" * (template["query_range"].start - 1)
+                        + seq
+                        + "-" * (len(sequence) - template["query_range"].stop))
+                    template["sequence_alignments"][seq_name] = seq
+            except KeyError as key_err:
+                self.logger.warning("Error reading sequences for %s",
+                                    template, exc_info=key_err)
         return data
 
 class A3MSSParser(Component):
