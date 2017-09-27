@@ -84,3 +84,36 @@ class TestFastaParser(unittest.TestCase):
                 "sequence": "--GG------",
                 "query": "XXABCDEFXX"
         })
+
+class TestA3MSSParser(unittest.TestCase):
+    """Test the A3MSSParser."""
+
+    SAMPLE_A3M = textwrap.dedent("""\
+    >ss_dssp DSSP Secondary structure
+    CCCTHH
+    >ss_pred Secondary structure from PSIPRED
+    CCCCHH
+    >ss_conf SS Confidence
+    888889
+    >Query
+    AAAAGA
+    """)
+
+    def test_parser(self):
+        """Test A3M parser."""
+        parser = hhsuite.A3MSSParser()
+
+        mock_open = unittest.mock.mock_open(read_data=self.SAMPLE_A3M)
+        # Bit of a hack to work around a bug: mock_open doesn't provide an
+        # iterator on its returned MagicMock.
+        mock_open.return_value.__iter__ = lambda self: iter(self.readline, '')
+        open_function = ".".join([parser.__module__, "open"])
+
+        with unittest.mock.patch(open_function, mock_open):
+            results = parser.run({"a3m": "query.a3m"})
+            self.assertEqual(
+                results["secondary_structure_sequence"], {
+                    "ss_dssp": "CCCTHH",
+                    "ss_pred": "CCCCHH",
+                    "ss_conf": "888889"
+                })

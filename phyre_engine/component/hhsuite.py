@@ -357,6 +357,45 @@ class FastaParser(Component):
                 template["sequence_alignments"][seq_name] = seq
         return data
 
+class A3MSSParser(Component):
+    """
+    Parse secondary structure information from an a3m file. Instead of adding a
+    ``secondary_structure`` element, like the components in
+    :py:mod:`phyre_engine.component.secstruc`, this will add the
+    ``secondary_structure_sequence`` key, which will contain the secondary
+    structure lines from the parsed a3m file, indexed by the sequence name.
+
+    >>> from phyre_engine.component.hhsuite import ParseA3MSS
+    >>> parser = ParseA3MSS()
+    >>> results = parser.parse({"a3m": "foo.a3m"})
+    >>> results["secondary_structure_sequence"]
+    {
+        "ss_conf": "88889999...",
+        "ss_pred": "CCCCHHHH...",
+        "ss_dssp": "CCCTHHHH..."
+    }
+
+    Only the lines included in the a3m are added, so be sure to check which
+    sequences are present.
+    """
+    REQUIRED = ["a3m"]
+    ADDS = ["secondary_structure_sequence"]
+    REMOVES = []
+
+    def run(self, data, config=None, pipeline=None):
+        """Parse secondary structure from a3m file."""
+        a3m_file = self.get_vals(data)
+        secstruc = {}
+        with open(a3m_file, "r") as a3m_in:
+            for line in a3m_in:
+                if line.startswith(">"):
+                    seq_id = line.split(" ")[0][1:].strip()
+                    if seq_id.startswith("ss_"):
+                        sequence = a3m_in.readline().strip()
+                        secstruc[seq_id] = sequence
+        data["secondary_structure_sequence"] = secstruc
+        return data
+
 class AlignmentToFasta(Component):
     """
     Convert an alignment--that is, a list of *i, j* pairs--into FASTA format.
