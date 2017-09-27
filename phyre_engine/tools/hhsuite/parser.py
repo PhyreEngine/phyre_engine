@@ -416,9 +416,9 @@ class Fasta:
                 section = "query"
 
                 parsed_alns = Bio.AlignIO.read(io.StringIO(alignments), "fasta")
-                for i, aln in enumerate(parsed_alns):
+                for j, aln in enumerate(parsed_alns):
                     key_name = aln.id
-                    if aln.id == self.query_name or i == len(parsed_alns) - 1:
+                    if aln.id == self.query_name or j == len(parsed_alns) - 1:
                         # If the name of the sequence is the query name, then
                         # this is the query sequence. If the alignment is the
                         # last in the list, this is the template sequence.
