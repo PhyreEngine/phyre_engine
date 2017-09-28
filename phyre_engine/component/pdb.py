@@ -5,7 +5,10 @@ import enum
 import Bio.PDB
 import phyre_engine.tools.pdb
 import phyre_engine.tools.util
+import phyre_engine.tools.template
 from phyre_engine.component.component import Component
+import tempfile
+import os
 
 class StructureType(enum.Enum):
     """Possible structure types."""
@@ -116,3 +119,51 @@ class ConvertToMonomer(Component):
         data["structure_obj"] = chains[0]
         return data
 
+class ConvertToTemplate(Component):
+    """
+    Convert a single chain in the ``structure_obj`` key of the pipeline state to
+    a template using :py:meth:`phyre_engine.tools.template.Template.build`. This
+    will write the santised structure to a new PDB file, and replace the
+    ``structure`` and ``structure_obj`` keys with the template.
+
+    This component will place the template file in the current working
+    directory. By default, a unique filename is used. This can be overridden by
+    setting the `file_name` parameter in order to avoid the proliferation of
+    ugly file names when the pipeline is run multiple times.
+
+    :param str file_name: Use this fixed file name instead of a unique name.
+    """
+
+    ADDS = ["structure"]
+    REQUIRED = ["structure_obj"]
+    REMOVES = []
+
+    def __init__(self, file_name=None):
+        self.file_name = file_name
+
+
+    def _open_structure(self):
+        if self.file_name is None:
+            file_des, file_name = tempfile.mkstemp(
+                suffix="-template.pdb", dir=os.getcwd(), text=True)
+            file_handle = os.fdopen(file_des)
+        else:
+            file_name = self.file_name
+            file_handle = open(self.file_name, "w")
+        return file_handle, file_name
+
+    def run(self, data, config=None, pipeline=None):
+        """Convert ``structure_obj`` to a template."""
+        structure_obj = self.get_vals(data)
+
+        file_handle = None
+        try:
+            file_handle, file_name = self._open_structure()
+
+            template = phyre_engine.tools.template.Template.build(structure_obj)
+            template.write(file_handle)
+            data["structure"] = file_name
+            data["structure_obj"] = template.chain
+        finally:
+            file_handle.close()
+        return data
