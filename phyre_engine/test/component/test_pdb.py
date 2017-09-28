@@ -6,7 +6,7 @@ import Bio.PDB
 import phyre_engine.component.pdb
 import phyre_engine.tools.pdb
 import phyre_engine.test.data.minimal_template as minimal
-from ast import parse
+from unittest.mock import MagicMock, sentinel
 
 class TestPDBSeq(unittest.TestCase):
     """Test conversion of PDB structure to sequence using PDBSeq."""
@@ -75,3 +75,30 @@ class TestConvertToMonomer(unittest.TestCase):
         exception_class = phyre_engine.component.pdb.TooManyChainsError
         with self.assertRaises(exception_class):
             results = conv.run({"structure_obj": structure})
+
+class TestConvertToTemplate(unittest.TestCase):
+    """Test ConvertToTemplate component."""
+
+    @staticmethod
+    def structure():
+        """Get a minimal structure as a monomer."""
+        struc_file = io.StringIO(minimal.MINIMAL_PDB)
+        parser = Bio.PDB.PDBParser(QUIET=True)
+        return parser.get_structure("", struc_file)[0]["A"]
+
+    def test_converter(self):
+        """Convert minimal PDB to template."""
+        # pylint: disable=protected-access
+        conv = phyre_engine.component.pdb.ConvertToTemplate()
+        fh_mock = MagicMock()
+        conv._open_structure = MagicMock(return_value=(fh_mock, sentinel.name))
+
+        input_structure = self.structure()
+        results = conv.run({"structure_obj": input_structure})
+        self.assertIn("structure", results, "structure member added")
+        self.assertEqual(results["structure"], sentinel.name)
+        self.assertIsNot(results["structure_obj"], input_structure,
+                         "Altered structure object returned")
+
+        # Something was written to the new file.
+        fh_mock.write.assert_called()

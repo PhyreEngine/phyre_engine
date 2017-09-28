@@ -2,9 +2,10 @@ import copy
 import io
 import logging
 import unittest
+import unittest.mock
 from phyre_engine.component import Component
 from phyre_engine.component.component import (Map, Conditional, TryCatch,
-                                              PipelineComponent)
+                                              PipelineComponent, Branch)
 import phyre_engine.pipeline
 
 class Double(Component):
@@ -249,3 +250,33 @@ class TestTryCatch(unittest.TestCase):
                         log_level=log_level)
                     trycatch.run(copy.deepcopy(initial_state))
                 self.assertRegex(str(capture), "^" + log_level)
+
+class TestBranch(unittest.TestCase):
+    """Test Branch component."""
+
+    class _AlteringComponent(Component):
+        # Used to alter the pipeline state so we can verify that the main branch
+        # does not change.
+        ADDS = []
+        REMOVES = []
+        REQUIRED = []
+
+        def run(self, data, config=None, pipeline=None):
+            data["foo"]["bar"] = "baz"
+
+    def test_branch_copy(self):
+        """Branched pipeline does not alter data in main branch."""
+        pipe = phyre_engine.pipeline.Pipeline([self._AlteringComponent()])
+        branch = Branch(pipe)
+        start_pipe = {"foo": {"bar": "qux"}}
+        results = branch.run(start_pipe)
+        self.assertEqual(results, {"foo": {"bar": "qux"}})
+        self.assertIs(results, start_pipe)
+
+    def test_branch_run(self):
+        """Ensure that the sub-pipeline is actually run."""
+        component = self._AlteringComponent()
+        component.run = unittest.mock.MagicMock(return_value={})
+        pipe = phyre_engine.pipeline.Pipeline([component])
+        Branch(pipe).run({})
+        component.run.assert_called_once()

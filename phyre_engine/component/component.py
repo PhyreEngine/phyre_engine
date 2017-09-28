@@ -2,6 +2,7 @@
 from abc import ABC, abstractmethod
 import logging
 import phyre_engine
+import copy
 
 class Component(ABC):
     """Base class for all component classes."""
@@ -243,3 +244,32 @@ class TryCatch(PipelineComponent):
             if self.pass_through:
                 return data
             return None
+
+class Branch(PipelineComponent):
+    """
+    Run a pipeline on a copy of the pipeline state and then restore the original
+    state. This can be useful when you want to run components with side-effects
+    but don't want to actually alter the pipeline state.
+
+    For example, you might wish to run a component that sanitises the PDB file
+    pointed to by the ``structure`` key and then write some information derived
+    from the sanitised file. The branch could alter the ``structure`` key to
+    point at the new sanitised file without affecting the main pipeline.
+
+    .. note::
+
+        This component only operates on the pipeline state. Side effects are
+        not tracked and will not be reverted when the branch finishes.
+    """
+
+    ADDS = []
+    REMOVES = []
+    REQUIRED = []
+
+    def run(self, data, config=None, pipeline=None):
+        """Run a branch of the pipeline state."""
+        pipeline = self.pipeline
+        pipeline.config = self.config(config)
+        pipeline.start = copy.deepcopy(data)
+        pipeline.run()
+        return data
