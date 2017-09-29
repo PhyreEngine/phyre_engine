@@ -256,6 +256,10 @@ class Branch(PipelineComponent):
     from the sanitised file. The branch could alter the ``structure`` key to
     point at the new sanitised file without affecting the main pipeline.
 
+    To keep certain fields, set the `keep` parameter to a list of those fields.
+
+    :param list[str] keep: List of fields to keep from the branched pipeline.
+
     .. note::
 
         This component only operates on the pipeline state. Side effects are
@@ -266,10 +270,17 @@ class Branch(PipelineComponent):
     REMOVES = []
     REQUIRED = []
 
+    def __init__(self, pipeline, keep=(), discard_config=False):
+        super().__init__(pipeline, discard_config)
+        self.keep = keep
+
     def run(self, data, config=None, pipeline=None):
         """Run a branch of the pipeline state."""
         pipeline = self.pipeline
         pipeline.config = self.config(config)
         pipeline.start = copy.deepcopy(data)
-        pipeline.run()
+        branch_results = pipeline.run()
+        for field in self.keep:
+            if field in branch_results:
+                data[field] = branch_results[field]
         return data

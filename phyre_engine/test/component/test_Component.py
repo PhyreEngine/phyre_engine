@@ -280,3 +280,12 @@ class TestBranch(unittest.TestCase):
         pipe = phyre_engine.pipeline.Pipeline([component])
         Branch(pipe).run({})
         component.run.assert_called_once()
+
+    def test_branch_keep(self):
+        """Keep certain fields from the branch."""
+        component = self._AlteringComponent()
+        pipe = phyre_engine.pipeline.Pipeline([component])
+        start_pipe = {"foo": {"bar": "qux"}}
+        results = Branch(pipe, keep=('foo',)).run(start_pipe)
+        self.assertIn("foo", results)
+        self.assertEqual(results["foo"], {"bar": "baz"})
