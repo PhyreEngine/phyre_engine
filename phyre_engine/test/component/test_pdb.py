@@ -102,3 +102,20 @@ class TestConvertToTemplate(unittest.TestCase):
 
         # Something was written to the new file.
         fh_mock.write.assert_called()
+
+class TestTemplateMapping(unittest.TestCase):
+    """Test TemplateMapping component."""
+
+    def test_template_mapping(self):
+        """Read template mapping from template."""
+        template_in = io.StringIO(minimal.MINIMAL_PDB)
+        pdb_parser = Bio.PDB.PDBParser(QUIET=True)
+        template_struc = pdb_parser.get_structure("", template_in)[0]["A"]
+        template_buf = io.StringIO()
+        template = phyre_engine.tools.template.Template.build(template_struc)
+        template.write(template_buf)
+        template_buf.seek(0)
+
+        mapper = phyre_engine.component.pdb.TemplateMapping()
+        results = mapper.run({"structure": template_buf})
+        self.assertEqual(results["residue_mapping"], template.mapping)

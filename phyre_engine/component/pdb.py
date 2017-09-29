@@ -167,3 +167,19 @@ class ConvertToTemplate(Component):
         finally:
             file_handle.close()
         return data
+
+class TemplateMapping(Component):
+    """
+    Read the mapping between a template and the original residue IDs.
+    """
+
+    ADDS = ["residue_mapping"]
+    REQUIRED = ["structure"]
+    REMOVES = []
+
+    def run(self, data, config=None, pipeline=None):
+        """Read residue mapping from template."""
+        structure_file = self.get_vals(data)
+        template = phyre_engine.tools.template.Template.load(structure_file)
+        data["residue_mapping"] = template.mapping
+        return data

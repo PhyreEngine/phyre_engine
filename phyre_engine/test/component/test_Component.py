@@ -263,6 +263,7 @@ class TestBranch(unittest.TestCase):
 
         def run(self, data, config=None, pipeline=None):
             data["foo"]["bar"] = "baz"
+            return data
 
     def test_branch_copy(self):
         """Branched pipeline does not alter data in main branch."""
