@@ -238,7 +238,10 @@ class CS219Builder(Component):
             "informat": "a3m"
         }
         # Overwrite default options with explicit options if set
-        options.update(kwargs)
+        # TODO: Clean up handling of configuration options.
+        for option, value in kwargs.items():
+            if option in options:
+                options[option] = value
         self.options = options
 
         self.flags = list(args)
