@@ -20,19 +20,22 @@ class TestAddDSSP(unittest.TestCase):
     {query}
     """).format(query=minimal.CANONICAL_SEQ)
 
+    # Note the gaps in aa_dssp and ss_dssp. This is so we can test the gapping.
     AFTER_A3M = textwrap.dedent("""\
     >aa_dssp
-    {query}
+    {aa_dssp}
     >ss_dssp
-    HHEECC
+    HH-ECC
     >Query
     {query}
-    """).format(query=minimal.CANONICAL_SEQ)
+    """).format(
+        aa_dssp=minimal.CANONICAL_SEQ[:2] + "-" + minimal.CANONICAL_SEQ[3:],
+        query=minimal.CANONICAL_SEQ)
 
     SEC_STRUC = [
         {"res_id": 1, "assigned": "H"},
         {"res_id": 2, "assigned": "H"},
-        {"res_id": 3, "assigned": "E"},
+        # Note absence of residue 3. It should be gapped.
         {"res_id": 4, "assigned": "E"},
         {"res_id": 5, "assigned": "C"},
         {"res_id": 6, "assigned": "C"},

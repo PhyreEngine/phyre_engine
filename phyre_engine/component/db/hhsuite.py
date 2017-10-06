@@ -133,17 +133,19 @@ class AddDSSP(Component):
         sec_struc = sec_struc["dssp"]
 
         # Keep residues in the canonical sequence
-        ss_dssp = ""
-        aa_dssp = ""
         canonical_ids = set(template.canonical_indices)
+        ss_dssp = ["-"] * len(template.canonical_indices)
+        aa_dssp = ["-"] * len(template.canonical_indices)
         for ss_dict in sec_struc:
             ss_state = ss_dict["assigned"]
             res_id = ss_dict["res_id"]
 
             if res_id in canonical_ids:
                 residue = template.chain[res_id]
-                ss_dssp += ss_state
-                aa_dssp += Bio.SeqUtils.seq1(residue.get_resname())
+                ss_dssp[res_id - 1] = ss_state
+                aa_dssp[res_id - 1] = Bio.SeqUtils.seq1(residue.get_resname())
+        aa_dssp = "".join(aa_dssp)
+        ss_dssp = "".join(ss_dssp)
         self.update_a3m(a3m, ss_dssp, aa_dssp)
         return data
 
