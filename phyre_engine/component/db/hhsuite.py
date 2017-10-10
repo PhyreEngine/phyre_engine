@@ -132,18 +132,24 @@ class AddDSSP(Component):
         template = Template.load(structure)
         sec_struc = sec_struc["dssp"]
 
-        # Keep residues in the canonical sequence
-        canonical_ids = set(template.canonical_indices)
+        # Index secondary structure states by residue ID
+        ss_struc_dict = {ss["res_id"]: ss for ss in sec_struc}
+
+        # Default everything to a gap, so we have sequences of the correct
+        # length even if DSSP is missing an assignment.
         ss_dssp = ["-"] * len(template.canonical_indices)
         aa_dssp = ["-"] * len(template.canonical_indices)
-        for ss_dict in sec_struc:
-            ss_state = ss_dict["assigned"]
-            res_id = ss_dict["res_id"]
 
-            if res_id in canonical_ids:
-                residue = template.chain[res_id]
-                ss_dssp[res_id - 1] = ss_state
-                aa_dssp[res_id - 1] = Bio.SeqUtils.seq1(residue.get_resname())
+        # For each residue in the canonical sequence (which is what should be in
+        # the a3m file), get the SS state and set the corresponding char in the
+        # sequences.
+        for i, canonical_id in enumerate(template.canonical_indices):
+            if canonical_id in ss_struc_dict:
+                ss_state = ss_struc_dict[canonical_id]["assigned"]
+                residue = template.chain[canonical_id]
+                ss_dssp[i] = ss_state
+                aa_dssp[i] = Bio.SeqUtils.seq1(residue.get_resname())
+
         aa_dssp = "".join(aa_dssp)
         ss_dssp = "".join(ss_dssp)
         self.update_a3m(a3m, ss_dssp, aa_dssp)
