@@ -124,6 +124,14 @@ class PipelineComponent(Component):
         child pipeline configurations. This parameter may be passed as either a
         string (corresponding to an entry in the
         :py:class:`.ConfigurationPreference` enum) or as an enum value.
+
+    :param bool lazy_load: Lazily load pipelines passed as dicts. If this is
+        `True`, the child pipeline will be created when the `run` method is
+        called, which will allow it to use the runtime configuration. If lazy
+        loading is disabled, the pipeline will be loaded when this component is
+        instantiated, which will cause an exception if configuration values are
+        missing. If your pipeline is completely static, set this to `False` so
+        that any errors are made obvious as quickly as possible.
     """
     # pylint: disable=abstract-method
 
@@ -144,9 +152,13 @@ class PipelineComponent(Component):
         #: configuration of the child.
         DISCARD_PARENT = "discard"
 
-    def __init__(self, pipeline, config_mode="child"):
-        self._pipeline = pipeline
+    def __init__(self, pipeline, config_mode="child", lazy_load=True):
         self.config_mode = type(self).ConfigurationPreference(config_mode)
+
+        if not lazy_load and not isinstance(pipeline, phyre_engine.Pipeline):
+            self._pipeline = phyre_engine.Pipeline.load(pipeline)
+        else:
+            self._pipeline = pipeline
 
     def pipeline(self, runtime_config):
         """

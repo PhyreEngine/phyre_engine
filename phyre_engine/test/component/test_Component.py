@@ -93,6 +93,16 @@ class TestPipelineComponent(unittest.TestCase):
         sub_pipe = sub_pipe_cpt.pipeline({"baz": "qux"})
         self.assertDictEqual(sub_pipe.config, {"foo": "bar"})
 
+    def test_no_lazy_load(self):
+        """Lazily-loaded pipelines always use static config."""
+        mode = self.SubPipeline.ConfigurationPreference.PREFER_PARENT
+        sub_pipe_cpt = self.SubPipeline(self._EMPTY_PIPELINE, config_mode=mode,
+                                        lazy_load=False)
+
+        # Runtime config ignored
+        sub_pipe = sub_pipe_cpt.pipeline({"baz": "qux"})
+        self.assertDictEqual(sub_pipe.config, {"foo": "bar"})
+
 class TestMap(unittest.TestCase):
     """Test the phyre_engine.component.Map class."""
 
