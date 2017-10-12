@@ -55,29 +55,43 @@ class TestPipelineComponent(unittest.TestCase):
         def run(self, data, config=None, pipeline=None):
             pass
 
-    _RUNTIME_CONFIG = {"foo": "bar"}
-    _STATIC_CONFIG = {"baz": "qux"}
+    _STATIC_CONFIG = {"foo": "bar"}
+    _EMPTY_PIPELINE = {"components": [], "config": _STATIC_CONFIG}
 
-    def test_update_config(self):
+    def test_prefer_child_config(self):
         """Update runtime config with static config."""
-        pipeline = phyre_engine.pipeline.Pipeline(
-            [], config=self._STATIC_CONFIG)
-        sub_pipe = self.SubPipeline(pipeline)
+        mode = self.SubPipeline.ConfigurationPreference.PREFER_CHILD
+        sub_pipe_cpt = self.SubPipeline(self._EMPTY_PIPELINE, config_mode=mode)
 
-        self.assertDictEqual(
-            sub_pipe.config(self._RUNTIME_CONFIG),
-            {"foo": "bar", "baz": "qux"})
+        # Non-conflicting fields added
+        sub_pipe = sub_pipe_cpt.pipeline({"baz": "qux"})
+        self.assertDictEqual(sub_pipe.config, {"foo": "bar", "baz": "qux"})
 
-    def test_discard_config(self):
-        """Discard runtime config, replacing with static config."""
-        pipeline = phyre_engine.pipeline.Pipeline(
-            [], config=self._STATIC_CONFIG)
-        sub_pipe = self.SubPipeline(pipeline, discard_config=True)
+        # Static config wins conflicts
+        sub_pipe = sub_pipe_cpt.pipeline({"foo": "qux"})
+        self.assertDictEqual(sub_pipe.config, {"foo": "bar"})
 
-        self.assertDictEqual(
-            sub_pipe.config(self._RUNTIME_CONFIG),
-            self._STATIC_CONFIG)
+    def test_prefer_parent_config(self):
+        """Update static config with parent configuration."""
+        mode = self.SubPipeline.ConfigurationPreference.PREFER_PARENT
+        sub_pipe_cpt = self.SubPipeline(self._EMPTY_PIPELINE, config_mode=mode)
 
+        # Non-conflicting fields added
+        sub_pipe = sub_pipe_cpt.pipeline({"baz": "qux"})
+        self.assertDictEqual(sub_pipe.config, {"foo": "bar", "baz": "qux"})
+
+        # Runtime config wins conflicts
+        sub_pipe = sub_pipe_cpt.pipeline({"foo": "qux"})
+        self.assertDictEqual(sub_pipe.config, {"foo": "qux"})
+
+    def test_discard_parent_config(self):
+        """Runtime configuration is discarded."""
+        mode = self.SubPipeline.ConfigurationPreference.DISCARD_PARENT
+        sub_pipe_cpt = self.SubPipeline(self._EMPTY_PIPELINE, config_mode=mode)
+
+        # Runtime config completely ignored
+        sub_pipe = sub_pipe_cpt.pipeline({"baz": "qux"})
+        self.assertDictEqual(sub_pipe.config, {"foo": "bar"})
 
 class TestMap(unittest.TestCase):
     """Test the phyre_engine.component.Map class."""
