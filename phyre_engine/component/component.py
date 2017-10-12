@@ -1,10 +1,30 @@
 """Module containing the base class of components."""
-from abc import ABC, abstractmethod
+from abc import ABCMeta, abstractmethod
 import logging
 import phyre_engine
 import copy
+import enum
 
-class Component(ABC):
+class ComponentMeta(ABCMeta):
+    """Metaclass for components.
+
+    Currently, this class only exists to provide the :py:meth:`.qualname` class
+    property.
+    """
+
+    @property
+    def qualname(cls):
+        """
+        Qualified name of this component. See :py:meth:`.Component.qualname`.
+        """
+        qualname = cls.__qualname__
+        modname = cls.__module__
+        if "." in qualname:
+            return (modname, qualname)
+        else:
+            return ".".join([modname, qualname])
+
+class Component(metaclass=ComponentMeta):
     """Base class for all component classes."""
 
     @property
@@ -27,6 +47,23 @@ class Component(ABC):
         """Get a logger named for this component."""
         logger_name = ".".join((type(self).__module__, type(self).__qualname__))
         return logging.getLogger(logger_name)
+
+    @property
+    def qualname(self):
+        """Fully qualified name of this component.
+
+        For non-nested classes---that is, classes defined at the module
+        level---this will return a single string. For nested classes, it will
+        return a tuple containing the module and the qualified name of the
+        class. The return value of this function is suitable for use in the
+        ``components`` list of the dictionary passed to
+        :py:meth:`phyre_engine.pipeline.Pipeline.load`.
+
+        Returns:
+            Either a single string or a tuple containing the fully qualified
+            name of this component.
+        """
+        return type(self).qualname
 
     #: A string specifying a configuration section, or ``None`` if no external
     #: configuration is used.
@@ -82,46 +119,103 @@ class PipelineComponent(Component):
     :param pipeline: Either a :py:class:`phyre_engine.pipeline.Pipeline` class
         or a list of component names and arguments to be passed to
         :py:meth:`phyre_engine.pipeline.Pipeline.load`.
-    :param bool discard_config: If `True`, the pipeline configuration at runtime
-        is completely discarded. Otherwise, it is updated with the pipeline
-        configuration specified when this component is created.
+
+    :param str config_mode: Value describing how to combine the parent and
+        child pipeline configurations. This parameter may be passed as either a
+        string (corresponding to an entry in the
+        :py:class:`.ConfigurationPreference` enum) or as an enum value.
+
+    :param bool lazy_load: Lazily load pipelines passed as dicts. If this is
+        `True`, the child pipeline will be created when the `run` method is
+        called, which will allow it to use the runtime configuration. If lazy
+        loading is disabled, the pipeline will be loaded when this component is
+        instantiated, which will cause an exception if configuration values are
+        missing. If your pipeline is completely static, set this to `False` so
+        that any errors are made obvious as quickly as possible.
     """
     # pylint: disable=abstract-method
 
-    def __init__(self, pipeline, discard_config=False):
-        if not isinstance(pipeline, phyre_engine.Pipeline):
-            pipeline = phyre_engine.Pipeline.load(pipeline)
+    class ConfigurationPreference(enum.Enum):
+        """Order in which to load pipeline configurations."""
 
-        self.pipeline = pipeline
-        self.discard_config = discard_config
+        #: Treat the runtime configuration (the configuration of the parent
+        #: pipeline) as the "base" configuration, and override it with the
+        #: values in the ``config`` section of the child pipeline.
+        PREFER_CHILD = "child"
 
-        self.pipeline_config = pipeline.config
-        if self.pipeline_config is None:
-            self.pipeline_config = {}
+        #: Use the child pipeline (passed with the `pipeline` parameter of this
+        #: class) as the base configuration, and override it with properties
+        #: from the runtime (parent) configuration.
+        PREFER_PARENT = "parent"
 
-    def config(self, runtime_config):
-        """
-        If this component belongs to a pipeline, it will be associated with the
-        pipeline configuration, which is only known at runtime. The default
-        behaviour of this component is to base the configuration of the child
-        pipeline on the runtime configuration. If a pipeline configuration is
-        supplied to this class, it is used to update the runtime configuration.
-        This can be overridden by the `discard_config` parameter.
+        #: Discard the runtime configuration completely, and only retain the
+        #: configuration of the child.
+        DISCARD_PARENT = "discard"
 
-        This component should be used to set the configuration of the child
-        pipeline given a runtime configuration.
-        """
-        if self.discard_config:
-            return self.pipeline_config
+    def __init__(self, pipeline, config_mode="child", lazy_load=True):
+        self.config_mode = type(self).ConfigurationPreference(config_mode)
+
+        if not lazy_load and not isinstance(pipeline, phyre_engine.Pipeline):
+            self._pipeline = phyre_engine.Pipeline.load(pipeline)
         else:
-            pipe_config = self.pipeline_config
-            if runtime_config is not None:
-                updated_config = runtime_config.copy()
-            else:
-                updated_config = {}
-            updated_config.update(pipe_config)
-            return updated_config
+            self._pipeline = pipeline
 
+    def pipeline(self, runtime_config):
+        """
+        Retrieve the child pipeline.
+
+        If the child pipeline is an instance of
+        :py:class:`phyre_engine.pipeline.Pipeline`, it will be returned as-is
+        without the configuration being altered. If the child pipeline is a
+        dictionary, it will be loaded by
+        :py:meth:`phyre_engine.pipeline.Pipeline.load`. See
+        :py:class`.ConfigurationPreference` for details on how the pipeline
+        configurations will be merged.
+
+        :return: Loaded pipeline.
+        :rtype: :py:class:`phyre_engine.pipeline.Pipeline`
+        """
+        if not isinstance(self._pipeline, phyre_engine.Pipeline):
+            if runtime_config is None:
+                runtime_config = {}
+
+            pipeline_definition = copy.deepcopy(self._pipeline)
+            pipeline_definition["config"] = self.combine_configs(
+                runtime_config,
+                pipeline_definition.get("config", {}))
+
+            return phyre_engine.Pipeline.load(pipeline_definition)
+        return self._pipeline
+
+
+    def combine_configs(self, parent_config, child_config):
+        """
+        Combine parent and child configurations.
+
+        See :py:class:`.ConfigurationPreference` for details on how the
+        configurations will be combined.
+
+        :param dict parent_config: Configuration of the runtime (parent)
+            pipeline.
+
+        :param dict child_config: Configuration of the child pipeline.
+        """
+        # Alias to reduce typing
+        conf_enum = PipelineComponent.ConfigurationPreference
+
+        if self.config_mode == conf_enum.DISCARD_PARENT:
+            return child_config
+        elif self.config_mode == conf_enum.PREFER_CHILD:
+            base_config = copy.deepcopy(parent_config)
+            base_config.update(child_config)
+            return base_config
+        elif self.config_mode == conf_enum.PREFER_PARENT:
+            base_config = copy.deepcopy(child_config)
+            base_config.update(parent_config)
+            return base_config
+        else:
+            raise ValueError(
+                "Invalid value '{}' for config_mode.".format(self.config_mode))
 
 class Map(PipelineComponent):
     """
@@ -148,11 +242,10 @@ class Map(PipelineComponent):
     def run(self, data, config=None, pipeline=None):
         """Iterate over given field, applying a child pipeline."""
 
-        pipeline = self.pipeline
+        pipeline = self.pipeline(config)
         pipe_output = []
         for item in data[self.field]:
             pipeline.start = item
-            pipeline.config = self.config(config)
             pipeline_results = pipeline.run()
             if pipeline_results is not None:
                 if isinstance(pipeline_results, list):
@@ -185,8 +278,7 @@ class Conditional(PipelineComponent):
     def run(self, data, config=None, pipeline=None):
         """Run child pipeline if `self.field` is ``True``."""
         if self.field in data and data[self.field]:
-            pipeline = self.pipeline
-            pipeline.config = self.config(config)
+            pipeline = self.pipeline(config)
             pipeline.start = data
             pipe_output = pipeline.run()
             data.update(pipe_output)
@@ -231,8 +323,7 @@ class TryCatch(PipelineComponent):
     def run(self, data, config=None, pipeline=None):
         """Run child pipeline, ignoring errors."""
         try:
-            pipeline = self.pipeline
-            pipeline.config = self.config(config)
+            pipeline = self.pipeline(config)
             pipeline.start = data
             pipe_output = pipeline.run()
             return pipe_output
@@ -270,14 +361,13 @@ class Branch(PipelineComponent):
     REMOVES = []
     REQUIRED = []
 
-    def __init__(self, pipeline, keep=(), discard_config=False):
-        super().__init__(pipeline, discard_config)
+    def __init__(self, pipeline, keep=(), *args, **kwargs):
+        super().__init__(pipeline, *args, **kwargs)
         self.keep = keep
 
     def run(self, data, config=None, pipeline=None):
         """Run a branch of the pipeline state."""
-        pipeline = self.pipeline
-        pipeline.config = self.config(config)
+        pipeline = self.pipeline(config)
         pipeline.start = copy.deepcopy(data)
         branch_results = pipeline.run()
         for field in self.keep:

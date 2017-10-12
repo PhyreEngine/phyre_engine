@@ -182,8 +182,10 @@ class Pipeline:
 
     def _component_name(self, component):
         """A pretty name for a component based off the module and class name."""
-        return "{}.{}".format(component.__module__,
-                              type(component).__qualname__)
+        qualname = component.qualname
+        if isinstance(qualname, tuple):
+            qualname = ".".join(qualname)
+        return qualname
 
     def run(self, start_index=0):
         """Run this pipeline, executing each component in turn.
