@@ -1,10 +1,29 @@
 """Module containing the base class of components."""
-from abc import ABC, abstractmethod
+from abc import ABCMeta, abstractmethod
 import logging
 import phyre_engine
 import copy
 
-class Component(ABC):
+class ComponentMeta(ABCMeta):
+    """Metaclass for components.
+
+    Currently, this class only exists to provide the :py:meth:`.qualname` class
+    property.
+    """
+
+    @property
+    def qualname(cls):
+        """
+        Qualified name of this component. See :py:meth:`.Component.qualname`.
+        """
+        qualname = cls.__qualname__
+        modname = cls.__module__
+        if "." in qualname:
+            return (modname, qualname)
+        else:
+            return ".".join([modname, qualname])
+
+class Component(metaclass=ComponentMeta):
     """Base class for all component classes."""
 
     @property
@@ -27,6 +46,23 @@ class Component(ABC):
         """Get a logger named for this component."""
         logger_name = ".".join((type(self).__module__, type(self).__qualname__))
         return logging.getLogger(logger_name)
+
+    @property
+    def qualname(self):
+        """Fully qualified name of this component.
+
+        For non-nested classes---that is, classes defined at the module
+        level---this will return a single string. For nested classes, it will
+        return a tuple containing the module and the qualified name of the
+        class. The return value of this function is suitable for use in the
+        ``components`` list of the dictionary passed to
+        :py:meth:`phyre_engine.pipeline.Pipeline.load`.
+
+        Returns:
+            Either a single string or a tuple containing the fully qualified
+            name of this component.
+        """
+        return type(self).qualname
 
     #: A string specifying a configuration section, or ``None`` if no external
     #: configuration is used.
