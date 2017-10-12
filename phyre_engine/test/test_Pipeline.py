@@ -18,16 +18,6 @@ class MockNonNestedComponent(Component):
 class TestPipeline(unittest.TestCase):
     """Check that we can assemble, validate and execute pipelines."""
 
-    @staticmethod
-    def qualname_nested(cls):
-        """Utility method to get the qualified name of a nested class."""
-        return (cls.__module__, cls.__qualname__)
-
-    @staticmethod
-    def qualname_nonnested(cls):
-        """Utility method to get the qualified name of a non-nested class."""
-        return "{}.{}".format(cls.__module__, cls.__qualname__)
-
     class MockComponentStart(Component):
         """Seed a couple of input elements."""
         REQUIRED = []
@@ -127,12 +117,10 @@ class TestPipeline(unittest.TestCase):
         dict_pipe = {
             "start": {"abc": 123, "xyz": 789},
             "components": [
-                self.qualname_nested(TestPipeline.MockComponentStart), {
-                    self.qualname_nested(TestPipeline.MockComponentMid): [
-                        "foo", "bar", {"baz":"qux"}
-                    ]
-                },
-                self.qualname_nonnested(MockNonNestedComponent)
+                TestPipeline.MockComponentStart.qualname,
+                {TestPipeline.MockComponentMid.qualname: [
+                    "foo", "bar", {"baz": "qux"}]},
+                MockNonNestedComponent.qualname
             ]
         }
         pipe = Pipeline.load(dict_pipe)
@@ -211,7 +199,7 @@ class TestPipeline(unittest.TestCase):
         dict_pipe = {
             "config": {"mid": {"foo": 1, "bar": 2}},
             "components": [
-                {self.qualname_nested(TestPipeline.MockComponentMid): [{"bar": 3}]}
+                {TestPipeline.MockComponentMid.qualname: [{"bar": 3}]}
             ]
         }
         pipe = Pipeline.load(dict_pipe)

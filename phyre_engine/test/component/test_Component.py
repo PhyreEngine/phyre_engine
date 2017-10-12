@@ -124,7 +124,7 @@ class TestMap(unittest.TestCase):
 
     def test_map_load(self):
         """Run Map with Dict as input."""
-        components = ["{}.{}".format(Double.__module__, Double.__qualname__)]
+        components = [Double.qualname]
         map_cmpt = Map("values", {"components": components})
 
         results = map_cmpt.run(self.state)
