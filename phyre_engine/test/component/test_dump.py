@@ -8,6 +8,7 @@ import yaml
 import phyre_engine.component.dump as dump
 import Bio.SeqRecord
 import Bio.Seq
+import csv
 
 # This will be serialised...
 _PIPELINE_INPUT = {
@@ -127,3 +128,56 @@ class TestYamlDumper(DumperTestBase):
         """An exception should be raised for a range with step != 1."""
         with self.assertRaises(yaml.representer.RepresenterError):
             dump.Yaml(self.stream).run({"range": range(0, 10, 2)})
+
+class TestCsvDumper(unittest.TestCase):
+    """Test CSV dumper."""
+
+    _SAMPLE_DATA = [
+        {"a": 1, "b": 2, "c": 3},
+        {"a": 1, "b": 2},
+        {"a": 1, "b": 2, "c": None},
+        {"a": 1, "b": 2, "c": 3},
+        {"a": 1, "b": 2, "c": 3},
+    ]
+    _SAMPLE_PIPE = {"sample": _SAMPLE_DATA}
+
+    _EXPECTED_ROWS = [
+        ["a", "b", "c"],
+        ["1", "2", "3"],
+        ["1", "2", "MISSING"],
+        ["1", "2", "NULL"],
+        ["1", "2", "3"],
+        ["1", "2", "3"],
+    ]
+
+    def roundtrip(self, *args, **kwargs):
+        with io.StringIO("w+") as buffer:
+            csv_dumper = dump.Csv(file=buffer, *args, **kwargs)
+            pipeline = copy.deepcopy(self._SAMPLE_PIPE)
+            csv_dumper.run(pipeline)
+            buffer.seek(0)
+            reader = csv.reader(buffer)
+            rows = [row for row in reader]
+        return rows
+
+    def test_csv_default_fields(self):
+        """Round-trip sample data using default fields."""
+        results = self.roundtrip(
+            "sample",
+            null_placeholder="NULL", missing_placeholder="MISSING")
+        self.assertEqual(results, self._EXPECTED_ROWS)
+
+    def test_csv_explicit_fields(self):
+        """Round-trip sample data using pre-selected fields."""
+        results = self.roundtrip(
+            "sample", ("b", "c"),
+            null_placeholder="NULL", missing_placeholder="MISSING")
+        expected = [row[1:] for row in self._EXPECTED_ROWS]
+        self.assertEqual(results, expected)
+
+    def test_csv_no_header(self):
+        """Round-trip output with no header."""
+        results = self.roundtrip(
+            "sample", ("a", "b", "c"), header=False,
+            null_placeholder="NULL", missing_placeholder="MISSING")
+        self.assertEqual(results, self._EXPECTED_ROWS[1:])

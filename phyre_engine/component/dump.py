@@ -4,12 +4,16 @@ formats. By default, each dumper will write to standard output. The ``output``
 parameter may be set to either a file name or output stream to determine where
 the output will be written.
 """
+import csv
 import json.encoder
 import re
 import sys
+
+import Bio.SeqRecord
+
 from phyre_engine.component.component import Component
 from phyre_engine.tools.util import Stream
-import Bio.SeqRecord
+
 
 try:
     # Use libyaml if it is available
@@ -152,4 +156,82 @@ class Yaml(Dumper):
     def run(self, data, config=None, pipeline=None):
         with Stream(self.output, "w") as out_fh:
             yaml.dump(self._filter(data), out_fh, Dumper=YamlStateDumper)
+        return data
+
+class Csv(Component):
+    """
+    Dump a list in the pipeline state in CSV format.
+
+    :param str field: Field of the pipeline state to dump. This pipeline state
+        must contain a list in this field.
+
+    :param list[str] select: Fields to include in the output. If not specified,
+        all fields are used.
+
+    :param file: File name or file-like object to write to. Defaults to standard
+        output.
+
+    :param bool header: Whether or not to include a header field giving the
+        column names.
+
+    :param str null_placeholder: Written for fields containing `None`.
+
+    :param str missing_placeholder: Written for fields with missing data.
+
+    :param **csv_args: Extra arguments passed directly to the
+        :py:func:`csv.writer` function.
+    """
+    REQUIRED = []
+    ADDS = []
+    REMOVES = []
+
+    def __init__(self, field, select=None, file=sys.stdout, header=True,
+                 null_placeholder="NA", missing_placeholder="NA", **csv_args):
+        self.field = field
+        self.select = select
+        self.file = file
+        self.header = header
+        self.null_placeholder = null_placeholder
+        self.missing_placeholder = missing_placeholder
+        self.csv_args = csv_args
+
+    def _default_fields(self, data):
+        """Find all fields in the data slice."""
+        fields = set()
+        for record in data[self.field]:
+            fields.update(record.keys())
+        # Sort so subsequent runs give the same order.
+        return sorted(fields)
+
+    def _row(self, record, fields):
+        """
+        Convert a dictionary containing some fields into a row (list) to be
+        written. This will also fill the null and missing placeholders.
+        """
+        row = []
+        for field in fields:
+            if field not in record:
+                value = self.missing_placeholder
+            elif record[field] is None:
+                value = self.null_placeholder
+            else:
+                value = record[field]
+            row.append(value)
+        return row
+
+    def run(self, data, config=None, pipeline=None):
+        """Write CSV file."""
+
+        if self.select is not None:
+            select = self.select
+        else:
+            select = self._default_fields(data)
+
+        with Stream(self.file, "w") as csv_out:
+            writer = csv.writer(csv_out, **self.csv_args)
+            if self.header:
+                writer.writerow(select)
+            for record in data[self.field]:
+                writer.writerow(self._row(record, select))
+
         return data
