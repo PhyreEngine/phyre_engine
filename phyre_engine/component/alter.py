@@ -62,3 +62,20 @@ class Move(_AlterationComponent):
         data[self.to_field] = data[self.from_field]
         del data[self.from_field]
         return data
+
+class Set(_AlterationComponent):
+    """
+    Set a field in the pipeline state.
+
+    :param str field: Name of the field to set.
+    :param str value: Value to set
+    """
+
+    def __init__(self, field, value):
+        self.field = field
+        self.value = value
+
+    def run(self, data, config=None, pipeline=None):
+        """Set field in pipeline state."""
+        data[self.field] = self.value
+        return data

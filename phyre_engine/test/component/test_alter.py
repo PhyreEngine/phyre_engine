@@ -67,3 +67,12 @@ class TestMove(TestAlteration):
         self.assertDictEqual(
             result,
             {"foo": "bar", "qux": [{"frob": 1}, 2, 3]})
+
+class TestSet(TestAlteration):
+    """Test the Set component."""
+
+    def test_set(self):
+        """Set a component in the pipeline state."""
+        set_cpt = alter.Set("xyz", "123")
+        result = set_cpt.run(self.pipe_state)
+        self.assertEqual(result["xyz"], "123")
