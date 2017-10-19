@@ -33,6 +33,8 @@ RESUME_PIPELINE = "pipeline.pickle"
 class RemoteJobBase(metaclass=abc.ABCMeta):
     """
     Abstract base class representing remote jobs started by this module.
+
+    See :py:class:`.RemoteJob` for more information.
     """
 
     @property
@@ -58,7 +60,10 @@ class RemoteJob(RemoteJobBase):
     """
     Represents a remote job run using ``qsub``.
 
-    The state of the job is read from a single pickle file.
+    The state of the job is read from a single pickle file. If the state does
+    not contain the key ``qsub_complete``, which is set by
+    :py:mod:`phyre_engine.component.pbs.run` when a remote pipeline is executed,
+    a :py:exc:`.exception.UncompletedState` exception is raised.
 
     :param str job_id: Job ID, as assigned by ``qsub``.
     :param str state_file: File containing the pickled pipeline state.
@@ -81,11 +86,18 @@ class RemoteJob(RemoteJobBase):
             del data["qsub_complete"]
             return data
 
+    def __repr__(self):
+        return "<{name}(job_id={job_id}, state_file={state_file}>".format(
+            name=type(self).__name__,
+            job_id=self.job_id, state_file=self.state_file)
+
 class RemoteArrayJob(RemoteJobBase):
     """
     Represents a remote array job run using ``qsub`` with the ``-t`` option.
 
     The state of the job is read from multiple pickle files.
+
+    See :py:class:`.RemoteJob` for more information.
 
     :param str job_id: Job ID, as assigned by ``qsub``.
     :param list state_files: List of files containing the pickled pipeline
