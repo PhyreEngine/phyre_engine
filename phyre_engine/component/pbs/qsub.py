@@ -410,26 +410,15 @@ class Wait(Component):
         self._poll(data["qsub_jobs"])
         return data
 
-    def _poll(self, jobs):
-        # Get the job IDs that we are looking for
-        looking_for = set([j.id for j in jobs])
 
+    def _poll(self, our_jobs):
         while True:
-            # Read all jobs from qstat
-            qs_result = subprocess.run(
-                ["qstat", "-x"],
-                check=True, stdout=subprocess.PIPE)
-            stdout = qs_result.stdout.decode(sys.stdout.encoding)
-            xml_tree = ET.fromstring(stdout)
-
-            # We will stop polling if only have state "C" in here:
             job_states = set()
-            for job in xml_tree.findall("./Job"):
-                job_id = job.find("Job_Id").text
-                job_state = job.find("job_state").text
+            current_jobs = running_jobs()
 
-                if job_id in looking_for:
-                    job_states.add(job_state)
+            for looking_for in our_jobs:
+                if looking_for.id in current_jobs:
+                    job_states.add(current_jobs[looking_for.id])
 
             # If all our jobs are in the "C" state or they have disappeared
             # entirely (which happens when the scheduler crashes or the polling
@@ -591,3 +580,27 @@ class Detach(BaseQsub):
             data["qsub_jobs"] = []
         data["qsub_jobs"].append(job)
         return data
+
+def running_jobs():
+    """
+    Find the state of all jobs in the queue sysetm.
+
+    This function will run :command:`qstat` to find all jobs currently running
+    in the queue system.
+
+    :return: Dictionary of job states (e.g. ``R`` for "running", ``Q`` for
+        "queued") indexed by job ID.
+    :rtype: dict
+    """
+    qs_results = subprocess.run(
+        ["qstat", "-x"],
+        check=True, stdout=subprocess.PIPE,
+        universal_newlines=True)
+
+    xml_tree = ET.fromstring(qs_results.stdout)
+    jobs = {}
+    for job in xml_tree.findall("./Job"):
+        job_id = job.find("Job_Id").text
+        job_state = job.find("job_state").text
+        jobs[job_id] = job_state
+    return jobs
