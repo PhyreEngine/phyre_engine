@@ -545,7 +545,9 @@ class Wait(Component):
         self.poll_interval = poll_interval
 
     def run(self, data, config=None, pipeline=None):
-        self._poll(data["qsub_jobs"])
+        qsub_jobs = self.get_vals(data)
+        self.logger.debug("Waiting for %s to complete", qsub_jobs)
+        self._poll(qsub_jobs)
         return data
 
 
