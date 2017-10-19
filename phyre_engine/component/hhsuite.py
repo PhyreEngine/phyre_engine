@@ -12,6 +12,7 @@ import textwrap
 import re
 from phyre_engine.tools.template import Template
 import math
+from pathlib import Path
 
 class QueryType(Enum):
     """
@@ -50,17 +51,22 @@ class HHSuiteTool(Component):  #pylint: disable=abstract-method
     :param str bin_dir: Optional directory containing executable.
     :param str HHLIB: Optional HHLIB environment variable.
     :param QueryType input_type: Query type.
+    :param str cache_dir: If all output files are already present in this
+        directory, the tool will not be run. Set this to `None` to disable
+        caching.
     """
 
     CONFIG_SECTION = "hhsuite"
 
-    def __init__(self, tool, flags, options, bin_dir, HHLIB, input_type):
+    def __init__(self, tool, flags, options, bin_dir, HHLIB, input_type,
+                 cache_dir="."):
         self.name, self.tool = tool
         self.flags = flags
         self.options = options
         self.bin_dir = bin_dir
         self.HHLIB = HHLIB
         self.input_type = QueryType(input_type)
+        self.cache_dir = cache_dir
 
     @contextlib.contextmanager
     def set_input(self, data):
@@ -103,10 +109,10 @@ class HHSuiteTool(Component):  #pylint: disable=abstract-method
         return None
 
 
-    def set_output_key(self, data):
+    def output_keys(self):
         """
-        Set keys in the pipeline state depending on the options supplied to
-        hhblits. The following keys may be set:
+        Parse the command-line parameters of the tool to set the keys on the
+        command line pointing to output files. The following keys may be set:
 
         ``a3m``
             Set if the ``oa3m`` option is supplied.
@@ -120,23 +126,40 @@ class HHSuiteTool(Component):  #pylint: disable=abstract-method
         ``pairwise_fasta``
             Set if the ``Ofas`` option is supplied.
         """
+        output = {}
         a3m = self._find_option(r"^-?oa3m$")
         report = self._find_option(r"^(?:-?o|output)$")
         atab = self._find_option(r"^-?atab$")
         ofas = self._find_option(r"^-?Ofas$")
 
-        if a3m: data["a3m"] = a3m
-        if report: data["report"] = report
-        if atab: data["atab"] = atab
-        if ofas: data["pairwise_fasta"] = ofas
+        if a3m: output["a3m"] = a3m
+        if report: output["report"] = report
+        if atab: output["atab"] = atab
+        if ofas: output["pairwise_fasta"] = ofas
 
-        return data
+        return output
+
+    def cached(self):
+        """
+        Return `True` if caching is enabled and all output files already exist.
+        """
+        if self.cache_dir is None:
+            return False
+
+        for out_file in self.output_keys().values():
+            if not Path(self.cache_dir, out_file).exists():
+                return False
+
+        return True
 
     def execute(self, data):
         """
         Execute tool, writing query sequence to temporary file if
         necessary.
         """
+        if self.cached():
+            return
+
         with self.set_input(data) as options:
             cmd_line = self.tool(
                 (self.bin_dir, self.name),
@@ -186,7 +209,8 @@ class HHBlits(HHSuiteTool):
     def run(self, data, config=None, pipeline=None):
         """Build a sequence profile using hhblits."""
         super().execute(data)
-        return self.set_output_key(data)
+        data.update(self.output_keys())
+        return data
 
 class HHSearch(HHSuiteTool):
     """
@@ -215,7 +239,8 @@ class HHSearch(HHSuiteTool):
     def run(self, data, config=None, pipeline=None):
         """Search a profile database using hhsearch."""
         super().execute(data)
-        return self.set_output_key(data)
+        data.update(self.output_keys())
+        return data
 
 class ReportParser(Component):
     """
