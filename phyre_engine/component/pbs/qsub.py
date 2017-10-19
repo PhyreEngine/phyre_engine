@@ -79,7 +79,7 @@ class RemoteJob(RemoteJobBase):
             if "qsub_complete" not in data:
                 raise exception.UncompletedState(self.state_file)
             del data["qsub_complete"]
-            return data.data
+            return data
 
 class RemoteArrayJob(RemoteJobBase):
     """
