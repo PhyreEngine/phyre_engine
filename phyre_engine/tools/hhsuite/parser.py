@@ -143,7 +143,14 @@ class Report:
     def hits(self):
         """Return a list of :py:class:`.Hit` objects."""
         if self._hit_objs is None:
-            self._hit_objs = [self.Hit(**hit) for hit in self._hits]
+            self._hit_objs = []
+            for hit in self._hits:
+                # Default args: needed because old hhsearch versions might be
+                # missing fields.
+                args = {field: None for field in self.Hit._fields}
+                # Update with the arguments we actually know.
+                args.update(hit)
+                self._hit_objs.append(self.Hit(**args))
         return self._hit_objs
 
     @property
