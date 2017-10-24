@@ -8,7 +8,7 @@ class UncompletedState(Exception):
     Raised when a the output of a job does not contain a CompletedState object.
     """
 
-    _ERR_MSG = "Pickle file `{}' did not contain a CompletedState object."
+    _ERR_MSG = "Pickle file `{}' did not contain a 'qsub_complete' key."
 
     def __init__(self, pickle):
         super().__init__(self._ERR_MSG.format(pickle))

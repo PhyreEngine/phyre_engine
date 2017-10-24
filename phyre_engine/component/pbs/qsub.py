@@ -33,6 +33,8 @@ RESUME_PIPELINE = "pipeline.pickle"
 class RemoteJobBase(metaclass=abc.ABCMeta):
     """
     Abstract base class representing remote jobs started by this module.
+
+    See :py:class:`.RemoteJob` for more information.
     """
 
     @property
@@ -58,7 +60,10 @@ class RemoteJob(RemoteJobBase):
     """
     Represents a remote job run using ``qsub``.
 
-    The state of the job is read from a single pickle file.
+    The state of the job is read from a single pickle file. If the state does
+    not contain the key ``qsub_complete``, which is set by
+    :py:mod:`phyre_engine.component.pbs.run` when a remote pipeline is executed,
+    a :py:exc:`.exception.UncompletedState` exception is raised.
 
     :param str job_id: Job ID, as assigned by ``qsub``.
     :param str state_file: File containing the pickled pipeline state.
@@ -79,13 +84,20 @@ class RemoteJob(RemoteJobBase):
             if "qsub_complete" not in data:
                 raise exception.UncompletedState(self.state_file)
             del data["qsub_complete"]
-            return data.data
+            return data
+
+    def __repr__(self):
+        return "<{name}(job_id={job_id}, state_file={state_file}>".format(
+            name=type(self).__name__,
+            job_id=self.job_id, state_file=self.state_file)
 
 class RemoteArrayJob(RemoteJobBase):
     """
     Represents a remote array job run using ``qsub`` with the ``-t`` option.
 
     The state of the job is read from multiple pickle files.
+
+    See :py:class:`.RemoteJob` for more information.
 
     :param str job_id: Job ID, as assigned by ``qsub``.
     :param list state_files: List of files containing the pickled pipeline
@@ -309,6 +321,132 @@ class Slice(BaseQsub):
         data["qsub_jobs"].append(RemoteArrayJob(job_id, pickles, self.join_var))
         return data
 
+class Trickle(BaseQsub):
+    """
+    Slowly trickle jobs into a queueing system using :command:`qsub`.
+
+    This component slowly enqueues jobs to a queuing system. It will leave
+    `queue_interval` seconds between jobs, helping to avoid overloading the
+    scheduler. Once `max_jobs` jobs have been enqueued, this component will
+    begin polling :command:`qstat`. If the number of jobs in the system falls
+    below `max_jobs`, more jobs will be enqueued.
+
+    This component operates similarly to :py:class:`.Slice`, in that several
+    items are sliced out of an array and submitted as one job. The number of
+    jobs in each slice is controlled by the parameter `num_elements`. For the
+    sake of efficiency this should be chosen so that the first job submitted
+    will still be running when the first batch of jobs finish trickling in.
+
+    .. note::
+
+        This component will wait until all jobs are *enqueued*. You should
+        follow it with a :py:class:`.Wait` component if you wish to wait until
+        all jobs are *finished*.
+
+    .. warning::
+
+        This component does not submit array jobs, so an explicit `join_var`
+        parameter must be passed to any :py:class:`.LoadState` components
+        following this.
+
+    :param str split_var: The name of the list in the pipeline state that will
+        be split into jobs.
+
+    :param int max_jobs: Maximum number of jobs that will be allowed to run at
+        once.
+
+    :param int num_elements: Number of items to process in each job.
+
+    :param float queue_interval: Time in seconds to wait between submitting
+        each job.
+
+     :param float poll_interval: Time in seconds between polling qstat while
+         waiting.
+
+    .. seealso::
+
+        :py:class:`.BaseQsub`
+            For the remaining constructor parameters.
+    """
+    REQUIRED = []
+    ADDS = ["qsub_jobs"]
+    REMOVES = []
+
+    CONFIG_SECTION = "qsub"
+
+    def __init__(self, split_var, max_jobs, num_elements, queue_interval=1.0,
+                 poll_interval=30, *qsub_args, **qsub_kwargs):
+        super().__init__(*qsub_args, **qsub_kwargs)
+        self.split_var = split_var
+        self.max_jobs = max_jobs
+        self.num_elements = num_elements
+        self.queue_interval = queue_interval
+        self.poll_interval = poll_interval
+
+    def enqueue(self, pipeline_path, pipeline_state, start_index):
+        """
+        Enque elements starting at `start_index` with the pipelines state
+        `pipeline_state`.
+
+        :return: Remote job details
+        :rtype: :py:class:`.RemoteJob`
+        """
+        end_index = start_index + self.num_elements
+        state_slice = pipeline_state[self.split_var][start_index:end_index]
+
+        # Create a copy of the state with the correct slcie and save it.
+        sub_state = pipeline_state.copy()
+        sub_state[self.split_var] = state_slice
+        state_path = self.storage_dir / "state.{}-{}.pickle".format(
+            start_index, end_index)
+        self._save_state(state_path, sub_state)
+
+        # Generate the job script and run qsub
+        job_script = jobscript.StartScript(pipeline_path, state_path)
+        job_id = self._qsub(job_script, self.storage_dir)
+
+        return RemoteJob(job_id, state_path)
+
+    def num_running_jobs(self, our_jobs):
+        """
+        Returns the number of our jobs that are currently enqueued or running.
+        """
+        current_jobs = running_jobs()
+        num_jobs = 0
+        for job in our_jobs:
+            if job.id in current_jobs and current_jobs[job.id] in {"Q", "R"}:
+                num_jobs += 1
+        return num_jobs
+
+    def run(self, data, config=None, pipeline=None):
+        """Trickle jobs into qsub."""
+
+        qsub_jobs = []
+
+        # The pipeline is static across all jobs, so we can write it now
+        pipe_path = self.storage_dir / "pipeline.json"
+        self._save_pipeline(pipe_path, config)
+
+        # Pointer to the next chunk to be enqueued
+        slice_index = 0
+        while slice_index < len(data[self.split_var]):
+            num_jobs = self.num_running_jobs(qsub_jobs)
+            if num_jobs < self.max_jobs:
+                for _ in range(num_jobs, self.max_jobs):
+                    job = self.enqueue(pipe_path, data, slice_index)
+                    qsub_jobs.append(job)
+                    slice_index += self.num_elements
+                    if slice_index >= len(data[self.split_var]):
+                        break
+                    time.sleep(self.queue_interval)
+            else:
+                time.sleep(self.poll_interval)
+
+        if "qsub_jobs" not in data:
+            data["qsub_jobs"] = []
+        data["qsub_jobs"].extend(qsub_jobs)
+        return data
+
 
 class ContactNodes(BaseQsub):
     """
@@ -407,29 +545,20 @@ class Wait(Component):
         self.poll_interval = poll_interval
 
     def run(self, data, config=None, pipeline=None):
-        self._poll(data["qsub_jobs"])
+        qsub_jobs = self.get_vals(data)
+        self.logger.debug("Waiting for %s to complete", qsub_jobs)
+        self._poll(qsub_jobs)
         return data
 
-    def _poll(self, jobs):
-        # Get the job IDs that we are looking for
-        looking_for = set([j.id for j in jobs])
 
+    def _poll(self, our_jobs):
         while True:
-            # Read all jobs from qstat
-            qs_result = subprocess.run(
-                ["qstat", "-x"],
-                check=True, stdout=subprocess.PIPE)
-            stdout = qs_result.stdout.decode(sys.stdout.encoding)
-            xml_tree = ET.fromstring(stdout)
-
-            # We will stop polling if only have state "C" in here:
             job_states = set()
-            for job in xml_tree.findall("./Job"):
-                job_id = job.find("Job_Id").text
-                job_state = job.find("job_state").text
+            current_jobs = running_jobs()
 
-                if job_id in looking_for:
-                    job_states.add(job_state)
+            for looking_for in our_jobs:
+                if looking_for.id in current_jobs:
+                    job_states.add(current_jobs[looking_for.id])
 
             # If all our jobs are in the "C" state or they have disappeared
             # entirely (which happens when the scheduler crashes or the polling
@@ -591,3 +720,27 @@ class Detach(BaseQsub):
             data["qsub_jobs"] = []
         data["qsub_jobs"].append(job)
         return data
+
+def running_jobs():
+    """
+    Find the state of all jobs in the queue sysetm.
+
+    This function will run :command:`qstat` to find all jobs currently running
+    in the queue system.
+
+    :return: Dictionary of job states (e.g. ``R`` for "running", ``Q`` for
+        "queued") indexed by job ID.
+    :rtype: dict
+    """
+    qs_results = subprocess.run(
+        ["qstat", "-x"],
+        check=True, stdout=subprocess.PIPE,
+        universal_newlines=True)
+
+    xml_tree = ET.fromstring(qs_results.stdout)
+    jobs = {}
+    for job in xml_tree.findall("./Job"):
+        job_id = job.find("Job_Id").text
+        job_state = job.find("job_state").text
+        jobs[job_id] = job_state
+    return jobs
