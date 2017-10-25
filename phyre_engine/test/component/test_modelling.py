@@ -9,8 +9,9 @@ import textwrap
 import unittest
 import phyre_engine.tools.pdb as pdb
 import phyre_engine.test
-from phyre_engine.component.modelling import HomologyModeller
+from phyre_engine.component.modelling import HomologyModeller, SoedingSelect
 import Bio.PDB.PDBParser
+import collections
 
 DATA_DIR = os.path.join(os.path.dirname(phyre_engine.test.__file__), 'data')
 
@@ -117,6 +118,67 @@ class TestHomologyModeller(unittest.TestCase):
         self.assertAlmostEqual(
             model_residues[1]["CA"].get_coord()[0], 15.552, 3,
             msg="X coord of residue 3 inherited from template")
+
+class TestSoedingSelect(unittest.TestCase):
+    """Test the SoedingSelect component."""
+
+    # Stripped down for our purposes
+    Hit = collections.namedtuple("Hit", "i probab")
+
+    def test_trivial_nooverlap(self):
+        """
+        Choose structures in trivial alignment with no overlap.
+
+        Neither structure overlaps, so both should be chosen.
+        """
+        pipeline_state = {
+            "sequence": "AAAAA",
+            "templates": [
+                {"prob": 1.0, "alignment": [
+                    self.Hit(1, 1.0),
+                    self.Hit(2, 1.0)]},
+                {"prob": 1.0, "alignment": [
+                    self.Hit(4, 1.0),
+                    self.Hit(5, 1.0)]},
+            ]
+        }
+        selector = SoedingSelect()
+        results = selector.run(copy.deepcopy(pipeline_state))
+        self.assertEqual(results["templates"], pipeline_state["templates"])
+        self.assertEqual(
+            results["template_at_residue"], [
+                (1.0, pipeline_state["templates"][0]),
+                (1.0, pipeline_state["templates"][0]),
+                None,
+                (1.0, pipeline_state["templates"][1]),
+                (1.0, pipeline_state["templates"][1])])
+
+    def test_trivial_overlap(self):
+        """
+        Choose structures with high- and low-scoring overlapping templates.
+
+        The first template has a score of 1.0 for each residue, and the second
+        has a score of 0.1 The first template should be chosen and the second
+        discarded.
+        """
+
+        pipeline_state = {
+            "sequence": "AAAAA",
+            "templates": [
+                {"prob": 1.0,
+                 "alignment": [self.Hit(i, 1.0) for i in range(1, 6)]},
+                {"prob": 1.0,
+                 "alignment": [self.Hit(i, 0.1) for i in range(1, 6)]},
+            ]
+        }
+        selector = SoedingSelect()
+        results = selector.run(copy.deepcopy(pipeline_state))
+        self.assertEqual(results["templates"],
+                         [pipeline_state["templates"][0]])
+        self.assertEqual(
+            results["template_at_residue"],
+            [(1.0, pipeline_state["templates"][0])] * 5)
+
 
 if __name__ == "__main__":
     unittest.main()
