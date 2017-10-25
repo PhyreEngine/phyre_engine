@@ -9,7 +9,6 @@ import Bio.PDB.PDBIO
 import Bio.PDB.Residue
 from phyre_engine.component import Component
 import phyre_engine.tools.pdb as pdb
-from phyre_engine.component.db.db import ChainPDBBuilder
 from phyre_engine.tools.template import Template
 
 BACKBONE_ATOMS = {"N", "C", "CA", "O"} # Set of backbone atoms
