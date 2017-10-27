@@ -42,6 +42,7 @@ chosen by the `fields` parameter into ascending order.
 """
 from phyre_engine.component.component import Component
 import collections
+import random
 
 class Sort(Component):
     """
@@ -98,6 +99,31 @@ class Sort(Component):
             if key[0] not in self.SORT_DIRECTIONS:
                 raise ValueError(
                     "Invalid sort direction {} for key {}".format(key[0], i))
+
+class Shuffle(Component):
+    """
+    Randomly shuffle a field of the pipeline state.
+
+    :param field: Name of the field to shuffle. If this is a scalar value, it
+        must point to a field at the top of the pipeline state. To drill down
+        into nested objects, pass a list of identifiers.
+    """
+    ADDS = []
+    REMOVES = []
+    REQUIRED = []
+
+    def __init__(self, field, seed=None):
+        self.field = field
+        if is_scalar(self.field):
+            self.field = [self.field]
+        self.random = random.Random(seed)
+
+    def run(self, data, config=None, pipeline=None):
+        """Shuffle pipeline state."""
+        to_shuffle = get_nested(data, self.field)
+        self.random.shuffle(to_shuffle)
+        return data
+
 
 def get_nested(item, key):
     """
