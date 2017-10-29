@@ -260,6 +260,7 @@ class LoopModel(Component):
             loop_pssm = Path(tmpdir, "loop.pssm")
             query_fasta = Path(tmpdir, "query.fasta")
             model_list = Path(tmpdir, "model.list")
+            out_dir = Path(tmpdir, "loop")
 
             with model_list.open("w") as model_list_out:
                 for template in templates:
@@ -277,10 +278,15 @@ class LoopModel(Component):
                     "pssm": loop_pssm,
                     "query": query_fasta,
                     "model_list": model_list,
+                    # TODO: This is a hack to prevent the loop assembler
+                    # crashing when trying to create directories. It works
+                    # on tmpfs but not our network drives. Fix the root cause
+                    # later, but for now we need to get it working.
+                    "out_dir": out_dir,
                 })
             self.logger.debug("Running %s", command_line)
             subprocess.run(command_line, check=True)
+            shutil.move(str(out_dir), "loops")
         finally:
-            pass
-            # shutil.rmtree(tmpdir)
+            shutil.rmtree(tmpdir)
         return data
