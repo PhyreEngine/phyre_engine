@@ -134,10 +134,10 @@ class TestSoedingSelect(unittest.TestCase):
         pipeline_state = {
             "sequence": "AAAAA",
             "templates": [
-                {"prob": 1.0, "alignment": [
+                {"prob": 100.0, "alignment": [
                     self.Hit(1, 1.0),
                     self.Hit(2, 1.0)]},
-                {"prob": 1.0, "alignment": [
+                {"prob": 100.0, "alignment": [
                     self.Hit(4, 1.0),
                     self.Hit(5, 1.0)]},
             ]
@@ -165,9 +165,9 @@ class TestSoedingSelect(unittest.TestCase):
         pipeline_state = {
             "sequence": "AAAAA",
             "templates": [
-                {"prob": 1.0,
+                {"prob": 100.0,
                  "alignment": [self.Hit(i, 1.0) for i in range(1, 6)]},
-                {"prob": 1.0,
+                {"prob": 100.0,
                  "alignment": [self.Hit(i, 0.1) for i in range(1, 6)]},
             ]
         }

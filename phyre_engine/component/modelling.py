@@ -175,7 +175,7 @@ class SoedingSelect(Component):
             # Indices into the query of the alignment
             query_indices = np.array([pair.i - 1 for pair in alignment])
 
-            prob_homologous = template["prob"]
+            prob_homologous = template["prob"] / 100
             # Defined over each residue in the index
             local_scores = (np.array([pair.probab for pair in alignment])
                             * prob_homologous)
