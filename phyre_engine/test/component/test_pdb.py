@@ -7,6 +7,10 @@ import phyre_engine.component.pdb
 import phyre_engine.tools.pdb
 import phyre_engine.test.data.minimal_template as minimal
 from unittest.mock import MagicMock, sentinel
+import textwrap
+from pathlib import Path
+import shutil
+import copy
 
 class TestPDBSeq(unittest.TestCase):
     """Test conversion of PDB structure to sequence using PDBSeq."""
@@ -119,3 +123,39 @@ class TestTemplateMapping(unittest.TestCase):
         mapper = phyre_engine.component.pdb.TemplateMapping()
         results = mapper.run({"structure": template_buf})
         self.assertEqual(results["residue_mapping"], template.mapping)
+
+class TestFastResolutionLookup(unittest.TestCase):
+    """Test FastResolutionLookup component."""
+
+    X_RAY_STRUCTURE = textwrap.dedent("""\
+        # Some stuff to ignore
+        _reflns.d_resolution_high 2.2
+        """)
+
+    NMR_STRUCTURE = textwrap.dedent("""\
+        # No resolution field in here
+    """)
+
+    PIPELINE = {"templates": [{"PDB": "1xyz"}, {"PDB": "1abc"}]}
+
+    @classmethod
+    def setUpClass(cls):
+        """Create a temporary data directory containing dummy mmCIF files."""
+        cls.mmcif_dir = tempfile.mkdtemp("-resolution", "phyreengine-")
+        Path(cls.mmcif_dir, "xy").mkdir()
+        Path(cls.mmcif_dir, "ab").mkdir()
+        Path(cls.mmcif_dir, "xy", "1xyz.cif").write_text(cls.X_RAY_STRUCTURE)
+        Path(cls.mmcif_dir, "ab", "1abc.cif").write_text(cls.NMR_STRUCTURE)
+
+    @classmethod
+    def tearDownClass(cls):
+        """Remove temporary data directory."""
+        shutil.rmtree(cls.mmcif_dir)
+
+    def test_lookup(self):
+        """Read resolution data from X-ray structures."""
+        cmpt = phyre_engine.component.pdb.FastResolutionLookup(self.mmcif_dir)
+        results = cmpt.run(copy.deepcopy(self.PIPELINE))
+        templates = results["templates"]
+        self.assertAlmostEqual(templates[0]["resolution"], 2.2, places=1)
+        self.assertIsNone(templates[1]["resolution"])

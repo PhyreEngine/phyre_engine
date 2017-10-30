@@ -183,3 +183,51 @@ class TemplateMapping(Component):
         template = phyre_engine.tools.template.Template.load(structure_file)
         data["residue_mapping"] = template.mapping
         return data
+
+class FastResolutionLookup(Component):
+    """
+    Quickly look up the resolution of all templates from the source mmCIF
+    files.
+
+    This component loops over the ``templates`` list, looking up the best
+    resolution from the source mmCIF file. Each template must have the ``PDB``
+    field defined. The field ``resolution`` is added to each template. If
+    the template was not resolved by X-ray crystallography, the resoltion will
+    be set to `None`.
+
+    .. note::
+
+        The parser used here should work without any problems, but is fairly
+        primitive. It simply loops over the mmCIF files line by line, looking
+        for a line starting with ``_reflns.d_resolution_high``. This is fast,
+        but could fail with mmCIF files that are deliberately obfuscated.
+
+    :param str mmcif_dir: Root directory containing mmCIF files.
+    """
+    REQUIRED = ["templates"]
+    REMOVES = []
+    ADDS = []
+
+    def __init__(self, mmcif_dir):
+        self.mmcif_dir = mmcif_dir
+
+    def run(self, data, config=None, pipeline=None):
+        """Reading resolution information from mmCIF files."""
+        templates = self.get_vals(data)
+        cache = {}
+
+        for template in templates:
+            if template["PDB"] not in cache:
+                mmcif_file = phyre_engine.tools.pdb.find_pdb(
+                    template["PDB"], suffix_list=(".cif", ".cif.gz"),
+                    base_dir=self.mmcif_dir)
+                resolution = None
+                with phyre_engine.tools.pdb.open_pdb(mmcif_file) as mmcif_in:
+                    for line in mmcif_in:
+                        if line.startswith("_reflns.d_resolution_high"):
+                            resolution = float(line.split()[1])
+                            break
+                cache[template["PDB"]] = resolution
+
+            template["resolution"] = cache[template["PDB"]]
+        return data
