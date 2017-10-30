@@ -43,8 +43,10 @@ class TestSort(unittest.TestCase):
     def test_sort_nested_key(self):
         """Sort a nested list by a nested key, breaking ties."""
         cmpt = Sort(field=["parent", "templates"],
-                    keys=[["ascending", "score", 0],
-                          ["descending", "score", 1]])
+                    keys=[
+                        {"keys": ["score", 0]},
+                        {"keys": ["score", 1], "reverse": True},
+                    ])
         results = cmpt.run(copy.deepcopy(PIPE_STATE))
         self.assertListEqual(
             results["parent"]["templates"], [
@@ -54,6 +56,17 @@ class TestSort(unittest.TestCase):
                 {"score": (0.4, 0.2)},
                 {"score": (0.5, 0.5)},
             ])
+
+    def test_sort_allow_none(self):
+        """Test sorting with `allow_none` enabled."""
+        pipe_state = copy.deepcopy(PIPE_STATE)
+        pipe_state["numbers"] = [None] + pipe_state["numbers"] + [None]
+
+        cmpt = Sort(field="numbers", keys=[{"keys": [], "allow_none": True}])
+        results = cmpt.run(pipe_state)
+        self.assertListEqual(
+            results["numbers"],
+            sorted(PIPE_STATE["numbers"], reverse=False) + [None, None])
 
 
 class TestShuffle(unittest.TestCase):

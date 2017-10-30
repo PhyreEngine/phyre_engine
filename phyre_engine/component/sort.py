@@ -8,9 +8,11 @@ to the item being sorted
 
 The field on which items are sorted is selected by supplying a `keys` field.
 Keys are specified as a list of identifiers, allowing you to drill down into
-nested items. The first element of each key must be either ``ascending`` or
-``descending``, indicating the sort order. The primary sort happens according to
-the first key, then the second, and so on:
+nested items. The list of identifiers must be stored in the ``key`` field of a
+dictionary. Each dictionary also accepts a ``reverse`` field and a
+``allow_none`` field, which respectively reverse the sort order and allow `None`
+values when sorting. The primary sort happens according to the first key, then
+the second, and so on:
 
 >>> from phyre_engine.component.sort import Sort
 >>> pipe_state = {
@@ -23,9 +25,9 @@ the first key, then the second, and so on:
 ...     ]
 ... }
 >>> sort_component = Sort(field="templates", keys=[
-...     ["ascending", "scores", 0],
-...     ["descending", "scores", 1],
-    ])
+...     {"keys": ["scores", 0]},
+...     {"keys": ["scores", 1], "reverse": True},
+... ])
 >>> sort_component.run(pipe_state)
 >>> {
 ...     "templates": [
@@ -37,8 +39,8 @@ the first key, then the second, and so on:
 ...     ]
 ... }
 
-The default list of `keys` is `[["ascending"]]`, which will sort the list
-chosen by the `fields` parameter into ascending order.
+If the `keys` parameter is not defined, the list will be sorted into ascending
+order using the default comparison operators.
 """
 from phyre_engine.component.component import Component
 import collections
@@ -60,13 +62,14 @@ class Sort(Component):
     REMOVES = []
     REQUIRED = []
 
-    SORT_DIRECTIONS = ("ascending", "descending")
-
-    def __init__(self, field, keys=(("ascending",),)):
+    def __init__(self, field, keys=None):
         self.field = field
-        self.keys = keys
 
-        self.validate_keys()
+        if keys is None:
+            self.keys = [{"keys": []}]
+        else:
+            self.keys = keys
+
         # Convert scalar to list so we can use the same logic in "run"
         if is_scalar(self.field):
             self.field = [self.field]
@@ -76,29 +79,21 @@ class Sort(Component):
         to_sort = get_nested(data, self.field)
 
         # Normalise the keys into a list of lists. Then sort, running from the
-        # last to first, taking advantage of Python's 
+        # last to first, taking advantage of Python's stable sorting.
         for sort_key in reversed(self.keys):
-            reverse = True if sort_key[0] == "descending" else False
+            reverse = sort_key.get("reverse", False)
+
             # We can ignore this warning because we are calling the closure
             # immediately, not storing it for later.
             # pylint: disable=cell-var-from-loop
-            to_sort.sort(key=lambda i: get_nested(i, sort_key[1:]),
-                         reverse=reverse)
+            if sort_key.get("allow_none", False):
+                getter = lambda i: (i is None, get_nested(i, sort_key["keys"]))
+            else:
+                getter = lambda i: get_nested(i, sort_key["keys"])
+
+            to_sort.sort(key=getter, reverse=reverse)
         set_nested(data, self.field, to_sort)
         return data
-
-    def validate_keys(self):
-        """
-        Check that the list of keys are a list of lists, the first element of
-        which is either ``ascending`` or ``descending``.
-        """
-        if not self.keys:
-            raise ValueError("List of keys cannot be empty.")
-
-        for i, key in enumerate(self.keys):
-            if key[0] not in self.SORT_DIRECTIONS:
-                raise ValueError(
-                    "Invalid sort direction {} for key {}".format(key[0], i))
 
 class Shuffle(Component):
     """
