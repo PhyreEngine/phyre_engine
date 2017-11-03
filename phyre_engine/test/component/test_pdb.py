@@ -200,3 +200,23 @@ class TestRCSBMetadata(unittest.TestCase):
                     "resolution": 2.5,
                     "releaseDate": "1998-12-30",
                 })
+
+
+class TestFindStructure(unittest.TestCase):
+    """Test the FindStructure component."""
+
+    def test_find(self):
+        """Test that the path to a template makes sense."""
+        with unittest.mock.patch("pathlib.Path.exists", return_value=True):
+            ft = phyre_engine.component.pdb.FindStructure("nonexistent_path")
+            results = ft.run({"PDB": "12as", "chain": "A"})
+            self.assertEqual(
+                Path(results["structure"]),
+                Path("nonexistent_path/2a/12as/12as_A.pdb"))
+
+    def test_cannot_find(self):
+        """A FileNotFoundError should be raised when no template exists."""
+        with unittest.mock.patch("pathlib.Path.exists", return_value=False):
+            ft = phyre_engine.component.pdb.FindStructure("nonexistent_path")
+            with self.assertRaises(FileNotFoundError):
+                ft.run({"PDB": "12as", "chain": "A"})

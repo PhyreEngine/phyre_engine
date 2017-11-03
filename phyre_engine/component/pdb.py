@@ -358,3 +358,35 @@ class FastResolutionLookup(Component):
 
             template["resolution"] = cache[template["PDB"]]
         return data
+
+
+class FindStructure(Component):
+    """
+    Using the ``PDB`` and ``chain`` fields, find the corresponding structure
+    file on disk and add it to the pipeline state. By default, the
+    ``structure`` field is set; this can be changed by setting the `field`
+    parameter.
+
+
+    :param str template_dir: Root directory of the template library.
+    """
+
+    REQUIRED = ["PDB", "chain"]
+    ADDS = []
+    REMOVES = []
+
+    def __init__(self, template_dir, field="structure"):
+        self.template_dir = template_dir
+        self.field = field
+
+    def run(self, data, config=None, pipeline=None):
+        """Find template for a given PDB and chain."""
+        pdb_id, chain_id = self.get_vals(data)
+        pdb_path = phyre_engine.tools.pdb.find_pdb(
+            pdb_id, chain_id, self.template_dir)
+        if pdb_path is None:
+            raise FileNotFoundError(
+                "No template for PDB {} (chain {}) in {}".format(
+                    pdb_id, chain_id, self.template_dir))
+        data[self.field] = str(pdb_path)
+        return data
