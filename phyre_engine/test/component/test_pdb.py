@@ -11,6 +11,7 @@ import textwrap
 from pathlib import Path
 import shutil
 import copy
+import datetime
 
 class TestPDBSeq(unittest.TestCase):
     """Test conversion of PDB structure to sequence using PDBSeq."""
@@ -159,3 +160,43 @@ class TestFastResolutionLookup(unittest.TestCase):
         templates = results["templates"]
         self.assertAlmostEqual(templates[0]["resolution"], 2.2, places=1)
         self.assertIsNone(templates[1]["resolution"])
+
+
+@phyre_engine.test.requireFields("net_tests")
+class TestRCSBMetadata(unittest.TestCase):
+    """Test RCSBMetadata component."""
+    PDB = "11as"
+    CHAIN_OPTIONS = ("A", None)
+
+    def lookup(self, fields, pdb, chain=None):
+        """Return the 'metadata' returned by the lookup for 'fields'."""
+        meta = phyre_engine.component.pdb.RCSBMetadata(fields)
+        state = {"PDB": pdb}
+        if chain is not None:
+            state["chain"] = chain
+        results = meta.run(state)
+        return results["metadata"]
+
+    def test_lookup_string_types(self):
+        """Data for 11as is correct using string type names."""
+        fields = {"resolution": "float", "releaseDate": "date"}
+        for chain in self.CHAIN_OPTIONS:
+            with self.subTest(chain=chain):
+                # Repeat twice, once with chain and once without
+                meta = self.lookup(fields, self.PDB, chain)
+                self.assertEqual(meta, {
+                    "resolution": 2.5,
+                    "releaseDate": datetime.date(1998, 12, 30),
+                })
+
+    def test_lookup_callable_types(self):
+        """Data for 11as is correct using callable types."""
+        fields = {"resolution": float, "releaseDate": str}
+        for chain in self.CHAIN_OPTIONS:
+            with self.subTest(chain=chain):
+                # Repeat twice, once with chain and once without
+                meta = self.lookup(fields, self.PDB, chain)
+                self.assertEqual(meta, {
+                    "resolution": 2.5,
+                    "releaseDate": "1998-12-30",
+                })

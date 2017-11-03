@@ -9,6 +9,9 @@ import phyre_engine.tools.template
 from phyre_engine.component.component import Component
 import tempfile
 import os
+import datetime
+import urllib
+import xml.etree.ElementTree
 
 class StructureType(enum.Enum):
     """Possible structure types."""
@@ -183,6 +186,130 @@ class TemplateMapping(Component):
         template = phyre_engine.tools.template.Template.load(structure_file)
         data["residue_mapping"] = template.mapping
         return data
+
+class RCSBMetadata(Component):
+    """
+    Look up metadata about a PDB entry using the RCSB's web services.
+
+    This module uses the RCSB's `RESTful web services
+    <https://www.rcsb.org/pdb/software/rest.do>`_ to look up metadata about the
+    PDB ID given by the ``PDB`` field of the pipeline state. If the field
+    ``chain`` is present metadata for that particular chain is retrieved. For a
+    list of fields, see https://www.rcsb.org/pdb/results/reportField.do.
+    Metadata will be stored in the ``metadata`` dictionary.
+
+    The RCSB's web services do not provide any metadata about type, so you will
+    need to explicitly supply the type of the fields you require. This is done
+    by specifying fields and types as a mapping. The following types are
+    available:
+
+    int
+        Integer number.
+    float
+        Real number.
+    str
+        Arbitrary text.
+    date
+        A date.
+
+    Custom types may be passed by supplying a callable rather than the name of
+    a type to the constructor.
+
+    .. warning::
+
+        Parsing a date will cause a :py:class:`date.date` object to be stored
+        in the pipeline state, which will cause errors when it is serialised.
+        If you only need the date for display purposes, it is recommended that
+        you parse it as text (``str``). If you do parse it as a ``date``,
+        remove it from the pipeline state before serialisation.
+
+    >>> from phyre_engine.component.pdb import RCSBMetadata
+    >>> meta = RCSBMetadata({
+    ...     "resolution": "float",
+    ...     "releaseDate": "date",
+    ... })
+    >>> meta.run({"PDB": "11as"})
+    >>> {"PDB": "11as", "metadata": {
+    ...     "resolution": 2.5,
+    ...     "releaseDate": date(1998, 12, 30),
+    ... }
+
+    :param list[str] field: List of fields to look up.
+    """
+    REQUIRED = ["PDB"]
+    ADDS = ["metadata"]
+    REMOVES = []
+
+    #: Mapping of type names to conversion functions.
+    VALUE_TYPES = {
+        "int": int,
+        "float": float,
+        "str": str,
+        "date": lambda date_str: datetime.datetime.strptime(
+            date_str, "%Y-%m-%d").date()
+    }
+
+    #: Format string used to build the REST URL.
+    REST_URL = (
+        "https://www.rcsb.org/pdb/rest/customReport.xml?pdbids={pdbids}"
+        "&customReportColumns={columns}"
+        "&service=wsfile"
+        "&format=xml"
+    )
+
+    def __init__(self, fields):
+        self.fields = fields
+
+    def run(self, data, config=None, pipeline=None):
+        """Retrieve metadata from RCSB."""
+
+        # Always retrieve the structureId so we can look up the correct
+        # template. Not used right now, but it has no overhead and might be
+        # useful in the future.
+        columns = ["structureId"]
+
+        # Include chain if available
+        pdb_id = data["PDB"]
+        if "chain" in data:
+            pdb_id += "." + data["chain"]
+            # Include chain length to force the web service to list all chains.
+            # Otherwise, it can default to not listing *any* chains. We include
+            # the chain ID to enable reverse lookup of templates for mapping
+            # the response back onto the pipeline state.
+            columns += ["chainId", "chainLength"]
+        columns += list(self.fields.keys())
+
+        if "metadata" not in data:
+            data["metadata"] = {}
+
+        # Retrieve data
+        url = self.REST_URL.format(
+            pdbids=pdb_id,
+            columns=",".join(columns))
+        with urllib.request.urlopen(url) as rest_data:
+            root = xml.etree.ElementTree.parse(rest_data)
+
+        records = root.findall("record")
+        for record in records:
+            for child in record:
+                # Discard the "namespace" in the tag. It's not an actual XML
+                # namespace: I think it indicates the report this field would
+                # usually be a part of.
+                tag = child.tag
+                value = child.text
+                if "." in tag:
+                    tag = tag.split(".")[-1]
+
+                if tag in self.fields:
+                    if callable(self.fields[tag]):
+                        value = self.fields[tag](value)
+                    else:
+                        converter = self.VALUE_TYPES[self.fields[tag]]
+                        value = converter(value)
+                    data["metadata"][tag] = value
+        return data
+
+
 
 class FastResolutionLookup(Component):
     """
