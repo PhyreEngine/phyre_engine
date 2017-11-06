@@ -78,6 +78,11 @@ class Filter(Component):
 
     :param str replace_expr: JMESPath expression that will be used to
         replace the result of `list_expr`.
+
+    .. seealso::
+
+        :py:class:`.JMESExtensions`
+            For a full list of available extension functions.
     """
     REQUIRED = []
     ADDS = []
@@ -97,6 +102,10 @@ class Filter(Component):
         def _func_root(self, expr):
             """Evaluate the JMESPath `expr` relative to `self.root`."""
             return jmespath.search(expr, self.root)
+
+        @jmespath.functions.signature({"types": []})
+        def _func_toordinal(self, date):
+            return date.toordinal()
 
     def __init__(self, list_expr, replace_expr):
         self.list_expr = list_expr

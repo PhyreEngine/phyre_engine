@@ -2,6 +2,7 @@
 import unittest
 import phyre_engine.component.filter as filters
 import copy
+import datetime
 
 class TestListFilters(unittest.TestCase):
     """Test Whitelist and Blacklist filter components."""
@@ -50,3 +51,20 @@ class TestFilter(unittest.TestCase):
         self.assertEqual(
             results["top"]["templates"],
             self.PIPELINE_STATE["templates"][0:1])
+
+    def test_toordinal(self):
+        """Test filtering by "toordinal" function."""
+        state = {
+            "today": datetime.date(1990, 1, 1),
+            "events": [
+                {"what": "foo", "when": datetime.date(1990, 1, 1)},
+                {"what": "bar", "when": datetime.date(1989, 12, 31)},
+                {"what": "baz", "when": datetime.date(1990, 1, 2)},
+            ]
+        }
+        filt = filters.Filter(
+            "events", "events[?toordinal(when) > toordinal(root('today'))]")
+        results = filt.run(state)
+        self.assertEqual(
+            results["events"],
+            [{"what": "baz", "when": datetime.date(1990, 1, 2)}])
