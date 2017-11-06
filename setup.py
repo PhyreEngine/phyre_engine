@@ -51,7 +51,8 @@ setup(
         "biopython>=1.70",
         "numpy",
         "scipy",
-        "PyYAML"
+        "PyYAML",
+        "jmespath>=0.9.3"
     ],
     entry_points={
         "console_scripts": [

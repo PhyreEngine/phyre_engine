@@ -1,8 +1,9 @@
 """Tests components in the phyre_engine.component.filter module."""
 import unittest
 import phyre_engine.component.filter as filters
+import copy
 
-class TestFilters(unittest.TestCase):
+class TestListFilters(unittest.TestCase):
     """Test Whitelist and Blacklist filter components."""
     _STATE = {"foo": "bar", "baz": "qux"}
 
@@ -17,3 +18,35 @@ class TestFilters(unittest.TestCase):
         blacklist = filters.Blacklist("foo")
         new_state = blacklist.run(self._STATE.copy())
         self.assertDictEqual(new_state, {"baz": "qux"}, "Filtered foo")
+
+class TestFilter(unittest.TestCase):
+    """Test the Filter component."""
+
+    PIPELINE_STATE = {"TM": 0.5, "templates": [
+        {"name": "foo", "TM": 0.3},
+        {"name": "bar", "TM": 0.6},
+    ]}
+
+    def setUp(self):
+        """Create `self.pipeline_state` that can be arbitrarily mutated."""
+        self.pipeline_state = copy.deepcopy(self.PIPELINE_STATE)
+
+    def test_filter(self):
+        """Filter elements with ``TM < self.pipeline_state["TM"]``."""
+        filt = filters.Filter("templates", "templates[?TM < root('TM')]")
+        results = filt.run(self.pipeline_state)
+        self.assertEqual(
+            results["templates"],
+            self.PIPELINE_STATE["templates"][0:1])
+
+    def test_nested_filter(self):
+        """Filter a nested list."""
+        self.pipeline_state["top"] = {
+            "templates": self.pipeline_state["templates"]}
+        del self.pipeline_state["templates"]
+        filt = filters.Filter("top.templates",
+                              "top.templates[?TM < root('TM')]")
+        results = filt.run(self.pipeline_state)
+        self.assertEqual(
+            results["top"]["templates"],
+            self.PIPELINE_STATE["templates"][0:1])
