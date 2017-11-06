@@ -1,5 +1,6 @@
 """Module containing components for loading a pipeline state from a file."""
 import json
+import pickle
 try:
     # Use libyaml if it is available
     import yaml
@@ -38,5 +39,15 @@ class Yaml(Loader):
     def run(self, data, config=None, pipeline=None):
         with Stream(self.input_source, "r") as in_fh:
             loaded = yaml.load(in_fh, SafeLoader)
+            data.update(loaded)
+        return data
+
+class Pickle(Loader):
+    """Load pipeline state from a pickled state."""
+
+    def run(self, data, config=None, pipeline=None):
+        """Load pipeline state from pickle."""
+        with Stream(self.input_source, "rb") as in_fh:
+            loaded = pickle.load(in_fh)
             data.update(loaded)
         return data
