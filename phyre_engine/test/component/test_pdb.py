@@ -170,12 +170,13 @@ class TestRCSBMetadata(unittest.TestCase):
 
     def lookup(self, fields, pdb, chain=None):
         """Return the 'metadata' returned by the lookup for 'fields'."""
-        meta = phyre_engine.component.pdb.RCSBMetadata(fields)
-        state = {"PDB": pdb}
+        meta = phyre_engine.component.pdb.RCSBMetadata(fields,
+                                                       chain is not None)
+        state = {"templates": [{"PDB": pdb}]}
         if chain is not None:
-            state["chain"] = chain
+            state["templates"][0]["chain"] = chain
         results = meta.run(state)
-        return results["metadata"]
+        return results["templates"][0]["metadata"]
 
     def test_lookup_string_types(self):
         """Data for 11as is correct using string type names."""
