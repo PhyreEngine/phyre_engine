@@ -81,17 +81,13 @@ class Sort(Component):
         # Normalise the keys into a list of lists. Then sort, running from the
         # last to first, taking advantage of Python's stable sorting.
         for sort_key in reversed(self.keys):
-            reverse = sort_key.get("reverse", False)
-
             # We can ignore this warning because we are calling the closure
             # immediately, not storing it for later.
             # pylint: disable=cell-var-from-loop
-            if sort_key.get("allow_none", False):
-                getter = lambda i: (i is None, get_nested(i, sort_key["keys"]))
-            else:
-                getter = lambda i: get_nested(i, sort_key["keys"])
-
-            to_sort.sort(key=getter, reverse=reverse)
+            reverse = sort_key.get("reverse", False)
+            allow_none = sort_key.get("allow_none", False)
+            key_fn = getter(sort_key["keys"], allow_none)
+            to_sort.sort(key=key_fn, reverse=reverse)
         set_nested(data, self.field, to_sort)
         return data
 
@@ -119,6 +115,21 @@ class Shuffle(Component):
         self.random.shuffle(to_shuffle)
         return data
 
+def getter(key, allow_none):
+    """
+    Returns a function that gives the value of the nested key `key` from the
+    dict `item`. If `allow_none` is `True`, then `None` is a valid value of the
+    key.
+    """
+    if allow_none:
+        def get_key(item):
+            val = get_nested(item, key)
+            return (val is None, val)
+    else:
+        def get_key(item):
+            val = get_nested(item, key)
+            return val
+    return get_key
 
 def get_nested(item, key):
     """
