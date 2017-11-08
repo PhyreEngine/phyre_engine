@@ -144,7 +144,7 @@ class TestCsvDumper(unittest.TestCase):
     _EXPECTED_ROWS = [
         ["a", "b", "c"],
         ["1", "2", "3"],
-        ["1", "2", "MISSING"],
+        ["1", "2", "NULL"],
         ["1", "2", "NULL"],
         ["1", "2", "3"],
         ["1", "2", "3"],
@@ -152,7 +152,7 @@ class TestCsvDumper(unittest.TestCase):
 
     def roundtrip(self, *args, **kwargs):
         with io.StringIO("w+") as buffer:
-            csv_dumper = dump.Csv(file=buffer, *args, **kwargs)
+            csv_dumper = dump.Csv(*args, file=buffer, **kwargs)
             pipeline = copy.deepcopy(self._SAMPLE_PIPE)
             csv_dumper.run(pipeline)
             buffer.seek(0)
@@ -163,21 +163,21 @@ class TestCsvDumper(unittest.TestCase):
     def test_csv_default_fields(self):
         """Round-trip sample data using default fields."""
         results = self.roundtrip(
-            "sample",
-            null_placeholder="NULL", missing_placeholder="MISSING")
+            "sample[]",
+            null_placeholder="NULL")
         self.assertEqual(results, self._EXPECTED_ROWS)
 
     def test_csv_explicit_fields(self):
         """Round-trip sample data using pre-selected fields."""
         results = self.roundtrip(
-            "sample", ("b", "c"),
-            null_placeholder="NULL", missing_placeholder="MISSING")
+            "sample[].{b: b, c: c}",
+            null_placeholder="NULL")
         expected = [row[1:] for row in self._EXPECTED_ROWS]
         self.assertEqual(results, expected)
 
     def test_csv_no_header(self):
         """Round-trip output with no header."""
         results = self.roundtrip(
-            "sample", ("a", "b", "c"), header=False,
-            null_placeholder="NULL", missing_placeholder="MISSING")
+            "sample[].{a: a, b: b, c: c}", header=False,
+            null_placeholder="NULL")
         self.assertEqual(results, self._EXPECTED_ROWS[1:])

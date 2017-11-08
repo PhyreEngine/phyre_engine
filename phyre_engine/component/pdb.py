@@ -352,23 +352,28 @@ class RCSBMetadata(Component):
                 template_map[template_key] = []
             template_map[template_key].append(template)
             pdb_ids.add(pdb_id)
-        return pdb_ids, columns, template_map
+        return list(pdb_ids), columns, template_map
 
     def run(self, data, config=None, pipeline=None):
         """Retrieve metadata from RCSB."""
         templates = self.get_vals(data)
         pdb_ids, columns, template_map = self._identifiers(templates)
 
-        # Retrieve data
-        url = self.REST_URL.format(
-            pdbids=",".join(pdb_ids),
-            columns=",".join(columns))
+        # Work in groups of 512 IDs at a time to avoid getting a 400 bad
+        # request response.
+        records = []
+        while pdb_ids:
+            pdb_ids_chunk = pdb_ids[-512:]
+            pdb_ids[-512:] = []
+            # Retrieve data
+            url = self.REST_URL.format(
+                pdbids=",".join(pdb_ids_chunk),
+                columns=",".join(columns))
+            self.logger.debug("Retrieving %s", url)
+            with urllib.request.urlopen(url) as rest_data:
+                root = xml.etree.ElementTree.parse(rest_data)
+            records.extend(list(root.findall("record")))
 
-        self.logger.debug("Retrieving %s", url)
-        with urllib.request.urlopen(url) as rest_data:
-            root = xml.etree.ElementTree.parse(rest_data)
-
-        records = root.findall("record")
         for record in records:
             record_dict = self._record_dict(record)
             template_key = self._record_key(record_dict)

@@ -13,6 +13,7 @@ import Bio.SeqRecord
 
 from phyre_engine.component.component import Component
 from phyre_engine.tools.util import Stream
+import jmespath
 
 
 try:
@@ -162,11 +163,8 @@ class Csv(Component):
     """
     Dump a list in the pipeline state in CSV format.
 
-    :param str field: Field of the pipeline state to dump. This pipeline state
-        must contain a list in this field.
-
-    :param list[str] select: Fields to include in the output. If not specified,
-        all fields are used.
+    :param str jmespath_expr: JMESPath expression returning a list of
+        dictionaries, all values of which will be written to the output file.
 
     :param file: File name or file-like object to write to. Defaults to standard
         output.
@@ -174,9 +172,8 @@ class Csv(Component):
     :param bool header: Whether or not to include a header field giving the
         column names.
 
-    :param str null_placeholder: Written for fields containing `None`.
-
-    :param str missing_placeholder: Written for fields with missing data.
+    :param str null_placeholder: Written for fields containing `None` of
+        missing fields.
 
     :param **csv_args: Extra arguments passed directly to the
         :py:func:`csv.writer` function.
@@ -185,53 +182,34 @@ class Csv(Component):
     ADDS = []
     REMOVES = []
 
-    def __init__(self, field, select=None, file=sys.stdout, header=True,
-                 null_placeholder="NA", missing_placeholder="NA", **csv_args):
-        self.field = field
-        self.select = select
+    def __init__(self, jmespath_expr, file=sys.stdout, header=True,
+                 null_placeholder="NA", **csv_args):
+        self.jmespath_expr = jmespath_expr
         self.file = file
         self.header = header
         self.null_placeholder = null_placeholder
-        self.missing_placeholder = missing_placeholder
         self.csv_args = csv_args
 
-    def _default_fields(self, data):
-        """Find all fields in the data slice."""
-        fields = set()
-        for record in data[self.field]:
-            fields.update(record.keys())
-        # Sort so subsequent runs give the same order.
-        return sorted(fields)
-
-    def _row(self, record, fields):
+    def _fill_placeholders(self, record):
         """
-        Convert a dictionary containing some fields into a row (list) to be
-        written. This will also fill the null and missing placeholders.
+        Fill all `None`s in a dictionary with `self.null_placeholder`.
         """
-        row = []
-        for field in fields:
-            if field not in record:
-                value = self.missing_placeholder
-            elif record[field] is None:
-                value = self.null_placeholder
-            else:
-                value = record[field]
-            row.append(value)
-        return row
+        for key in list(record.keys()):
+            if record[key] is None:
+                record[key] = self.null_placeholder
 
     def run(self, data, config=None, pipeline=None):
         """Write CSV file."""
-
-        if self.select is not None:
-            select = self.select
-        else:
-            select = self._default_fields(data)
+        results = jmespath.search(self.jmespath_expr, data)
 
         with Stream(self.file, "w") as csv_out:
-            writer = csv.writer(csv_out, **self.csv_args)
+            writer = csv.DictWriter(
+                csv_out, sorted(results[0].keys()),
+                restval=self.null_placeholder)
             if self.header:
-                writer.writerow(select)
-            for record in data[self.field]:
-                writer.writerow(self._row(record, select))
+                writer.writeheader()
+            for record in results:
+                self._fill_placeholders(record)
+                writer.writerow(record)
 
         return data
