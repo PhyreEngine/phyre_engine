@@ -1,7 +1,6 @@
 import os
 from pathlib import Path
 import unittest
-import subprocess
 import tempfile
 
 import phyre_engine.test
@@ -13,16 +12,13 @@ DATA_DIR = os.path.join(os.path.dirname(phyre_engine.test.__file__), 'data')
 class TestTMAlign(unittest.TestCase):
     """Test common methods for TMAlign tools."""
 
-    @unittest.skipIf(
-        subprocess.run(
-            "TMalign", shell=True,
-            stderr=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL).returncode != 0,
-        'TMalign not found on the system PATH')
+    @phyre_engine.test.requireFields(["tmalign"], ["tools"])
     def test_runner(self):
         """Try running TMalign"""
+        # pylint: disable=unsubscriptable-object
+        tmalign_exec = phyre_engine.test.config["tools"]["tmalign"]
         pdb = str(Path(DATA_DIR, "pdb_chains/2a/12as_A.pdb"))
-        tmalign = sa.TMAlign()
+        tmalign = sa.TMAlign(tmalign=tmalign_exec)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             result = tmalign.align(pdb, pdb, str(Path(tmpdir, "sup")))
@@ -78,7 +74,7 @@ TM-score= 0.91243 (if normalized by length of Chain_2)
 DDGYSSYVLLQEQILTVKRSFSEALEKELNLVEVRAPILFRVGDGTQD-------AVQVPVKAIPNASFEVVHSLAKWKRRTLANYKFAPGHGLYTHMTALRVDD-VLDNIHSVVVDQWDWEMVMKDDQRNLAFLKEVVCKVYAAIRKTELAVCEKYKQKPILPETIQFVHAEHLLLAYPNLTAKEREREIAREYGAVFLIGIGA-VLS--------------SLSS-----LKGLNGDILLYNPTLDDSLEVSSMGIRVNAEALRHQISLTGDDSLLKSEWHQQLLNGEFPQTVGGGIGQSRMVMFMLRKKHIGEVQCSVWPEEIR-KKH-NL
 
 '''
-        result = sa.TMAlignment.parse_str(test_output, False, "sup")
+        result = sa.TMAlign.Result.parse_str(test_output, False, "sup")
         self.assertTupleEqual(result.length, (327, 304), "Parsed length")
         self.assertAlmostEqual(
             result.tm[0], 0.85066, 6, "Parsed first TM")
@@ -101,8 +97,8 @@ DDGYSSYVLLQEQILTVKRSFSEALEKELNLVEVRAPILFRVGDGTQD-------AVQVPVKAIPNASFEVVHSLAKWKR
             'DDGYSSYVLLQEQILTVKRSFSEALEKELNLVEVRAPILFRVGDGTQD-------AVQVPVKAIPNASFEVVHSLAKWKRRTLANYKFAPGHGLYTHMTALRVDD-VLDNIHSVVVDQWDWEMVMKDDQRNLAFLKEVVCKVYAAIRKTELAVCEKYKQKPILPETIQFVHAEHLLLAYPNLTAKEREREIAREYGAVFLIGIGA-VLS--------------SLSS-----LKGLNGDILLYNPTLDDSLEVSSMGIRVNAEALRHQISLTGDDSLLKSEWHQQLLNGEFPQTVGGGIGQSRMVMFMLRKKHIGEVQCSVWPEEIR-KKH-NL',
             "Parsed template sequence")
 
-        #Test EInverted
-        result = sa.TMAlignment.parse_str(test_output, True, "sup")
+        #Test Inverted
+        result = sa.TMAlign.Result.parse_str(test_output, True, "sup")
         self.assertTupleEqual(result.length, (304, 327), "Parsed length")
         self.assertAlmostEqual(
             result.tm[1], 0.85066, 6, "Parsed first TM")
