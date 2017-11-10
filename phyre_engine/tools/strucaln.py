@@ -4,6 +4,7 @@ Contains structural alignment algorithms.
 import re
 import subprocess
 import sys
+from phyre_engine.tools.util import NamedTuple
 
 class TMAlign(object):
     '''
@@ -162,3 +163,132 @@ class TMAlign(object):
         stdout = tmalign_out.stdout.decode(sys.stdout.encoding)
         return self.Result.parse_str(
             stdout, self.invert, superpos)
+
+class TMScore:
+    """
+    Align two structures with identical sequences using
+    `TMscore <https://zhanglab.ccmb.med.umich.edu/TM-score/>`_.
+    """
+
+    class Result(NamedTuple):
+        """
+        The results of an alignment by TMscore.
+
+        All scores are normalised by the length of the second structure.
+
+        :ivar tm: TM-scores (float between 0 and 1) of the alignment.
+
+        :ivar maxsub: MaxSub score (between 0 and 1) for the alignment.
+
+        :ivar gdt_ts: Global Distance Test (Total Score), between 0 and 1.
+
+        :ivar gdt_ha: Global Distance Test (High Accuracy), between 0 and 1.
+
+        :ivar sequences: 2-tuple of sequences, showing the alignment
+            between each structure.
+        """
+        FIELDS = "tm maxsub gdt_ts gdt_ha sequences superpositions"
+        _TMSCORE_REGEX = re.compile(r"^TM-score\s+=\s*([0-9.]+)",
+                                    re.MULTILINE)
+        _MAXSUB_REGEX = re.compile(r"^MaxSub-score=\s*([0-9.]+)",
+                                   re.MULTILINE)
+        _GDT_TS_REGEX = re.compile(r"^GDT-TS-score=\s*([0-9.]+)",
+                                   re.MULTILINE)
+        _GDT_HA_REGEX = re.compile(r"^GDT-HA-score=\s*([0-9.]+)",
+                                   re.MULTILINE)
+        _SEQUENCE_LINES = (-4, -2)
+
+        _SUP_SUFFIXES = ["", "_atm"]
+
+        @classmethod
+        def parse_str(cls, str_result, sup_prefix=None):
+            """
+            Parse the standard output of TMscore.
+
+            The parameter `str_result` should look like this:
+
+            .. code-block:: none
+
+                 *****************************************************************************
+                 *                                 TM-SCORE                                  *
+                 * A scoring function to assess the similarity of protein structures         *
+                 * Based on statistics:                                                      *
+                 *       0.0 < TM-score < 0.17, random structural similarity                 *
+                 *       0.5 < TM-score < 1.00, in about the same fold                       *
+                 * Reference: Yang Zhang and Jeffrey Skolnick, Proteins 2004 57: 702-710     *
+                 * For comments, please email to: zhng@umich.edu                             *
+                 *****************************************************************************
+
+                Structure1: 2n77_B/04-  Length=   23
+                Structure2: 2n77_B/04-  Length=   23 (by which all scores are normalized)
+                Number of residues in common=   23
+                RMSD of  the common residues=    0.000
+
+                TM-score    = 1.0000  (d0= 0.68)
+                MaxSub-score= 1.0000  (d0= 3.50)
+                GDT-TS-score= 1.0000 %(d<1)=1.0000 %(d<2)=1.0000 %(d<4)=1.0000 %(d<8)=1.0000
+                GDT-HA-score= 1.0000 %(d<0.5)=1.0000 %(d<1)=1.0000 %(d<2)=1.0000 %(d<4)=1.0000
+
+                 -------- rotation matrix to rotate Chain-1 to Chain-2 ------
+                 i          t(i)         u(i,1)         u(i,2)         u(i,3)
+                 1      0.0000000000   1.0000000000  -0.0000000000   0.0000000000
+                 2      0.0000000000   0.0000000000   1.0000000000  -0.0000000000
+                 3     -0.0000000000  -0.0000000000   0.0000000000   1.0000000000
+
+                Superposition in the TM-score: Length(d<5.0)= 23  RMSD=  0.00
+                (":" denotes the residue pairs of distance < 5.0 Angstrom)
+                ETERAAVAIQSQFRKFQKKKAGS
+                :::::::::::::::::::::::
+                ETERAAVAIQSQFRKFQKKKAGS
+                12345678901234567890123
+
+            :return: TMscore results
+            :rtype: :py:class:`.TMScore.Result`
+            """
+            # I think data model magic in NamedTuple is breaking pylint.
+            # pylint: disable=no-member
+
+            # Get non-empty lines
+            lines = [l for l in str_result.split("\n") if l]
+            sequences = tuple([lines[i] for i in cls._SEQUENCE_LINES])
+
+            superpositions = None
+            if sup_prefix is not None:
+                superpositions = [sup_prefix + suffix
+                                  for suffix in cls._SUP_SUFFIXES]
+
+            return cls(
+                tm=float(cls._TMSCORE_REGEX.search(str_result).group(1)),
+                maxsub=float(cls._MAXSUB_REGEX.search(str_result).group(1)),
+                gdt_ts=float(cls._GDT_TS_REGEX.search(str_result).group(1)),
+                gdt_ha=float(cls._GDT_HA_REGEX.search(str_result).group(1)),
+                sequences=sequences,
+                superpositions=superpositions
+            )
+
+    def __init__(self, tmscore="TMscore"):
+        self.tmscore = tmscore
+
+    def align(self, file1, file2, superpos=None):
+        """
+        Align PDB files `file1` and `file2` using TMscore.
+
+        :param str file1: PDB file 1.
+
+        :param str file2: PDB file 2. Scores are normalised by the length of
+            this protein.
+
+        :param str superpos: Prefix used for superposition files. If `None`,
+            no superposition files are generated.
+        """
+
+        cmd_line = [self.tmscore, file1, file2]
+
+        #Generate superposition?
+        if superpos is not None:
+            cmd_line.extend(["-o", superpos])
+
+        tmalign_out = subprocess.run(cmd_line, stdout=subprocess.PIPE,
+                                     check=True, universal_newlines=True)
+        # pylint: disable=no-member
+        return self.Result.parse_str(tmalign_out.stdout, superpos)
