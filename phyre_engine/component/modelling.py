@@ -218,8 +218,9 @@ class LoopModel(Component):
     """
     Use Alex Herbert's loop modeler to fill in as many gaps as possible.
 
-    :param str bin_dir: Location of the ``assembler.loop`` executable.
+    :param str bin_dir: Location of the loop modelling executable.
     :param str config: Loop modeller configuration file.
+    :param str executable: Name of the executable to run, under `bin_dir`.
     """
 
     # TODO: Write a component to transfer top-level keys to lower levels so
@@ -237,9 +238,10 @@ class LoopModel(Component):
         "model_list": "l",
     }, long_prefix="-")
 
-    def __init__(self, bin_dir, config):
+    def __init__(self, bin_dir, config, executable="assembler.loop"):
         self.bin_dir = bin_dir
         self.config = config
+        self.executable = executable
 
     def convert_ascii_pssm(self, pssm, output):
         """
@@ -270,7 +272,7 @@ class LoopModel(Component):
             loop_pssm = Path(tmpdir, "loop.pssm")
             query_fasta = Path(tmpdir, "query.fasta")
             model_list = Path(tmpdir, "model.list")
-            out_dir = Path(tmpdir, "loop")
+            out_dir = Path("loop")
 
             with model_list.open("w") as model_list_out:
                 for template in templates:
@@ -282,21 +284,27 @@ class LoopModel(Component):
                 print(">{name}\n{sequence}\n".format(**data), file=query_out)
 
             command_line = self.LOOP_MODELLER(
-                executable=(self.bin_dir, "assembler.loop"),
+                executable=(self.bin_dir, self.executable),
                 options={
                     "config": self.config,
                     "pssm": loop_pssm,
                     "query": query_fasta,
                     "model_list": model_list,
-                    # TODO: This is a hack to prevent the loop assembler
-                    # crashing when trying to create directories. It works
-                    # on tmpfs but not our network drives. Fix the root cause
-                    # later, but for now we need to get it working.
                     "out_dir": out_dir,
                 })
             self.logger.debug("Running %s", command_line)
             subprocess.run(command_line, check=True)
-            shutil.move(str(out_dir), "loops")
+
+            # Replace "model" field of each template with the first loop model.
+            for i, template in enumerate(templates):
+                model_idx = i + 1
+                model_path = (out_dir
+                              / "model.{}".format(model_idx)
+                              / "model.1.pdb")
+                if not model_path.exists():
+                    err_msg = "Loop-modelled file '{:s}' does not exist"
+                    raise FileNotFoundError(err_msg.format(model_path))
+                template["model"] = str(model_path)
         finally:
             shutil.rmtree(tmpdir)
         return data
