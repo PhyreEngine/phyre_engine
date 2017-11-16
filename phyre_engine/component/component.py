@@ -235,9 +235,10 @@ class Map(PipelineComponent):
     ADDS = []
     REMOVES = []
 
-    def __init__(self, field, *args, **kwargs):
+    def __init__(self, field, *args, discard=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.field = field
+        self.discard = discard
 
     def run(self, data, config=None, pipeline=None):
         """Iterate over given field, applying a child pipeline."""
@@ -247,7 +248,7 @@ class Map(PipelineComponent):
         for item in data[self.field]:
             pipeline.start = item
             pipeline_results = pipeline.run()
-            if pipeline_results is not None:
+            if pipeline_results is not None and not self.discard:
                 if isinstance(pipeline_results, list):
                     pipe_output.extend(pipeline_results)
                 else:
