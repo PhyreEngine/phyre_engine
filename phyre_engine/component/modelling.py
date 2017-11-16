@@ -63,38 +63,44 @@ class HomologyModeller(Component):
             pdb_id = template["PDB"]
             chain = template["chain"]
 
-            template_file = pdb.pdb_path(pdb_id, ".pdb", chain, self.chain_dir)
-            db_template = Template.load(template_file)
-
-            model_name = "model from {}_{}".format(pdb_id, chain)
-            model_structure = Bio.PDB.Structure.Structure(model_name)
-            model_model = Bio.PDB.Model.Model(1)
-            model_chain = Bio.PDB.Chain.Chain("A")
-            model_model.add(model_chain)
-            model_structure.add(model_model)
-
-            for residue_pair in alignment:
-                # Residue indices
-                i, j = residue_pair[0:2]
-
-                # Residue ID from canonical sequence map
-                j_id = db_template.canonical_indices[j - 1]
-
-                # Template residue
-                template_res = db_template.chain[j_id]
-
-                query_res_type = Bio.SeqUtils.seq3(query_seq[i - 1]).upper()
-                query_res = Bio.PDB.Residue.Residue(
-                    (" ", i, " "),
-                    query_res_type, " ")
-                for atom in template_res:
-                    if atom.get_name() in BACKBONE_ATOMS:
-                        query_res.add(atom.copy())
-                model_chain.add(query_res)
 
             model_file = self.model_name.format(**template)
-            pdb_io.set_structure(model_structure)
-            pdb_io.save(model_file)
+
+            if not Path(model_file).exists():
+                self.logger.debug("Creating model file %s", model_file)
+
+                template_file = pdb.pdb_path(
+                    pdb_id, ".pdb", chain, self.chain_dir)
+                db_template = Template.load(template_file)
+
+                model_name = "model from {}_{}".format(pdb_id, chain)
+                model_structure = Bio.PDB.Structure.Structure(model_name)
+                model_model = Bio.PDB.Model.Model(1)
+                model_chain = Bio.PDB.Chain.Chain("A")
+                model_model.add(model_chain)
+                model_structure.add(model_model)
+
+                for residue_pair in alignment:
+                    # Residue indices
+                    i, j = residue_pair[0:2]
+
+                    # Residue ID from canonical sequence map
+                    j_id = db_template.canonical_indices[j - 1]
+
+                    # Template residue
+                    template_res = db_template.chain[j_id]
+
+                    query_res_type = Bio.SeqUtils.seq3(query_seq[i - 1]).upper()
+                    query_res = Bio.PDB.Residue.Residue(
+                        (" ", i, " "),
+                        query_res_type, " ")
+                    for atom in template_res:
+                        if atom.get_name() in BACKBONE_ATOMS:
+                            query_res.add(atom.copy())
+                    model_chain.add(query_res)
+
+                pdb_io.set_structure(model_structure)
+                pdb_io.save(model_file)
             template["model"] = model_file
         return data
 
