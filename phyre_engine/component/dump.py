@@ -14,6 +14,7 @@ import Bio.SeqRecord
 from phyre_engine.component.component import Component
 from phyre_engine.tools.util import Stream, NamedTuple
 import jmespath
+from phyre_engine.component.jmespath import JMESExtensions
 
 
 try:
@@ -195,7 +196,8 @@ class Csv(Component):
 
     def run(self, data, config=None, pipeline=None):
         """Write CSV file."""
-        results = jmespath.search(self.jmespath_expr, data)
+        jmespath_opts = jmespath.Options(custom_functions=JMESExtensions(data))
+        results = jmespath.search(self.jmespath_expr, data, jmespath_opts)
 
         with Stream(self.file, "w") as csv_out:
             writer = csv.DictWriter(
