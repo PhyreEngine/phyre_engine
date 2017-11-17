@@ -15,6 +15,7 @@ from phyre_engine.component.component import Component
 from phyre_engine.tools.util import Stream, NamedTuple
 import jmespath
 from phyre_engine.component.jmespath import JMESExtensions
+import datetime
 
 
 try:
@@ -46,6 +47,8 @@ class JsonStateEncoder(json.JSONEncoder):
             return serialise_seqrecord(o)
         elif isinstance(o, range) and o.step == 1:
             return serialise_range(o)
+        elif isinstance(o, datetime.date):
+            return serialise_date(o)
         elif isinstance(o, NamedTuple):
             return tuple(o)
         else:
@@ -63,6 +66,7 @@ class YamlStateDumper(SafeDumper):
         super().__init__(*args, **kwargs)
         self.add_representer(Bio.SeqRecord.SeqRecord, self._serialise_seqrecord)
         self.add_representer(range, self._serialise_range)
+        self.add_representer(datetime.date, self._serialise_date)
         self.add_multi_representer(NamedTuple, self._serialise_named_tuple)
 
     @staticmethod
@@ -84,6 +88,12 @@ class YamlStateDumper(SafeDumper):
             serialise_range(range_obj))
 
     @staticmethod
+    def _serialise_date(dumper, date):
+        return dumper.represent_scalar(
+            "tag:yaml.org,2002:str",
+            serialise_date(date))
+
+    @staticmethod
     def _serialise_named_tuple(dumper, tuple_obj):
         return dumper.represent_sequence(
             "tag:yaml.org,2002:seq",
@@ -96,6 +106,10 @@ def serialise_seqrecord(record):
 def serialise_range(range_obj):
     """Return a tuple of ``(stop, start)`` values."""
     return (range_obj.start, range_obj.stop)
+
+def serialise_date(date):
+    """Serialise a date object into ISO8601 format."""
+    return date.isoformat()
 
 class Dumper(Component):
     """

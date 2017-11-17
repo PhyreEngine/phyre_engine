@@ -1,6 +1,7 @@
 """Tests for phyre_engine.component.dump module."""
 
 import copy
+import datetime
 import io
 import unittest
 import json
@@ -17,7 +18,8 @@ _PIPELINE_INPUT = {
     "seq": Bio.SeqRecord.SeqRecord(
         Bio.Seq.Seq("AHHEG"),
         id="foo", description="desc"),
-    "range": range(0, 100)
+    "range": range(0, 100),
+    "date": datetime.date(1990, 1, 1),
 }
 
 # Into this:
@@ -25,7 +27,8 @@ _PIPELINE_OUTPUT = {
     "foo": "bar",
     "baz": [1, 2, 3],
     "seq": ">foo desc\nAHHEG\n",
-    "range": [0, 100]
+    "range": [0, 100],
+    "date": "1990-01-01",
 }
 
 class DumperTestBase(unittest.TestCase):
@@ -54,6 +57,8 @@ class DumperTestBase(unittest.TestCase):
             self.assertSequenceEqual(parsed["baz"], self.expected["baz"])
         if "range" in parsed:
             self.assertSequenceEqual(parsed["range"], self.expected["range"])
+        if "date" in parsed:
+            self.assertEqual(parsed["date"], self.expected["date"])
 
 class TestJsonDumper(DumperTestBase):
     """Test JSON dumper."""
@@ -85,6 +90,7 @@ class TestJsonDumper(DumperTestBase):
         del self.expected["foo"]
         del self.expected["baz"]
         del self.expected["range"]
+        del self.expected["date"]
         self._verify_dump()
 
     def test_range_exception(self):
@@ -122,6 +128,7 @@ class TestYamlDumper(DumperTestBase):
         del self.expected["foo"]
         del self.expected["baz"]
         del self.expected["range"]
+        del self.expected["date"]
         self._verify_dump()
 
     def test_range_exception(self):
