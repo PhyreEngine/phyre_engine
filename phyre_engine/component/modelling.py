@@ -269,31 +269,35 @@ class LoopModel(Component):
             tmpdir = tempfile.mkdtemp("-loop", "phyreengine-")
             self.logger.debug("Loop modelling using tmpdir: %s", tmpdir)
 
-            loop_pssm = Path(tmpdir, "loop.pssm")
-            query_fasta = Path(tmpdir, "query.fasta")
-            model_list = Path(tmpdir, "model.list")
             out_dir = Path("loop")
 
-            with model_list.open("w") as model_list_out:
-                for template in templates:
-                    print(str(Path(template["model"]).resolve()),
-                          file=model_list_out)
-            with loop_pssm.open("w") as loop_out:
-                self.convert_ascii_pssm(pssm["ascii"], loop_out)
-            with query_fasta.open("w") as query_out:
-                print(">{name}\n{sequence}\n".format(**data), file=query_out)
+            # Attempt to use existing models if the output directory exists.
+            if not out_dir.exists():
+                loop_pssm = Path(tmpdir, "loop.pssm")
+                query_fasta = Path(tmpdir, "query.fasta")
+                model_list = Path(tmpdir, "model.list")
 
-            command_line = self.LOOP_MODELLER(
-                executable=(self.bin_dir, self.executable),
-                options={
-                    "config": self.config,
-                    "pssm": loop_pssm,
-                    "query": query_fasta,
-                    "model_list": model_list,
-                    "out_dir": out_dir,
-                })
-            self.logger.debug("Running %s", command_line)
-            subprocess.run(command_line, check=True)
+                with model_list.open("w") as model_list_out:
+                    for template in templates:
+                        print(str(Path(template["model"]).resolve()),
+                              file=model_list_out)
+                with loop_pssm.open("w") as loop_out:
+                    self.convert_ascii_pssm(pssm["ascii"], loop_out)
+                with query_fasta.open("w") as query_out:
+                    print(">{name}\n{sequence}\n".format(**data),
+                          file=query_out)
+
+                command_line = self.LOOP_MODELLER(
+                    executable=(self.bin_dir, self.executable),
+                    options={
+                        "config": self.config,
+                        "pssm": loop_pssm,
+                        "query": query_fasta,
+                        "model_list": model_list,
+                        "out_dir": out_dir,
+                    })
+                self.logger.debug("Running %s", command_line)
+                subprocess.run(command_line, check=True)
 
             # Replace "model" field of each template with the first loop model.
             for i, template in enumerate(templates):
