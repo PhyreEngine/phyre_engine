@@ -120,6 +120,12 @@ class PipelineComponent(Component):
         or a list of component names and arguments to be passed to
         :py:meth:`phyre_engine.pipeline.Pipeline.load`.
 
+    :param components: List of component names and arguments to be passed to
+        :py:meth:`phyre_engine.pipeline.Pipeline.load`. *Either* this or
+        `pipeline` must be supplied. This parameter exists purely for the sake
+        of convenience: it is equivalent to supplying the `pipeline` parameter
+        with the same components and no extra configuration.
+
     :param str config_mode: Value describing how to combine the parent and
         child pipeline configurations. This parameter may be passed as either a
         string (corresponding to an entry in the
@@ -152,8 +158,15 @@ class PipelineComponent(Component):
         #: configuration of the child.
         DISCARD_PARENT = "discard"
 
-    def __init__(self, pipeline, config_mode="child", lazy_load=True):
+    def __init__(self, pipeline=None, config_mode="child", lazy_load=True,
+                 components=None):
         self.config_mode = type(self).ConfigurationPreference(config_mode)
+
+        if (pipeline, components).count(None) != 1:
+            raise ValueError(
+                "Supply one and only one of 'pipeline' or 'components'")
+        if components is not None:
+            pipeline = {"components": components}
 
         if not lazy_load and not isinstance(pipeline, phyre_engine.Pipeline):
             self._pipeline = phyre_engine.Pipeline.load(pipeline)

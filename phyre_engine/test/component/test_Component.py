@@ -103,6 +103,19 @@ class TestPipelineComponent(unittest.TestCase):
         sub_pipe = sub_pipe_cpt.pipeline({"baz": "qux"})
         self.assertDictEqual(sub_pipe.config, {"foo": "bar"})
 
+    def test_load_components(self):
+        """Load components from `components` parameter."""
+        sub_pipe_cpt = self.SubPipeline(components=[Double.qualname])
+        self.assertIsInstance(sub_pipe_cpt.pipeline({}).components[0], Double)
+
+    def test_accept_pipeline_or_components(self):
+        """Only a single one of `pipeline` or `components` allowed."""
+        with self.assertRaises(ValueError):
+            self.SubPipeline(pipeline=self._EMPTY_PIPELINE, components=[])
+        with self.assertRaises(ValueError):
+            self.SubPipeline()
+
+
 class TestMap(unittest.TestCase):
     """Test the phyre_engine.component.Map class."""
 
