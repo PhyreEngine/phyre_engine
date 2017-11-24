@@ -12,6 +12,7 @@ import phyre_engine.tools.pdb as pdb
 from phyre_engine.tools.template import Template
 import numpy as np
 from phyre_engine.tools.external import ExternalTool
+import operator
 import tempfile
 import re
 import subprocess
@@ -105,7 +106,7 @@ class HomologyModeller(Component):
         return data
 
 class SoedingSelect(Component):
-    """
+    r"""
     Select templates for multi-template modelling according to the algorithm of
     `Meier and Söding <https://doi.org/10.1371/journal.pcbi.1004343>`_.
 
@@ -173,42 +174,85 @@ class SoedingSelect(Component):
         self.alpha = alpha
         self.beta = beta
 
+    @staticmethod
+    def query_indices(template):
+        alignment = template["alignment"]
+        query_indices = np.array([pair.i - 1 for pair in alignment])
+        return query_indices
+
+    @staticmethod
+    def local_scores(template):
+        alignment = template["alignment"]
+        prob_homologous = template["prob"] / 100
+        local_scores = (np.array([pair.probab for pair in alignment])
+                        * prob_homologous)
+        return local_scores
+
+
     def run(self, data, config=None, pipeline=None):
         """Picking models according to Meier and Söding's algorithm."""
+
         sequence, templates = self.get_vals(data)
 
         template_at_residue = [None] * len(sequence)
-        accepted_templates = []
         top_confidences = np.zeros(len(sequence))
 
-        for template in templates:
-            alignment = template["alignment"]
+        accepted_template_ids = {id(templates[0])}
+        accepted_templates = [templates[0]]
 
-            # Indices into the query of the alignment
-            query_indices = np.array([pair.i - 1 for pair in alignment])
+        query_indices = self.query_indices(templates[0])
+        local_scores = self.local_scores(templates[0])
+        top_confidences[query_indices] = local_scores
+        for i in query_indices:
+            template_at_residue[i] = (top_confidences[i], templates[0])
 
-            # If there are no residue pairs in the template, skip it
-            if len(query_indices) == 0:
-                continue
+        while True:
+            scored_templates = []
+            for template in templates:
+                if id(template) in accepted_template_ids:
+                    continue
 
-            prob_homologous = template["prob"] / 100
-            # Defined over each residue in the index
-            local_scores = (np.array([pair.probab for pair in alignment])
-                            * prob_homologous)
-            Δ_local_scores = local_scores - top_confidences[query_indices]
+                # Indices into the query of the alignment
+                query_indices = self.query_indices(template)
 
-            global_score = np.sum(np.exp(self.alpha * Δ_local_scores)
-                                  - self.beta)
-            if global_score > 0:
-                accepted_templates.append(template)
+                # If there are no residue pairs in the template, skip it
+                if len(query_indices) == 0:
+                    continue
+
+                # Defined over each residue in the index
+                local_scores = self.local_scores(template)
+                Δ_local_scores = local_scores - top_confidences[query_indices]
+
+                global_score = np.sum(np.exp(self.alpha * Δ_local_scores)
+                                      - self.beta)
+                scored_templates.append((global_score, template, local_scores))
+
+            # Bail if no templates were added
+            if not scored_templates:
+                break
+
+            best_score, best_template, best_local_scores = sorted(
+                scored_templates,
+                key=operator.itemgetter(0), reverse=True)[0]
+            query_indices = self.query_indices(best_template)
+
+            # Bail if the best score is below zero
+            if best_score <= 0:
+                break
+
+            accepted_template_ids.add(id(best_template))
+            accepted_templates.append(best_template)
 
             # Defined over the residues in the alignment
-            update_required = local_scores > top_confidences[query_indices]
+            update_required = (
+                best_local_scores > top_confidences[query_indices])
+
             # Subset of indices to update defined on the query
             update_indices = query_indices[update_required]
-            top_confidences[update_indices] = local_scores[update_required]
+            top_confidences[update_indices] = (
+                    best_local_scores[update_required])
             for i in update_indices:
-                template_at_residue[i] = (top_confidences[i], template)
+                template_at_residue[i] = (top_confidences[i], best_template)
 
         data["templates"] = accepted_templates
         data["template_at_residue"] = template_at_residue
