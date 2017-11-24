@@ -2,7 +2,7 @@
 import unittest
 import phyre_engine.component.filter as filters
 
-class TestFilters(unittest.TestCase):
+class TestListFilters(unittest.TestCase):
     """Test Whitelist and Blacklist filter components."""
     _STATE = {"foo": "bar", "baz": "qux"}
 

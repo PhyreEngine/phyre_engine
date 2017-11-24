@@ -2,6 +2,7 @@
 from phyre_engine.component import Component
 import phyre_engine.tools.hhsuite.tool as tools
 import phyre_engine.tools.hhsuite.parser as parser
+from phyre_engine.tools.external import ExternalTool
 
 from enum import Enum
 import os
@@ -13,6 +14,7 @@ import re
 from phyre_engine.tools.template import Template
 import math
 from pathlib import Path
+import shutil
 
 class QueryType(Enum):
     """
@@ -540,3 +542,191 @@ class AlignmentToFasta(Component):
                 data["sequence"], hit["alignment"], template)
             hit["fasta_alignment"] = self.fasta(data, hit, template_seq)
         return data
+
+class PSSM(Component):
+    """
+    Using PSI-BLAST from the (legacy) NCBI BLAST toolkit, generate a PSSM.
+
+    This component builds a PSSM in the same way as the ``addss.pl`` script
+    that is packaged with hh-suite:
+
+    1. If the query sequence contains gaps, calculate a consensus sequence
+       using ``hhconsensus`` and use that as the query sequence for PSI-BLAST.
+
+    2. Filter the query MSA down to a :math:`N_\text{eff}` of 7 using
+       ``hhfilter``.
+
+    3. Reformat the filtered query sequence into PSI-BLAST format. Remove the
+       pseudo-sequence such as secondary structure in this step.
+
+    4. Use ``blastpgp`` to generate a PSSM using a dummy database (bundled with
+       hh-suite).
+
+    This component requires the fields ``name`` and ``a3m`` in the pipeline
+    state. The ``name`` is used to ensure that the correct query sequence is
+    extracted from the MSA.
+
+    The field ``pssm`` will be added to the pipeline state. The field will be
+    a dict, the keys of which indicate different formats of PSSM and the
+    values of which will point to the file containing the PSSM. The following
+    formats will be added:
+
+    ``mtx``
+        IMPALA-format PSSM, generated from the PSI-BLAST checkpoint using
+        ``makemat``
+
+    ``chk``
+        Not technically a PSSM, this is the ``blastpgp`` checkpoint file,
+        generated using the ``-B`` option.
+
+    ``ascii``
+        The ASCII PSSM written by ``blastpgp`` when the ``-Q`` option is
+        supplied.
+    """
+
+    # TODO: This component needs the "run" method refactoring and needs a unit
+    # test. Fix this once you're no longer on a strict deadline!
+    REQUIRED = ["name", "a3m"]
+    ADDS = ["pssm"]
+    REMOVES = []
+
+    def __init__(self, hhsuite_dir, HHLIB, blast_dir):
+        self.hhsuite_dir = hhsuite_dir
+        self.HHLIB = HHLIB
+        self.blast_dir = blast_dir
+
+    def run(self, data, config=None, pipeline=None):
+        """Generating PSSM from MSA."""
+        hhconsensus = ExternalTool({
+                "input": "i",
+                "seqfile": "s",
+                "verbose": "v",
+            }, long_prefix="-")
+        hhfilter = ExternalTool({
+            "input": "i",
+            "oa3m": "o",
+            "verbose": "v"}, long_prefix="-")
+        reformat = ExternalTool({"no_lower": "r"}, long_prefix="-")
+        blastpgp = ExternalTool({
+                "database": "d",
+                "input": "i",
+                "iterations": "j",
+                "db_seq_alns": "b",
+                "evalue_threshold": "h",
+                "input_alignment": "B",
+                "checkpoint": "C",
+                "ascii_pssm": "Q"})
+        makemat = ExternalTool({"profile_db": "P"})
+
+        try:
+            tmpdir = tempfile.mkdtemp("-pssm", "phyreengine-")
+            name, a3m = self.get_vals(data)
+            query_seq = self.read_query_seq(a3m, name)
+
+            tmp_a3m = Path(tmpdir, "msa.a3m")
+            tmp_seq = Path(tmpdir, "seq.fasta")
+            tmp_psi = Path(tmpdir, "msa.psi")
+
+            if "-" in query_seq:
+                # Generate consensus sequence
+                command_line = hhconsensus(
+                    executable=(self.hhsuite_dir, "hhconsensus"),
+                    options={
+                        "input": a3m,
+                        "seqfile": tmp_seq,
+                        "oa3m": tmp_a3m})
+                subprocess.run(command_line, check=True)
+            else:
+                # If there are no gaps, just copy the query a3m and write the
+                # query sequence.
+                shutil.copy2(a3m, str(tmp_a3m))
+                with tmp_seq.open("w") as tmp_seq_out:
+                    tmp_seq_out.write(">{name}\n{query}\n".format(
+                        name=name, query=query_seq))
+
+            # Filter query a3m to desired diversity
+            command_line = hhfilter(
+                executable=(self.hhsuite_dir, "hhfilter"),
+                options={
+                    "neff": 7,
+                    "input": tmp_a3m,
+                    "oa3m": tmp_a3m})
+            subprocess.run(command_line, check=True)
+
+            # Reformat to PSI-BLAST format
+            command_line = reformat(
+                (str(Path(self.HHLIB, "scripts")), "reformat.pl"),
+                positional=["a3m", "psi", tmp_a3m, tmp_psi],
+                flags=["no_lower", "noss"])
+            reformat_environ = os.environ.copy()
+            reformat_environ["HHLIB"] = self.HHLIB
+            subprocess.run(command_line, check=True, env=reformat_environ)
+
+            # Generate PSSM using blastpgp
+            chk_file = "profile.chk"
+            mtx_file = "profile.mtx"
+            pssm_file = "profile.pssm"
+
+            dummy_db = Path(self.HHLIB, "data/do_not_delete")
+            command_line = blastpgp(
+                executable=(self.blast_dir, "blastpgp"),
+                options={
+                    "db_seq_alns": 1,
+                    "iterations": 1,
+                    "evalue_threshold": 0.001,
+                    "database": dummy_db,
+                    "input": tmp_seq,
+                    "input_alignment": tmp_psi,
+                    "checkpoint": chk_file,
+                    "ascii_pssm": pssm_file})
+            subprocess.run(command_line, check=True)
+
+            # Build mtx file using makemat
+
+            # First build the profile "databases" for use with makemat. These
+            # are just two files with the same prefix and the suffixes ".pn"
+            # and ".sn", which contain a list of checkpoint files and the
+            # corresponding list of sequences. File names are resolve relative
+            # to the directory containing the *.sn and *.pn files, so we will
+            # symlink the checkpoint.
+            tmp_sn_file = Path(tmpdir, "makemat.sn")
+            tmp_pn_file = Path(tmpdir, "makemat.pn")
+
+            with tmp_sn_file.open("w") as sn_out:
+                print(str(Path(tmp_seq.name)), file=sn_out)
+            with tmp_pn_file.open("w") as pn_out:
+                chk_path = Path(chk_file)
+                chk_link = Path(tmpdir, "makemat.chk")
+                chk_link.symlink_to(chk_path.resolve())
+                print(str(chk_link.name), file=pn_out)
+
+            command_line = makemat(
+                executable=(self.blast_dir, "makemat"),
+                options={"profile_db": str(Path(tmpdir, "makemat"))})
+            subprocess.run(command_line, check=True)
+            shutil.copy2(str(Path(tmpdir, "makemat.mtx")), mtx_file)
+
+            data["pssm"] = {
+                "mtx": mtx_file,
+                "chk": chk_file,
+                "ascii": pssm_file}
+            return data
+
+        finally:
+            shutil.rmtree(tmpdir)
+
+    def read_query_seq(self, a3m, name):
+        """Read the query sequence from an a3m file."""
+        query = []
+
+        record_flag = False
+        with open(a3m, "r") as a3m_in:
+            for line in a3m_in:
+                if line.startswith(">"):
+                    if line.startswith(">" + name):
+                        record_flag = True
+                    elif record_flag:
+                        break
+                elif record_flag:
+                    query.append(line.strip())
+        return "".join(query)

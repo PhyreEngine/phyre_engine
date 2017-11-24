@@ -1,6 +1,7 @@
 """Tests for phyre_engine.component.dump module."""
 
 import copy
+import datetime
 import io
 import unittest
 import json
@@ -17,7 +18,8 @@ _PIPELINE_INPUT = {
     "seq": Bio.SeqRecord.SeqRecord(
         Bio.Seq.Seq("AHHEG"),
         id="foo", description="desc"),
-    "range": range(0, 100)
+    "range": range(0, 100),
+    "date": datetime.date(1990, 1, 1),
 }
 
 # Into this:
@@ -25,7 +27,8 @@ _PIPELINE_OUTPUT = {
     "foo": "bar",
     "baz": [1, 2, 3],
     "seq": ">foo desc\nAHHEG\n",
-    "range": [0, 100]
+    "range": [0, 100],
+    "date": "1990-01-01",
 }
 
 class DumperTestBase(unittest.TestCase):
@@ -54,6 +57,8 @@ class DumperTestBase(unittest.TestCase):
             self.assertSequenceEqual(parsed["baz"], self.expected["baz"])
         if "range" in parsed:
             self.assertSequenceEqual(parsed["range"], self.expected["range"])
+        if "date" in parsed:
+            self.assertEqual(parsed["date"], self.expected["date"])
 
 class TestJsonDumper(DumperTestBase):
     """Test JSON dumper."""
@@ -85,6 +90,7 @@ class TestJsonDumper(DumperTestBase):
         del self.expected["foo"]
         del self.expected["baz"]
         del self.expected["range"]
+        del self.expected["date"]
         self._verify_dump()
 
     def test_range_exception(self):
@@ -122,6 +128,7 @@ class TestYamlDumper(DumperTestBase):
         del self.expected["foo"]
         del self.expected["baz"]
         del self.expected["range"]
+        del self.expected["date"]
         self._verify_dump()
 
     def test_range_exception(self):
@@ -144,7 +151,7 @@ class TestCsvDumper(unittest.TestCase):
     _EXPECTED_ROWS = [
         ["a", "b", "c"],
         ["1", "2", "3"],
-        ["1", "2", "MISSING"],
+        ["1", "2", "NULL"],
         ["1", "2", "NULL"],
         ["1", "2", "3"],
         ["1", "2", "3"],
@@ -152,7 +159,7 @@ class TestCsvDumper(unittest.TestCase):
 
     def roundtrip(self, *args, **kwargs):
         with io.StringIO("w+") as buffer:
-            csv_dumper = dump.Csv(file=buffer, *args, **kwargs)
+            csv_dumper = dump.Csv(*args, file=buffer, **kwargs)
             pipeline = copy.deepcopy(self._SAMPLE_PIPE)
             csv_dumper.run(pipeline)
             buffer.seek(0)
@@ -163,21 +170,21 @@ class TestCsvDumper(unittest.TestCase):
     def test_csv_default_fields(self):
         """Round-trip sample data using default fields."""
         results = self.roundtrip(
-            "sample",
-            null_placeholder="NULL", missing_placeholder="MISSING")
+            "sample[]",
+            null_placeholder="NULL")
         self.assertEqual(results, self._EXPECTED_ROWS)
 
     def test_csv_explicit_fields(self):
         """Round-trip sample data using pre-selected fields."""
         results = self.roundtrip(
-            "sample", ("b", "c"),
-            null_placeholder="NULL", missing_placeholder="MISSING")
+            "sample[].{b: b, c: c}",
+            null_placeholder="NULL")
         expected = [row[1:] for row in self._EXPECTED_ROWS]
         self.assertEqual(results, expected)
 
     def test_csv_no_header(self):
         """Round-trip output with no header."""
         results = self.roundtrip(
-            "sample", ("a", "b", "c"), header=False,
-            null_placeholder="NULL", missing_placeholder="MISSING")
+            "sample[].{a: a, b: b, c: c}", header=False,
+            null_placeholder="NULL")
         self.assertEqual(results, self._EXPECTED_ROWS[1:])

@@ -172,6 +172,16 @@ class TestMap(unittest.TestCase):
         results = map_cmpt.run(self.state)
         self.assertDictEqual(results, {"values": [1, 2, 3] * 3})
 
+    def test_discard(self):
+        """Passing "discard" flag discards pipeline state."""
+        components = [Double()]
+        pipeline = phyre_engine.pipeline.Pipeline(components)
+        map_cmpt = Map("values", pipeline, discard=True)
+
+        self.expected_state["values"] = []
+        results = map_cmpt.run(self.state)
+        self.assertDictEqual(results, self.expected_state)
+
 
 class TestConditional(unittest.TestCase):
     """Test the phyre_engine.component.Conditional class."""

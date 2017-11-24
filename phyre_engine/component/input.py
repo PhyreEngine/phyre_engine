@@ -86,6 +86,9 @@ class ConvertSeqRecord(Component):
 
     The ``sequence`` field will consist of one-letter amino acid codes.
 
+    To disable the addition of metadata to the pipeline state, set
+    `metadata=False`.
+
     >>> from io import StringIO
     >>> import Bio.SeqIO
     >>> from phyre_engine.component.input import ConvertSeqRecord
@@ -101,16 +104,23 @@ class ConvertSeqRecord(Component):
     'FOO'
     >>> results.description
     'FOO BAR'
+
+    :param bool metadata: Choose whether to transfer sequence metadata into the
+        pipeline state.
     """
     REQUIRED = ["seq_record"]
     ADDS = ["sequence", "name", "id", "description"]
     REMOVES = []
 
+    def __init__(self, metadata=True):
+        self.metadata = metadata
+
     def run(self, data, config=None, pipeline=None):
         seq_record = self.get_vals(data)
         data["sequence"] = str(seq_record.seq)
-        data["id"] = seq_record.id
-        data["name"] = seq_record.name
-        data["description"] = seq_record.description
+        if self.metadata:
+            data["id"] = seq_record.id
+            data["name"] = seq_record.name
+            data["description"] = seq_record.description
         return data
 

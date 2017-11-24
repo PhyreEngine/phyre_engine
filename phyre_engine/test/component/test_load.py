@@ -4,6 +4,7 @@ import io
 import textwrap
 import unittest
 import phyre_engine.component.load as load
+import pickle
 
 _INPUT_PIPELINE = {"qux": "frob"}
 
@@ -19,7 +20,11 @@ class LoaderTestBase(unittest.TestCase):
 
     def setUp(self):
         """Set up StringIO from self.SOURCE and deep copy expected result."""
-        self.stream = io.StringIO()
+        if self.MODE == "r":
+            self.stream = io.StringIO()
+        elif self.MODE == "rb":
+            self.stream = io.BytesIO()
+
         self.stream.write(self.SOURCE)
         self.stream.seek(0)
         self.expected = copy.deepcopy(_EXPECTED_PIPELINE)
@@ -40,6 +45,8 @@ class LoaderTestBase(unittest.TestCase):
 class TestYaml(LoaderTestBase):
     """Test Yaml loader."""
 
+
+    MODE = "r"
     SOURCE = textwrap.dedent("""\
     foo: bar
     baz: [1, 2, 3]
@@ -54,10 +61,23 @@ class TestYaml(LoaderTestBase):
 class TestJson(LoaderTestBase):
     """Test Json loader."""
 
+    MODE = "r"
     SOURCE = """{"foo": "bar", "baz": [1, 2, 3]}"""
 
     def test_load(self):
         """Load simple pipeline state."""
         loader = load.Json(self.stream)
+        result = loader.run(self.pipeline)
+        self._verify_load(result)
+
+class TestPickle(LoaderTestBase):
+    """Test Pickle loader."""
+
+    MODE = "rb"
+    SOURCE = pickle.dumps({"foo": "bar", "baz": [1, 2, 3]})
+
+    def test_load(self):
+        """Load simple pipeline state from pickle."""
+        loader = load.Pickle(self.stream)
         result = loader.run(self.pipeline)
         self._verify_load(result)

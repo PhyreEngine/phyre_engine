@@ -1,12 +1,10 @@
 """Parsers for hhsuite files."""
 from enum import Enum
-import collections
 import io
 import logging
 import re
-from collections import namedtuple
 import Bio.AlignIO
-from phyre_engine.tools.util import Stream
+from phyre_engine.tools.util import Stream, NamedTuple
 
 
 log = lambda: logging.getLogger(__name__)
@@ -39,49 +37,57 @@ class Report:
     :vartype summary: :py:class:`.Summary`
     """
 
-    #: Represents a single hit parsed from an hhsuite report file. For detailed
-    #: information, see section 5.1 of the hh-suite user guide.
-    #:
-    #: :param int rank: Rank in the hit list of this hit.
-    #: :param str name: Name of this hit.
-    #: :param float prob: True positive probability.
-    #: :param float evalue: Expected number of false positives with a score
-    #:     greater than this hit.
-    #: :param float pvalue: Probability in a *pairwise* comparison of finding a
-    #:     hit with at least this score.
-    #: :param float score: Raw score calculated by HMM-HMM alignment.
-    #: :param float ss: Secondary structure score.
-    #: :param int cols: Number of aligned match states in the alignment.
-    #: :param range(int) query_range: Range of aligned match states in the
-    #:     query.
-    #: :param range(int) template_range: Range of aligned match states in the
-    #:     template.
-    #: :param int template_matches: Number of match states in the template HMM.
-    #: :param int identities: percentage of aligned residues that are identical.
-    #: :param float similarity: Arithmetic mean of substitution scores between
-    #:     aligned residues.
-    #: :param float sum_probs: Sum of posterior probabilities of all aligned
-    #:     pairs.
-    #: :param float template_neff: Effective number of sequences in the template
-    #:     HMM.
-    Hit = namedtuple(
-        "Hit", (
+    class Hit(NamedTuple):
+        """
+
+        Represents a single hit parsed from an hhsuite report file. For
+        detailed information, see section 5.1 of the `hh-suite user guide
+        <https://github.com/soedinglab/hh-suite/raw/master/hhsuite-userguide.pdf`_).
+
+        :param int rank: Rank in the hit list of this hit.
+        :param str name: Name of this hit.
+        :param float prob: True positive probability.
+        :param float evalue: Expected number of false positives with a score
+            greater than this hit.
+        :param float pvalue: Probability in a *pairwise* comparison of finding
+            a hit with at least this score.
+        :param float score: Raw score calculated by HMM-HMM alignment.
+        :param float ss: Secondary structure score.
+        :param int cols: Number of aligned match states in the alignment.
+        :param range(int) query_range: Range of aligned match states in the
+            query.
+        :param range(int) template_range: Range of aligned match states in the
+            template.
+        :param int template_matches: Number of match states in the template
+            HMM.
+        :param int identities: percentage of aligned residues that are
+            identical.
+        :param float similarity: Arithmetic mean of substitution scores between
+            aligned residues.
+        :param float sum_probs: Sum of posterior probabilities of all aligned
+            pairs.
+        :param float template_neff: Effective number of sequences in the
+            template HMM.
+        """
+        FIELDS = (
             "rank name "
             "prob evalue pvalue score ss cols query_range template_range "
             "template_matches identities similarity sum_probs template_neff"
-        ))
+        )
 
-    #: Summary of an hhsuite report, stored at the top of the report file.
-    #: :param str query: Name of the query sequence/MSA.
-    #: :param int match_cols: Number of match columns in the query HMM.
-    #: :param float neff: Effective number of sequences.
-    #: :param int num_searched: Number of HMMs searched.
-    #: :param str date: Date the report file was generated.
-    #: :param str command: Command line used to generate the report.
-    #: :param tuple(int, int) num_seqs: Number of filtered and input sequences.
-    Summary = namedtuple(
-        "Summary",
-        "query match_cols neff num_searched date command num_seqs")
+    class Summary(NamedTuple):
+        """
+        Summary of an hhsuite report, stored at the top of the report file.
+        :param str query: Name of the query sequence/MSA.
+        :param int match_cols: Number of match columns in the query HMM.
+        :param float neff: Effective number of sequences.
+        :param int num_searched: Number of HMMs searched.
+        :param str date: Date the report file was generated.
+        :param str command: Command line used to generate the report.
+        :param tuple(int, int) num_seqs: Number of filtered and input
+            sequences.
+        """
+        FIELDS = "query match_cols neff num_searched date command num_seqs"
 
     # List of regexes, field names and functions to convert to the correct data
     # type. These match against lines in the alignment section at the bottom of
@@ -275,21 +281,27 @@ class Tabular:
     :vartype hits: :py:class:`.Hit`
     """
 
-    #: Represents a single hit.
-    #: :param str name: Name of this hit. Parsed from the tabular report.
-    #: :param list[ResiduePair] alignment: List of residue pairs.
-    Hit = namedtuple("Hit", "name alignment")
+    class Hit(NamedTuple):
+        """
+        Represents a single hit.
+        :param str name: Name of this hit. Parsed from the tabular report.
+        :param list[ResiduePair] alignment: List of residue pairs.
+        """
+        FIELDS = "name alignment"
 
-    #: Alignment between two residues.
-    #:
-    #: Some of these scores may be ``None``.
-    #: :param int i: Index of the query residue.
-    #: :param int j: Index of the template residue.
-    #: :param float SS: Secondary structure score.
-    #: :param float score: Score of this residue pair.
-    #: :param float probab: Posterior probability of residue pair.
-    #: :param str dssp: DSSP-assigned state of template residue.
-    ResiduePair = namedtuple("ResiduePair", "i j score SS probab dssp")
+    class ResiduePair(NamedTuple):
+        """
+        Alignment between two residues.
+
+        Some of these scores may be ``None``.
+        :param int i: Index of the query residue.
+        :param int j: Index of the template residue.
+        :param float SS: Secondary structure score.
+        :param float score: Score of this residue pair.
+        :param float probab: Posterior probability of residue pair.
+        :param str dssp: DSSP-assigned state of template residue.
+        """
+        FIELDS = "i j score SS probab dssp"
 
     # Type conversion functions of the various possible properties.
     _TYPES = {

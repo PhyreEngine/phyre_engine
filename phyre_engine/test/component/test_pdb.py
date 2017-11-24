@@ -7,6 +7,11 @@ import phyre_engine.component.pdb
 import phyre_engine.tools.pdb
 import phyre_engine.test.data.minimal_template as minimal
 from unittest.mock import MagicMock, sentinel
+import textwrap
+from pathlib import Path
+import shutil
+import copy
+import datetime
 
 class TestPDBSeq(unittest.TestCase):
     """Test conversion of PDB structure to sequence using PDBSeq."""
@@ -119,3 +124,100 @@ class TestTemplateMapping(unittest.TestCase):
         mapper = phyre_engine.component.pdb.TemplateMapping()
         results = mapper.run({"structure": template_buf})
         self.assertEqual(results["residue_mapping"], template.mapping)
+
+class TestFastResolutionLookup(unittest.TestCase):
+    """Test FastResolutionLookup component."""
+
+    X_RAY_STRUCTURE = textwrap.dedent("""\
+        # Some stuff to ignore
+        _reflns.d_resolution_high 2.2
+        """)
+
+    NMR_STRUCTURE = textwrap.dedent("""\
+        # No resolution field in here
+    """)
+
+    PIPELINE = {"templates": [{"PDB": "1xyz"}, {"PDB": "1abc"}]}
+
+    @classmethod
+    def setUpClass(cls):
+        """Create a temporary data directory containing dummy mmCIF files."""
+        cls.mmcif_dir = tempfile.mkdtemp("-resolution", "phyreengine-")
+        Path(cls.mmcif_dir, "xy").mkdir()
+        Path(cls.mmcif_dir, "ab").mkdir()
+        Path(cls.mmcif_dir, "xy", "1xyz.cif").write_text(cls.X_RAY_STRUCTURE)
+        Path(cls.mmcif_dir, "ab", "1abc.cif").write_text(cls.NMR_STRUCTURE)
+
+    @classmethod
+    def tearDownClass(cls):
+        """Remove temporary data directory."""
+        shutil.rmtree(cls.mmcif_dir)
+
+    def test_lookup(self):
+        """Read resolution data from X-ray structures."""
+        cmpt = phyre_engine.component.pdb.FastResolutionLookup(self.mmcif_dir)
+        results = cmpt.run(copy.deepcopy(self.PIPELINE))
+        templates = results["templates"]
+        self.assertAlmostEqual(templates[0]["resolution"], 2.2, places=1)
+        self.assertIsNone(templates[1]["resolution"])
+
+
+@phyre_engine.test.requireFields("net_tests")
+class TestRCSBMetadata(unittest.TestCase):
+    """Test RCSBMetadata component."""
+    PDB = "11as"
+    CHAIN_OPTIONS = ("A", None)
+
+    def lookup(self, fields, pdb, chain=None):
+        """Return the 'metadata' returned by the lookup for 'fields'."""
+        meta = phyre_engine.component.pdb.RCSBMetadata(fields,
+                                                       chain is not None)
+        state = {"templates": [{"PDB": pdb}]}
+        if chain is not None:
+            state["templates"][0]["chain"] = chain
+        results = meta.run(state)
+        return results["templates"][0]["metadata"]
+
+    def test_lookup_string_types(self):
+        """Data for 11as is correct using string type names."""
+        fields = {"resolution": "float", "releaseDate": "date"}
+        for chain in self.CHAIN_OPTIONS:
+            with self.subTest(chain=chain):
+                # Repeat twice, once with chain and once without
+                meta = self.lookup(fields, self.PDB, chain)
+                self.assertEqual(meta, {
+                    "resolution": 2.5,
+                    "releaseDate": datetime.date(1998, 12, 30),
+                })
+
+    def test_lookup_callable_types(self):
+        """Data for 11as is correct using callable types."""
+        fields = {"resolution": float, "releaseDate": str}
+        for chain in self.CHAIN_OPTIONS:
+            with self.subTest(chain=chain):
+                # Repeat twice, once with chain and once without
+                meta = self.lookup(fields, self.PDB, chain)
+                self.assertEqual(meta, {
+                    "resolution": 2.5,
+                    "releaseDate": "1998-12-30",
+                })
+
+
+class TestFindStructure(unittest.TestCase):
+    """Test the FindStructure component."""
+
+    def test_find(self):
+        """Test that the path to a template makes sense."""
+        with unittest.mock.patch("pathlib.Path.exists", return_value=True):
+            ft = phyre_engine.component.pdb.FindStructure("nonexistent_path")
+            results = ft.run({"PDB": "12as", "chain": "A"})
+            self.assertEqual(
+                Path(results["structure"]),
+                Path("nonexistent_path/2a/12as/12as_A.pdb"))
+
+    def test_cannot_find(self):
+        """A FileNotFoundError should be raised when no template exists."""
+        with unittest.mock.patch("pathlib.Path.exists", return_value=False):
+            ft = phyre_engine.component.pdb.FindStructure("nonexistent_path")
+            with self.assertRaises(FileNotFoundError):
+                ft.run({"PDB": "12as", "chain": "A"})
