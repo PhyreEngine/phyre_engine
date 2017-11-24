@@ -19,17 +19,16 @@ class MSABuilder(Component):
     REMOVES = []
     CONFIG_SECTION = "hhsuite"
 
-    def __init__(
-            self, database, *args, bin_dir=None, HHLIB=None, basedir=".",
-            overwrite=False, **kwargs):
+    def __init__(self, database, flags=None, bin_dir=None, HHLIB=None,
+                 basedir=".", overwrite=False, kwargs=None):
 
         self.bin_dir = bin_dir
         self.HHLIB = HHLIB
         self.basedir = pathlib.Path(basedir)
         self.overwrite = overwrite
 
-        self.flags = args
-        self.options = kwargs
+        self.flags = flags if flags is not None else []
+        self.options = kwargs if kwargs is not None else {}
         self.options["database"] = database
 
     def hhblits(self, template):
@@ -178,17 +177,16 @@ class HMMBuilder(Component):
     REMOVES = []
     CONFIG_SECTION = "hhsuite"
 
-    def __init__(
-            self, *args, bin_dir=None, HHLIB=None, basedir=".", overwrite=False,
-            **kwargs):
+    def __init__(self, flags=None, bin_dir=None, HHLIB=None, basedir=".",
+                 overwrite=False, options=None):
 
         self.bin_dir = bin_dir
         self.HHLIB = HHLIB
         self.basedir = pathlib.Path(basedir)
         self.overwrite = overwrite
 
-        self.flags = args
-        self.options = kwargs
+        self.flags = flags if flags is not None else []
+        self.options = options if options is not None else {}
 
     def run(self, data, config=None, pipeline=None):
         a3m, name = self.get_vals(data)
@@ -222,9 +220,8 @@ class CS219Builder(Component):
     REMOVES = []
     CONFIG_SECTION = "hhsuite"
 
-    def __init__(
-            self, *args, bin_dir=None, HHLIB=None, basedir=".", overwrite=False,
-            **kwargs):
+    def __init__(self, flags=None, bin_dir=None, HHLIB=None, basedir=".",
+                 overwrite=False, options=None):
 
         if HHLIB is None and "HHLIB" not in os.environ:
             raise ValueError(
@@ -247,13 +244,13 @@ class CS219Builder(Component):
         }
         # Overwrite default options with explicit options if set
         # TODO: Clean up handling of configuration options.
-        for option, value in kwargs.items():
+        for option, value in options.items():
             if option in options:
                 options[option] = value
         self.options = options
 
-        self.flags = list(args)
-        if "binary" not in args and "b" not in args:
+        self.flags = flags if flags is not None else []
+        if "binary" not in self.flags and "b" not in self.flags:
             self.flags.append("binary")
 
     def run(self, data, config=None, pipeline=None):
@@ -286,8 +283,7 @@ class DatabaseBuilder(Component):
     REMOVES = ["templates"]
     CONFIG_SECTION = "hhsuite"
 
-    def __init__(self, db_prefix, bin_dir=None, overwrite=False, basedir=".",
-                 **_kwargs):
+    def __init__(self, db_prefix, bin_dir=None, overwrite=False, basedir="."):
         """
         Initialise a new DatabaseBuilder component.
 
@@ -300,9 +296,6 @@ class DatabaseBuilder(Component):
             Otherwise, ``ffindex_build`` may be called on existing files.
         :param str basedir: Base directory in which to save the database files.
         """
-        # _kwargs is only here because we are in the hhsuite CONFIG_SECTION and
-        # might need to eat some arguments that we don't care about.
-
         self.db_prefix = db_prefix
         self.bin_dir = bin_dir
         self.overwrite = overwrite
