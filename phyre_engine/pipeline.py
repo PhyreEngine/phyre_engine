@@ -23,7 +23,13 @@ Checkpoint = namedtuple("Checkpoint", ["current_component", "state"])
 #: :param float process: Process time in fractional seconds.
 TimeInfo = namedtuple("TimeInfo", "component wall process")
 
-
+#: Default namespace for pipelines.
+#:
+#: Components may be loaded from this namespace by specifying them with a
+#: leading dot: ``.foo.Bar`` is equivalent to
+#: ``phyre_engine.component.foo.Bar``. This namespace may be overriden by
+#: the ``namespace`` top-level key.
+DEFAULT_NAMESPACE = "phyre_engine.component"
 
 class Pipeline:
     """Pipeline containing a list of components to be executed.
@@ -309,7 +315,7 @@ class Pipeline:
 
 
     @staticmethod
-    def _load_component(dotted_name, arg_list, config):
+    def _load_component(dotted_name, arg_list, config, namespace):
         """
         Load a component specified by either a dotted string or a module name
         and dotted string.
@@ -321,12 +327,18 @@ class Pipeline:
         If ``dotted_name`` is a string, it is assumed that the class name is the
         final component and the module name everything before that. Nested
         classes may not be used.
+
+        As shorthand, components may be specified with a leading dot, in which
+        case `namespace` is prepended.
         """
 
         if isinstance(dotted_name, str):
             mod_name, cls_name = dotted_name.rsplit(".", maxsplit=1)
         else:
             mod_name, cls_name = dotted_name
+
+        if mod_name.startswith("."):
+            mod_name = namespace + mod_name
 
         module = importlib.import_module(mod_name)
         nested_cls_names = cls_name.split(".")
@@ -405,6 +417,25 @@ class Pipeline:
         component. Explicitly-supplied arguments will override the arguments
         from the configuration.
 
+        To reduce boilerplate, components may be loaded with a shorthand
+        notation by supplying a top-level ``namespace`` key and specifying
+        shortened component names with a leading dot (``.``). The pipeline
+        given above could be specified as:
+
+        .. code-block:: python
+
+            {
+                # ...
+                "namespace": "phyre_engine.component",
+                "components": [
+                    ".dummy.Foo",
+                    # ...
+                ]
+                # ...
+            }
+
+        The default namespace is ``phyre_engine.component``.
+
         .. warning::
 
             Components specified as dictionaries should be specified with *one*
@@ -414,14 +445,17 @@ class Pipeline:
 
         """
         config = pipeline_dict.get("config", {})
+        namespace = pipeline_dict.pop("namespace", DEFAULT_NAMESPACE)
         component_descriptions = pipeline_dict.pop("components", [])
         components = []
         for description in component_descriptions:
             if isinstance(description, dict):
                 for cls_name, arg_list in description.items():
-                    component = cls._load_component(cls_name, arg_list, config)
+                    component = cls._load_component(cls_name, arg_list, config,
+                                                    namespace)
             else:
-                component = cls._load_component(description, None, config)
+                component = cls._load_component(description, None, config,
+                                                namespace)
             components.append(component)
         return cls(components=components, **pipeline_dict)
 
