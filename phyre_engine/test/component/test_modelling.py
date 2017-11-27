@@ -65,15 +65,11 @@ class TestHomologyModeller(unittest.TestCase):
 
         # Create pipeline state that can be modified without consequence.
         self.state = {
-            "sequence": copy.deepcopy(self._QUERY_SEQ),
-            "templates": [
-                {
-                    "PDB": "1xyz",
-                    "chain": "A",
-                    "alignment": copy.deepcopy(self._ALIGNMENT),
-                    "rank": 1
-                }
-            ]
+            "query_sequence": copy.deepcopy(self._QUERY_SEQ),
+            "PDB": "1xyz",
+            "chain": "A",
+            "alignment": copy.deepcopy(self._ALIGNMENT),
+            "rank": 1
         }
 
         self.modeller = HomologyModeller(str(self.pdb_lib_dir))
@@ -87,7 +83,7 @@ class TestHomologyModeller(unittest.TestCase):
 
     def test_model_exists(self):
         """Generated model must exist in pipeline state and on disk."""
-        template = self.results["templates"][0]
+        template = self.results
         self.assertIn(
             "model", template,
             "Added 'model' field.")
@@ -97,7 +93,7 @@ class TestHomologyModeller(unittest.TestCase):
 
     def test_model_seq(self):
         """Model must contain residues 2 & 3, mapped to 1 & 2 from template."""
-        template = self.results["templates"][0]
+        template = self.results
         pdb_parser = Bio.PDB.PDBParser(QUIET=True)
         model_structure = pdb_parser.get_structure("model", template["model"])
         model_chain = model_structure[0]["A"]
@@ -262,7 +258,7 @@ class TestLoopModel(unittest.TestCase):
         self.pipeline = {
             "pssm": {"ascii": str(pssm)},
             "model": str(model),
-            "sequence": self.SAMPLE_SEQ
+            "query_sequence": self.SAMPLE_SEQ
         }
 
     def tearDown(self):
