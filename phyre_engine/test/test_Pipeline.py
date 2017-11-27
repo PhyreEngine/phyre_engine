@@ -121,8 +121,7 @@ class TestPipeline(unittest.TestCase):
             "start": {"abc": 123, "xyz": 789},
             "components": [
                 TestPipeline.MockComponentStart.qualname,
-                {TestPipeline.MockComponentMid.qualname: [
-                    "foo", "bar", {"baz": "qux"}]},
+                {TestPipeline.MockComponentMid.qualname: { "baz": "qux" }},
                 MockNonNestedComponent.qualname
             ]
         }
@@ -141,7 +140,7 @@ class TestPipeline(unittest.TestCase):
         self.assertIsInstance(
             pipe.components[2],
             MockNonNestedComponent)
-        self.assertTupleEqual(pipe.components[1].args, ("foo", "bar"))
+        self.assertTupleEqual(pipe.components[1].args, ())
         self.assertDictEqual(pipe.components[1].kwargs, {"baz": "qux"})
 
     @unittest.mock.patch("importlib.import_module")
@@ -218,7 +217,7 @@ class TestPipeline(unittest.TestCase):
         dict_pipe = {
             "config": {"mid": {"foo": 1, "bar": 2}},
             "components": [
-                {TestPipeline.MockComponentMid.qualname: [{"bar": 3}]}
+                {TestPipeline.MockComponentMid.qualname: {"bar": 3}}
             ]
         }
         pipe = Pipeline.load(dict_pipe)

@@ -315,7 +315,7 @@ class Pipeline:
 
 
     @staticmethod
-    def _load_component(dotted_name, arg_list, config, namespace):
+    def _load_component(dotted_name, arg_dict, config, namespace):
         """
         Load a component specified by either a dotted string or a module name
         and dotted string.
@@ -346,19 +346,15 @@ class Pipeline:
         for nested_cls_name in nested_cls_names[1:]:
             component_cls = getattr(component_cls, nested_cls_name)
 
-        # Collect *args and **kwargs
-        args = []
+        # Collect **kwargs
         kwargs = {}
 
         if component_cls.CONFIG_SECTION is not None:
             kwargs.update(config.get(component_cls.CONFIG_SECTION, {}))
 
-        for arg in arg_list if arg_list else []:
-            if isinstance(arg, dict):
-                kwargs.update(arg)
-            else:
-                args.append(arg)
-        return component_cls(*args, **kwargs)
+        if arg_dict is not None:
+            kwargs.update(arg_dict)
+        return component_cls(**kwargs)
 
     @classmethod
     def load(cls, pipeline_dict):
@@ -372,6 +368,7 @@ class Pipeline:
         Alternatively, a component may be specified by a dictionary, in which
         case each key of the dictionary is treated as a component name and the
         values as arguments to be passed to the component constructor.
+        Arguments may only be specified as *keyword arguments*.
 
         Any other arguments are passed to the constructor of the pipeline.
 
@@ -385,12 +382,10 @@ class Pipeline:
                 "components": [
                     "phyre_engine.component.dummy.Foo",
                     "phyre_engine.component.dummy.Bar", {
-                        "phyre_engine.component.dummy.Baz": [
-                            "arg1", "arg2", {
-                                "named_arg1": "value1",
-                                "named_arg2": "value2",
-                            }
-                        ]
+                        "phyre_engine.component.dummy.Baz": {
+                            "named_arg1": "value1",
+                            "named_arg2": "value2",
+                        }
                     },
                     "phyre_engine.component.dummy.Qux",
                 ]
@@ -408,8 +403,8 @@ class Pipeline:
         .. highlight:: python
 
             phyre_engine.component.dummy.Baz(
-                "arg1", "arg2",
-                named_arg1="value1", named_arg2="value2")
+                named_arg1="value1",
+                named_arg2="value2")
 
         If the :py:attr:`phyre_engine.component.Component.CONFIG_SECTION` class
         variable of a component is not ``None``, then the corresponding section
@@ -450,8 +445,8 @@ class Pipeline:
         components = []
         for description in component_descriptions:
             if isinstance(description, dict):
-                for cls_name, arg_list in description.items():
-                    component = cls._load_component(cls_name, arg_list, config,
+                for cls_name, arg_dict in description.items():
+                    component = cls._load_component(cls_name, arg_dict, config,
                                                     namespace)
             else:
                 component = cls._load_component(description, None, config,

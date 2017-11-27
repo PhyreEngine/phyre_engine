@@ -202,7 +202,9 @@ class HHBlits(HHSuiteTool):
                  input_type=QueryType.SEQUENCE, options=None):
 
         if options is None:
-            options = {"database": database}
+            options = {}
+        options["database"] = database
+
         super().__init__(
             ("hhblits", tools.hhblits),
             flags, options, bin_dir, HHLIB, input_type)
@@ -234,7 +236,8 @@ class HHSearch(HHSuiteTool):
             input_type=QueryType.A3M, options=None):
 
         if options is None:
-            options = {"database": database}
+            options = {}
+        options["database"] = database
         super().__init__(
             ("hhsearch", tools.hhsearch),
             flags, options, bin_dir, HHLIB, input_type)
