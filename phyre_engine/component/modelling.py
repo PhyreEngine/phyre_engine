@@ -350,7 +350,7 @@ class LoopModel(Component):
                               / "model.{}".format(model_idx)
                               / "model.1.pdb")
                 if not model_path.exists():
-                    err_msg = "Loop-modelled file '{:s}' does not exist"
+                    err_msg = "Loop-modelled file '{}' does not exist"
                     raise FileNotFoundError(err_msg.format(model_path))
                 template["model"] = str(model_path)
         finally:
