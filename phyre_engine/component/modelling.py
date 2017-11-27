@@ -262,16 +262,23 @@ class LoopModel(Component):
     """
     Use Alex Herbert's loop modeler to fill in as many gaps as possible.
 
+    .. versionchanged:: 0.1a1
+
+        This component no longer operates on every component from the top
+        level of the pipeline. If you wish to apply the loop modeller to a
+        list of templates, call it from within a
+        :py:class:`~phyre_engine.component.component.Map` component.
+
+        You may use :py:class:`~phyre_engine.component.jmespath.Update` to
+        copy the ``pssm`` and ``sequence`` keys from the top level of the
+        pipeline state into each template.
+
     :param str bin_dir: Location of the loop modelling executable.
     :param str config: Loop modeller configuration file.
     :param str executable: Name of the executable to run, under `bin_dir`.
     """
 
-    # TODO: Write a component to transfer top-level keys to lower levels so
-    # we can run this component with component.Map instead of explicitly
-    # looping over ``templates.``
-
-    REQUIRED = ["pssm", "templates"]
+    REQUIRED = ["pssm", "query_sequence", "model"]
     ADDS = []
     REMOVES = []
 
@@ -307,13 +314,13 @@ class LoopModel(Component):
 
     def run(self, data, config=None, pipeline=None):
         """Fill short gaps with loop modeller."""
-        pssm, templates = self.get_vals(data)
+        pssm, sequence, model = self.get_vals(data)
 
         try:
             tmpdir = tempfile.mkdtemp("-loop", "phyreengine-")
             self.logger.debug("Loop modelling using tmpdir: %s", tmpdir)
 
-            out_dir = Path("loop")
+            out_dir = Path(model).with_suffix(".loop")
 
             # Attempt to use existing models if the output directory exists.
             if not out_dir.exists():
@@ -322,14 +329,12 @@ class LoopModel(Component):
                 model_list = Path(tmpdir, "model.list")
 
                 with model_list.open("w") as model_list_out:
-                    for template in templates:
-                        print(str(Path(template["model"]).resolve()),
-                              file=model_list_out)
+                    print(str(Path(model).resolve()), file=model_list_out)
                 with loop_pssm.open("w") as loop_out:
                     self.convert_ascii_pssm(pssm["ascii"], loop_out)
                 with query_fasta.open("w") as query_out:
-                    print(">{name}\n{sequence}\n".format(**data),
-                          file=query_out)
+                    fasta_seq = ">model\n{}\n".format(sequence)
+                    print(fasta_seq, file=query_out)
 
                 command_line = self.LOOP_MODELLER(
                     executable=(self.bin_dir, self.executable),
@@ -343,16 +348,12 @@ class LoopModel(Component):
                 self.logger.debug("Running %s", command_line)
                 subprocess.run(command_line, check=True)
 
-            # Replace "model" field of each template with the first loop model.
-            for i, template in enumerate(templates):
-                model_idx = i + 1
-                model_path = (out_dir
-                              / "model.{}".format(model_idx)
-                              / "model.1.pdb")
-                if not model_path.exists():
-                    err_msg = "Loop-modelled file '{}' does not exist"
-                    raise FileNotFoundError(err_msg.format(model_path))
-                template["model"] = str(model_path)
+            # Replace "model" field with the first loop model.
+            model_path = (out_dir / "model.1" / "model.1.pdb")
+            if not model_path.exists():
+                err_msg = "Loop-modelled file '{}' does not exist"
+                raise FileNotFoundError(err_msg.format(model_path))
+            data["model"] = str(model_path)
         finally:
             shutil.rmtree(tmpdir)
         return data
