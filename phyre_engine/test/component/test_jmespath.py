@@ -3,9 +3,6 @@ import unittest
 
 import phyre_engine.component.jmespath as jmes
 from copy import deepcopy
-import jmespath
-import datetime
-
 
 SAMPLE_STATE = {
     "TM": 0.5,
@@ -15,39 +12,6 @@ SAMPLE_STATE = {
     ],
     "metadata": {"date": "1970-01-01"}
 }
-
-class TestJMESExtensions(unittest.TestCase):
-    """Test custom JMESPath extensions."""
-
-    def search(self, expr, data):
-        """Call :py:func:`jmespath.search` with extended functions."""
-        extensions = jmes.JMESExtensions(data)
-        jmespath_opts = jmespath.Options(custom_functions=extensions)
-        return jmespath.search(expr, data, jmespath_opts)
-
-    def test_root(self):
-        """Access root node via ``root`` function."""
-        self.assertEqual(
-            self.search("templates[].{root: root().TM}", SAMPLE_STATE),
-            [{"root": 0.5}, {"root": 0.5}])
-
-    def test_toordinal(self):
-        """Test ``toordinal`` function on a date."""
-        self.assertEqual(
-            self.search("toordinal(d)", {"d": datetime.date(1970, 1, 1)}),
-            719163)
-
-    def test_start_stop(self):
-        """Test ``start`` and ``stop`` functions on a range."""
-        self.assertEqual(
-            self.search("{start: start(r), stop: stop(r)}", {"r": range(10)}),
-            {"start": 0, "stop": 10})
-
-    def test_list(self):
-        """Test ``list`` function can convert tuple to list."""
-        self.assertEqual(
-            self.search("{list: list(t)}", {"t": (0, 1, 2)}),
-            {"list": [0, 1, 2]})
 
 class TestUpdate(unittest.TestCase):
     """Test the Update module."""

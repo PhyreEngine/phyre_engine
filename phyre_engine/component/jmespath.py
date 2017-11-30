@@ -8,59 +8,15 @@ Two components are made available here, :py:class:`.Update` and
 be modified and one that is evaluated in the context of the results of the
 first expression and specifies how to alter each element.
 
-We make several extensions available to each JMESPath expression. These can be
-called as functions.
-
-``root()``
-    Returns the root of the pipeline state.
-
-``toordinal(date)``
-    Calls :py:meth:`datetime.date.toordinal` on the given
-    :py:class:`datetime.date` object.
-
-``start(range)`` and ``stop(range)``
-    Return the start or stop of the supplied :py:class:`range` object.
-
-``list(sequence)``
-    Call the :py:func:`list` method on the given sequence. This is useful for
-    converting non-list sequences such as tuples into lists. Without calling
-    this function, the underlying JMESPath library will see a tuple as an
-    opaque Python object.
+We make several extensions available to each JMESPath expression. These are
+described in the :py:class:`phyre_engine.tools.jmespath` class.
 
 """
 from phyre_engine.component.component import Component
+from phyre_engine.tools.jmespath import JMESExtensions
 import collections.abc
 import jmespath
 
-class JMESExtensions(jmespath.functions.Functions):
-    """
-    Class used to provide extensions to JMESPath.
-
-    :param root: Root of the pipeline state.
-    """
-
-    def __init__(self, root):
-        self.root = root
-
-    @jmespath.functions.signature()
-    def _func_root(self):
-        return self.root
-
-    @jmespath.functions.signature({"types": []})
-    def _func_toordinal(self, date):
-        return date.toordinal()
-
-    @jmespath.functions.signature({"types": []})
-    def _func_start(self, value):
-        return value.start
-
-    @jmespath.functions.signature({"types": []})
-    def _func_stop(self, value):
-        return value.stop
-
-    @jmespath.functions.signature({"types": []})
-    def _func_list(self, value):
-        return list(value)
 
 class Update(Component):
     """

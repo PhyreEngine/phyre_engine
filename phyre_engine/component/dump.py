@@ -14,7 +14,7 @@ import Bio.SeqRecord
 from phyre_engine.component.component import Component
 from phyre_engine.tools.util import Stream, NamedTuple
 import jmespath
-from phyre_engine.component.jmespath import JMESExtensions
+from phyre_engine.tools.jmespath import JMESExtensions
 import datetime
 
 
