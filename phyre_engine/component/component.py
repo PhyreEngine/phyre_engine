@@ -77,7 +77,7 @@ class Component(metaclass=ComponentMeta):
         """Get all required values from a key-value mapping.
 
         This method returns a list containing the values corresponding to the
-        keys given in the class variable list `REQUIRED`. It is designed to make
+        keys given in the list property `REQUIRED`. It is designed to make
         it easy to unpack all required variables from a dictionary:
 
         >>> required_1, required_2 = self.get_vals(data)
@@ -95,10 +95,10 @@ class Component(metaclass=ComponentMeta):
             the data field. If multiple items are required, a list containing
             the corresponding values is returned.
         """
-        if len(type(self).REQUIRED) == 1:
-            return data[type(self).REQUIRED[0]]
+        if len(self.REQUIRED) == 1:
+            return data[self.REQUIRED[0]]
         else:
-            return [data[x] for x in type(self).REQUIRED]
+            return [data[x] for x in self.REQUIRED]
 
     @abstractmethod
     def run(self, data, config=None, pipeline=None):

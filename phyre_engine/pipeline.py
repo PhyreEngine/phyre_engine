@@ -144,16 +144,16 @@ class Pipeline:
             #Build a list of missing keys rather than failing on the first.
             #Hopefully this will be useful for debugging.
             missing = []
-            for reqd in type(component).REQUIRED:
+            for reqd in component.REQUIRED:
                 if reqd not in keys:
                     missing.append(reqd)
             if len(missing) > 0:
                 raise Pipeline.ValidationError(component, missing)
 
-            for added in type(component).ADDS:
+            for added in component.ADDS:
                 keys.add(added)
 
-            for removed in type(component).REMOVES:
+            for removed in component.REMOVES:
                 if removed in keys:
                     keys.remove(removed)
 
@@ -306,7 +306,7 @@ class Pipeline:
             promises and add a key that the next component requires.
         """
         missing = []
-        for reqd in type(component).REQUIRED:
+        for reqd in component.REQUIRED:
             if reqd not in blob:
                 missing.append(reqd)
 
