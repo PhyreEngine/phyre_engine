@@ -17,6 +17,13 @@ class Remove(_AlterationComponent):
 
     :param str field: Name of the field to be removed.
     """
+    @property
+    def REQUIRED(self):
+        return [self.field]
+
+    @property
+    def REMOVES(self):
+        return [self.field]
 
     def __init__(self, field):
         self.field = field
@@ -34,6 +41,13 @@ class Copy(_AlterationComponent):
     :param str dst: Name of the destination field.
     :param bool deep: Perform a deep copy.
     """
+    @property
+    def REQUIRED(self):
+        return [self.src]
+
+    @property
+    def ADDS(self):
+        return [self.dst]
 
     def __init__(self, src, dst, deep=False):
         self.src = src
@@ -52,6 +66,17 @@ class Move(_AlterationComponent):
     :param str from_field: Name of the field to be renamed.
     :param str to_field: Name of the new field.
     """
+    @property
+    def REQUIRED(self):
+        return [self.from_field]
+
+    @property
+    def ADDS(self):
+        return [self.to_field]
+
+    @property
+    def REMOVES(self):
+        return [self.from_field]
 
     def __init__(self, from_field, to_field):
         self.from_field = from_field
@@ -70,6 +95,9 @@ class Set(_AlterationComponent):
     :param str field: Name of the field to set.
     :param str value: Value to set
     """
+    @property
+    def ADDS(self):
+        return [self.field]
 
     def __init__(self, field, value):
         self.field = field

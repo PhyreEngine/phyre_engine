@@ -83,9 +83,15 @@ class ParseField(RegexComponent):
 
     :param str field: Name of the field to parse.
     """
-    ADDS = []
     REMOVES = []
-    REQUIRED = []
+
+    @property
+    def REQUIRED(self):
+        return [self.field]
+
+    @property
+    def ADDS(self):
+        return list(self.regex.groupindex)
 
     def __init__(self, field, *args, **kwargs):
         super().__init__(*args, **kwargs)

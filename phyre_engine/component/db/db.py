@@ -394,7 +394,10 @@ class Reduce(Component):
     """
     ADDS = ["reduction"]
     REMOVES = []
-    REQUIRED = []
+
+    @property
+    def REQUIRED(self):
+        return [self.item_list]
 
     CONFIG_SECTION = "reduce"
 

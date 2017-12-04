@@ -244,9 +244,12 @@ class Map(PipelineComponent):
         :py:class:`.PipelineComponent`
             For extra class parameters.
     """
-    REQUIRED = []
     ADDS = []
     REMOVES = []
+
+    @property
+    def REQUIRED(self):
+        return [self.field]
 
     def __init__(self, field, *args, discard=False, **kwargs):
         super().__init__(*args, **kwargs)

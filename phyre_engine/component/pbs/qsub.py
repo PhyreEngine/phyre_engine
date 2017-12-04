@@ -233,9 +233,12 @@ class Slice(BaseQsub):
         If there are no items present in `split_var` a :py:exc:`ValueError` will
         be raised when this component is run.
     """
-    REQUIRED = []
     ADDS = ["qsub_jobs"]
     REMOVES = []
+
+    @property
+    def REQUIRED(self):
+        return [self.split_var]
 
     CONFIG_SECTION = "qsub"
 
@@ -368,9 +371,12 @@ class Trickle(BaseQsub):
         :py:class:`.BaseQsub`
             For the remaining constructor parameters.
     """
-    REQUIRED = []
     ADDS = ["qsub_jobs"]
     REMOVES = []
+
+    @property
+    def REQUIRED(self):
+        return [self.split_var]
 
     CONFIG_SECTION = "qsub"
 

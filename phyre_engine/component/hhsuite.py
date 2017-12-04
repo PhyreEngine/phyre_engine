@@ -195,8 +195,11 @@ class HHBlits(HHSuiteTool):
     """
 
     REQUIRED = []
-    ADDS = []
     REMOVES = []
+
+    @property
+    def ADDS(self):
+        return list(self.output_keys())
 
     def __init__(self, database, flags=None, bin_dir=None, HHLIB=None,
                  input_type=QueryType.SEQUENCE, options=None):
@@ -228,8 +231,11 @@ class HHSearch(HHSuiteTool):
     """
 
     REQUIRED = []
-    ADDS = []
     REMOVES = []
+
+    @property
+    def ADDS(self):
+        return list(self.output_keys())
 
     def __init__(
             self, database, flags=None, bin_dir=None, HHLIB=None,
