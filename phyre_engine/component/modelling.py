@@ -174,12 +174,18 @@ class SoedingSelect(Component):
     each element of which is a tuple containing the maximum assigned residue
     score and the winning template for that position (or `None` if no template
     was chosen for that position).
+
+    :param str templates: Field containing the templates to sort.
     """
-    REQUIRED = ["sequence", "templates"]
     ADDS = ["template_at_residue"]
     REMOVES = []
 
-    def __init__(self, alpha=0.95, beta=1.00):
+    @property
+    def REQUIRED(self):
+        return ["sequence", self.templates]
+
+    def __init__(self, templates="templates", alpha=0.95, beta=1.00):
+        self.templates = templates
         self.alpha = alpha
         self.beta = beta
 
@@ -263,7 +269,7 @@ class SoedingSelect(Component):
             for i in update_indices:
                 template_at_residue[i] = (top_confidences[i], best_template)
 
-        data["templates"] = accepted_templates
+        data[self.templates] = accepted_templates
         data["template_at_residue"] = template_at_residue
         return data
 
