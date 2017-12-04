@@ -1,6 +1,7 @@
 """Provides classes for building, checking and executing pipelines."""
 
 import copy
+import enum
 import importlib
 import json
 from collections import namedtuple
@@ -55,7 +56,17 @@ class Pipeline:
     :param dict start: Starting elements to include in the key-value map.
     :param str checkpoint: Path of a checkpoint file in which to load and save
         pipeline state.
+    :param str statusfile: If set, write a JSON-encoded status file to this
+        location. See :py:meth:`.update_statusfile`.
     """
+
+    class CurrentComponent(enum.Enum):
+        """
+        Passed to :py:meth:`.update_statusfile` to indicate that the pipeline
+        is either initialising or finished.
+        """
+        INITIALISING = "INITIALISING"
+        FINISHED = "FINISHED"
 
     def __init__(self, components=None, start=None, checkpoint=None,
                  config=None, statusfile=None):
@@ -71,17 +82,45 @@ class Pipeline:
     def update_statusfile(self, current_component):
         """
         Write a JSON-encoded file that contains a description of all the
-        components that have been run so far. If the pipeline was configured to
-        not use a statusfile (by setting the `statusfile` parameter), nothing is
-        written.
+        components that have been run so far.
+
+        If the pipeline was not configured to use a statusfile (by setting the
+        `statusfile` parameter), nothing is written.
+
+        The status file is JSON-encoded, and contains the following parameters:
+
+        ``components``
+            List of components in the pipeline. Includes two extra components,
+            ``INITIALISING`` and ``FINISHED``. These are placed at the
+            beginning and end of the list, respectively, and indicate that
+            the pipeline is either being set up or is complete.
+
+        ``index``
+            The index of the component (beginning from zero) currently being
+            processed by the pipeline.
         """
-        if self.statusfile is not None:
-            with open(self.statusfile, "w") as status_out:
-                components = [type(cmpt).__name__ for cmpt in self.components]
-                json.dump({
-                    "index": current_component,
-                    "components": components
-                    }, status_out, indent=2)
+        if self.statusfile is None:
+            return
+
+        components = (
+            [self.CurrentComponent.INITIALISING.value]
+            + [type(cmpt).__name__ for cmpt in self.components]
+            + [self.CurrentComponent.FINISHED.value])
+
+        if current_component in self.CurrentComponent:
+            if current_component == self.CurrentComponent.INITIALISING:
+                current_component = 0
+            else:
+                current_component = len(components) - 1
+        else:
+            # Compensate for leading "INITIALISING"
+            current_component = current_component + 1
+
+        with open(self.statusfile, "w") as status_out:
+            json.dump({
+                "index": current_component,
+                "components": components
+                }, status_out, indent=2)
 
 
     def validate(self):
@@ -195,6 +234,8 @@ class Pipeline:
         :raises Pipeline.ValidationError: If a component does not fulfil its
             promises and add a key that the next component requires.
         """
+        # Write "INITIALISING" state to status file.
+        self.update_statusfile(self.CurrentComponent.INITIALISING)
 
         # Load checkpoint or start a new pipeline if no checkpoint exists.
         checkpoint = self.load_checkpoint()
@@ -240,7 +281,7 @@ class Pipeline:
             self.save_checkpoint(current_component, state)
 
         # Save a statfile with None as the current component
-        self.update_statusfile(None)
+        self.update_statusfile(self.CurrentComponent.FINISHED)
 
         return state
 

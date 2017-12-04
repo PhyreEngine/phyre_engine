@@ -1,7 +1,9 @@
 import unittest
+from unittest.mock import MagicMock
 from phyre_engine.component import Component
 from phyre_engine import Pipeline
 import tempfile
+import json
 import pickle
 from phyre_engine.pipeline import Checkpoint
 import pathlib
@@ -207,3 +209,47 @@ class TestPipeline(unittest.TestCase):
             pipe.components[0].kwargs,
             {"foo": 1, "bar": 3},
             "Read arguments from config but allowed overriding")
+
+    def test_statusfile(self):
+        """Test status file after completing a pipeline."""
+
+        with tempfile.NamedTemporaryFile("r") as status_file:
+            pipeline = Pipeline([
+                TestPipeline.MockComponentStart(),
+            ], statusfile=status_file.name)
+
+            status_components = [
+                "INITIALISING",
+                type(pipeline.components[0]).__name__,
+                "FINISHED",
+            ]
+
+            pipeline.run()
+
+            # Pipeline runs to completion, state is FINISHED
+            status_file.seek(0)
+            status_info = json.load(status_file)
+            self.assertEqual(
+                status_info,
+                {"components": status_components, "index": 2})
+
+            # Monkey patch component so that it raises. We can then check that
+            # the index is correct.
+            run_mock = MagicMock(side_effect=Exception(""))
+            pipeline.components[0].run = run_mock
+
+            # Disable warning about this overly-broad exception, because we
+            # deliberately raised it.
+            # pylint: disable=broad-except
+            try:
+                pipeline.run()
+            except Exception:
+                # deliberately raised
+                pass
+
+            # Pipeline fails on component 1, state is that component.
+            status_file.seek(0)
+            status_info = json.load(status_file)
+            self.assertEqual(
+                status_info,
+                {"components": status_components, "index": 1})
