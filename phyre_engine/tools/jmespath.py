@@ -64,5 +64,6 @@ class JMESExtensions(jmespath.functions.Functions):
     @jmespath.functions.signature({"types": ["object"]}, {"types": ["array"]})
     def _func_delete(self, obj, fields):
         for field in fields:
-            del obj[field]
+            if field in obj:
+                del obj[field]
         return obj
