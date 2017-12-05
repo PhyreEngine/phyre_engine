@@ -42,6 +42,27 @@ class TestUpdate(unittest.TestCase):
             "metadata": {"date": "1970-01-01", "qux": 123}
         })
 
+    def test_update_identity(self):
+        """Updating identical elements does nothing."""
+        update = jmes.Update("@", "@")
+        results = update.run(deepcopy(SAMPLE_STATE))
+        self.assertEqual(results, SAMPLE_STATE)
+
+    def test_type_change(self):
+        """Exception is raised if replacement type differs."""
+        with self.assertRaises(TypeError):
+            update = jmes.Update("metadata", "root().TM")
+            update.run(deepcopy(SAMPLE_STATE))
+        with self.assertRaises(TypeError):
+            update = jmes.Update("templates", "root().TM")
+            update.run(deepcopy(SAMPLE_STATE))
+
+    def test_invalid_selection(self):
+        """Can only update dicts and lists."""
+        with self.assertRaises(TypeError):
+            update = jmes.Update("TM", "`[1,2,3]`")
+            update.run(deepcopy(SAMPLE_STATE))
+
 
 class TestReplace(unittest.TestCase):
     """Test the Update module."""
@@ -71,6 +92,26 @@ class TestReplace(unittest.TestCase):
             "metadata": {"qux": 123}
         })
 
+    def test_replace_identity(self):
+        """Replacing identical elements does nothing."""
+        replace = jmes.Replace("@", "@")
+        results = replace.run(deepcopy(SAMPLE_STATE))
+        self.assertEqual(results, SAMPLE_STATE)
+
+    def test_type_change(self):
+        """Exception is raised if replacement type differs."""
+        with self.assertRaises(TypeError):
+            replace = jmes.Replace("metadata", "root().TM")
+            replace.run(deepcopy(SAMPLE_STATE))
+        with self.assertRaises(TypeError):
+            replace = jmes.Replace("templates", "root().TM")
+            replace.run(deepcopy(SAMPLE_STATE))
+
+    def test_invalid_selection(self):
+        """Can only replace dicts and lists."""
+        with self.assertRaises(TypeError):
+            replace = jmes.Replace("TM", "`[1,2,3]`")
+            replace.run(deepcopy(SAMPLE_STATE))
 
 
 if __name__ == "__main__":
