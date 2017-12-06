@@ -378,8 +378,8 @@ class Branch(PipelineComponent):
     REMOVES = []
     REQUIRED = []
 
-    def __init__(self, pipeline, keep=(), *args, **kwargs):
-        super().__init__(pipeline, *args, **kwargs)
+    def __init__(self, *args, keep=(), **kwargs):
+        super().__init__(*args, **kwargs)
         self.keep = keep
 
     def run(self, data, config=None, pipeline=None):
