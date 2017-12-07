@@ -178,7 +178,7 @@ class PipelineComponent(Component):
         else:
             self._pipeline = pipeline
 
-    def pipeline(self, runtime_config):
+    def pipeline(self, runtime_config, start=None):
         """
         Retrieve the child pipeline.
 
@@ -202,6 +202,8 @@ class PipelineComponent(Component):
                 runtime_config,
                 pipeline_definition.get("config", {}))
 
+            if start is not None:
+                pipeline_definition["start"] = start
             return phyre_engine.Pipeline.load(pipeline_definition)
         return self._pipeline
 
@@ -492,5 +494,5 @@ class ConfigLoader(PipelineComponent):
     def run(self, data, config=None, pipeline=None):
         """Alias pipeline state into child configuraton."""
         config = self.generate_config(data, config)
-        pipeline = self.pipeline(config)
-        return pipeline.run(data)
+        pipeline = self.pipeline(config, data)
+        return pipeline.run()
