@@ -24,6 +24,8 @@ class JMESPathBase(Component):
     ADDS = []
     REMOVES = []
 
+    CONFIG_SECTION = "jmespath"
+
     _TYPE_ERROR_MSG = (
         "Cannot replace '{select_expr}' (type: {select_expr_type}) "
         "with the result of '{value_expr}' (type: {value_expr_type}).")
