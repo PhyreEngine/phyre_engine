@@ -6,6 +6,7 @@ the output will be written.
 """
 import csv
 import json.encoder
+import pickle
 import re
 import sys
 
@@ -167,6 +168,13 @@ class Yaml(Dumper):
     def run(self, data, config=None, pipeline=None):
         with Stream(self.output, "w") as out_fh:
             yaml.dump(self._filter(data), out_fh, Dumper=YamlStateDumper)
+        return data
+
+class Pickle(Dumper):
+    """Dump pipeline state as a pickle."""
+    def run(self, data, config=None, pipeline=None):
+        with Stream(self.output, "wb") as out_fh:
+            pickle.dump(self._filter(data), out_fh)
         return data
 
 class Csv(Component):
