@@ -190,3 +190,18 @@ class NamedTuple:
 
     def __iter__(self):
         return (getattr(self, f) for f in self.FIELDS)
+
+
+def apply_dotted_key(dictionary, dotted_key, value):
+    """
+    Set a key deep in a dictionary. The key is split on each dot (``.``), and
+    each level is assumed to be a nested map. For example, ``a.b.c`` will set
+    the key ``{"a": {"b": {"c": value}}}``.
+    """
+    keys = dotted_key.split(".")
+    dict_section = dictionary
+    for key in keys[:-1]:
+        if key not in dict_section:
+            dict_section[key] = {}
+        dict_section = dict_section[key]
+    dict_section[keys[-1]] = value

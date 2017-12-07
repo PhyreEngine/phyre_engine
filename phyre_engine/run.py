@@ -15,6 +15,7 @@ import sys
 
 from argparse import ArgumentParser, Action
 from phyre_engine.pipeline import Pipeline
+from phyre_engine.tools.util import apply_dotted_key
 
 try:
     # Use libyaml if it is available
@@ -155,19 +156,6 @@ def construct_yaml_tuple(self, node):
         return seq
     return tuple(seq)
 
-def apply_dotted_key(dictionary, dotted_key, value):
-    """
-    Set a key deep in a dictionary. The key is split on each dot (``.``), and
-    each level is assumed to be a nested map. For example, ``a.b.c`` will set
-    the key ``{"a": {"b": {"c": value}}}``.
-    """
-    keys = dotted_key.split(".")
-    dict_section = dictionary
-    for key in keys[:-1]:
-        if key not in dict_section:
-            dict_section[key] = {}
-        dict_section = dict_section[key]
-    dict_section[keys[-1]] = value
 
 def main():  # IGNORE:C0111
     '''Command line options.'''
