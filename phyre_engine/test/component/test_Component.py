@@ -5,7 +5,8 @@ import unittest
 import unittest.mock
 from phyre_engine.component import Component
 from phyre_engine.component.component import (Map, Conditional, TryCatch,
-                                              PipelineComponent, Branch)
+                                              PipelineComponent, Branch,
+                                              ConfigLoader)
 import phyre_engine.pipeline
 
 class Double(Component):
@@ -337,3 +338,16 @@ class TestBranch(unittest.TestCase):
         results = Branch(pipe, keep=('foo',)).run(start_pipe)
         self.assertIn("foo", results)
         self.assertEqual(results["foo"], {"bar": "baz"})
+
+
+class TestConfigLoader(unittest.TestCase):
+    """Test ConfigLoader component."""
+
+    def test_config_transfer(self):
+        """Check that values are transferred from state to config."""
+        conf_loader = ConfigLoader(
+            mapping={"slice": "jmespath.value_expr"},
+            components=[])
+        self.assertEqual(
+            conf_loader.generate_config({"slice": "foo"}, None),
+            {"jmespath": {"value_expr": "foo"}})

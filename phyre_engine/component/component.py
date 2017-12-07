@@ -5,6 +5,11 @@ import phyre_engine
 import copy
 import enum
 
+import jmespath
+
+from phyre_engine.tools.jmespath import JMESExtensions
+from phyre_engine.tools.util import apply_dotted_key
+
 class ComponentMeta(ABCMeta):
     """Metaclass for components.
 
@@ -391,3 +396,101 @@ class Branch(PipelineComponent):
             if field in branch_results:
                 data[field] = branch_results[field]
         return data
+
+
+class ConfigLoader(PipelineComponent):
+    """
+    Convenience component for loading pipeline state into sub-pipeline
+    configuration.
+
+    It can sometimes be useful to use part of the pipeline state as
+    configuration parameters to some components. This component provides this
+    capability by converting parts of the pipeline state into configuration
+    according to `config_map`, then loading and executing the child pipeline
+    with the current pipeline state.
+
+    For example, let's say we want to take a slice from the ``templates`` list.
+    We can do this easily using the
+    :py:class:`phyre_engine.component.jmespath.Replace` component by passing
+    the slice as the `value_expr`. To take the first ten templates, we would
+    write the following:
+
+    .. code-block:: yaml
+
+        # In pipeline configuration file
+        pipeline:
+          components:
+          # ...
+          - .jmespath.Replace:
+              select_expr: templates
+              value_expr: [0:10]
+
+    This slice could be configured on the command line with the parameter
+    ``--config 'jmespath.value_expr:[0:10]'``. However, this is quite obtuse:
+    it's not immediately clear what the ``value_expr`` is selecting. If we
+    wanted to configure two separate JMESPath components from the command line,
+    we would be out of luck.
+
+    This component will transfer fields from the pipeline state into the child
+    configuration according to a predefined set of aliases. For the example
+    given above, we could use the ``slice`` field of the pipeline state as
+    follows:
+
+    .. code-block:: yaml
+
+        # In pipeline configuraton file
+        pipeline:
+          components:
+          # ...
+          - .component.ConfigLoader:
+              mapping:
+                slice: jmespath.value_expr
+              components:
+              - .jmespath.Replace:
+                  select_expr: templates
+
+    This pipeline can then be run with the parameters ``--start
+    'slice:[0:10]'``. The `ConfigLoader` component will transfer the ``slice``
+    field into the ``value_expr`` field of the ``jmespath`` section of the
+    sub-pipeline config.
+
+    The value of each field in the ``mapping`` parameter is a string, with
+    field names separated by dots. Each dot indicates drilling down into a
+    new dictionary. That is, ``jmespath.value_expr`` is the same as
+    ``config["jmespath"]["value_expr"]``.
+
+    :param dict mapping: Mapping of pipeline state fields to configuration
+        fields. The keys of this mapping are JMESPath expressions applied to
+        the pipeline state, which must return the data to be transferred into
+        the pipeline configuration. The values of each field are similar to
+        JMESPath expressions, but more limited: they may only be dot-separated
+        strings, each drilling further into a dictionary.
+    """
+    @property
+    def REQUIRED(self):
+        return list(self.mapping.keys())
+
+    ADDS = []
+    REMOVES = []
+
+    def __init__(self, mapping, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.mapping = mapping
+
+    def generate_config(self, data, config):
+        """
+        Generate child pipeline configuration from runtime configuration
+        and pipeline state.
+        """
+        config = config if config is not None else {}
+        jmes_opts = jmespath.Options(custom_functions=JMESExtensions(data))
+        for search_term, config_location in self.mapping.items():
+            state_value = jmespath.search(search_term, data, jmes_opts)
+            apply_dotted_key(config, config_location, state_value)
+        return config
+
+    def run(self, data, config=None, pipeline=None):
+        """Alias pipeline state into child configuraton."""
+        config = self.generate_config(data, config)
+        pipeline = self.pipeline(config)
+        return pipeline.run(data)
