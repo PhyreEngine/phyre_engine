@@ -22,6 +22,8 @@ class Loader(Component):
     ADDS = []
     REMOVES = []
 
+    CONFIG_SECTION = "load"
+
     def __init__(self, input_source):
         self.input_source = input_source
 
