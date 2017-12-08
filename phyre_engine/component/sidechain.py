@@ -1,5 +1,6 @@
 """Components for reconstructing side-chains."""
 
+import re
 from pathlib import Path
 import subprocess
 
@@ -44,6 +45,19 @@ class Scwrl4(Component):
         command_line = self.SCWRL4(
             (self.bin_dir, "scwrl4"),
             options={"input": model, "output": outfile})
-        subprocess.run(command_line, check=True)
+        program = subprocess.run(
+            command_line, check=True, universal_newlines=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        # Scwrl doesn't always set a sensible exit value, so if we see "^Err$"
+        # on standard output, treat it as an error.
+        if re.search("^Err$", program.stdout, re.MULTILINE):
+            self.logger.error(
+                ("Error running SCWRL4. Command line: %s\n"
+                "Standard output: %s\n"
+                "Standard error: %s\n"),
+                command_line, program.stdout, program.stderr)
+            raise subprocess.CalledProcessError(
+                program.returncode, command_line,
+                program.stdout, program.stderr)
         data["model"] = str(outfile)
         return data
