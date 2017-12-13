@@ -16,19 +16,11 @@ import sys
 from argparse import ArgumentParser, Action
 from phyre_engine.pipeline import Pipeline
 from phyre_engine.tools.util import apply_dotted_key
-
-try:
-    # Use libyaml if it is available
-    import yaml
-    from yaml import CSafeLoader as SafeLoader, CSafeDumper as SafeDumper
-except ImportError:
-    from yaml import SafeLoader, SafeDumper
+import phyre_engine.tools.yaml as yaml
 
 class DumpAction(Action):
     def __call__(self, parser, namespace, values, option_string=None):
-        yaml.dump(
-            dummy_pipeline(),
-            sys.stdout, SafeDumper, default_flow_style=False)
+        yaml.dump(dummy_pipeline(), sys.stdout, default_flow_style=False)
         sys.exit(0)
 
 class StoreStartingValue(Action):
@@ -148,14 +140,6 @@ def init_logging(pipeline):
     pipeline["config"] = config
     logging.config.dictConfig(config[LOGGING])
 
-def construct_yaml_tuple(self, node):
-    # Used to convert sequences from lists to tuples. Only applies to lists
-    # without any nested structures.
-    seq = self.construct_sequence(node)
-    if any(isinstance(e, (list, tuple, dict)) for e in seq):
-        return seq
-    return tuple(seq)
-
 
 def main():  # IGNORE:C0111
     '''Command line options.'''
@@ -170,10 +154,7 @@ def main():  # IGNORE:C0111
 
         # Parse pipeline descriptor from YAML file
         with open(args.pipeline, "r") as yml_in:
-            SafeLoader.add_constructor(
-                'tag:yaml.org,2002:seq',
-                construct_yaml_tuple)
-            config = yaml.load(yml_in, SafeLoader)
+            config = yaml.load(yml_in)
 
         # Update starting values if any were supplied on the command line
         if "start" not in config["pipeline"]:

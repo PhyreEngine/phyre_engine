@@ -17,13 +17,8 @@ from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from pathlib import Path
 import unittest
 import phyre_engine.test
+import phyre_engine.tools.yaml as yaml
 
-try:
-    # Use libyaml if it is available
-    import yaml
-    from yaml import CSafeLoader as SafeLoader
-except ImportError:
-    from yaml import SafeLoader
 
 def arg_parser():
     """Set up argument parser."""
@@ -45,16 +40,6 @@ def arg_parser():
         help="YAML configuration file.")
     return parser
 
-def construct_yaml_tuple(self, node):
-    """
-    Used to convert sequences from lists to tuples. Only applies to lists
-    without any nested structures.
-    """
-    # TODO: This is shared with phyre_engine.run: refactor shared code
-    seq = self.construct_sequence(node)
-    if any(isinstance(e, (list, tuple, dict)) for e in seq):
-        return seq
-    return tuple(seq)
 
 def _main():
     # Capture warnings with the logger
@@ -65,10 +50,7 @@ def _main():
 
         if args.config is not None:
             with open(args.config, "r") as yml_in:
-                SafeLoader.add_constructor(
-                    'tag:yaml.org,2002:seq',
-                    construct_yaml_tuple)
-                phyre_engine.test.config = yaml.load(yml_in, SafeLoader)
+                phyre_engine.test.config = yaml.load(yml_in)
 
         loader = unittest.TestLoader()
         tests = loader.discover(args.test_dir, args.pattern)
