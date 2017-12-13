@@ -5,7 +5,6 @@ import abc
 import os
 import math
 import copy
-import json
 import pickle
 from pathlib import Path
 import subprocess
@@ -16,6 +15,8 @@ import sys
 from subprocess import CalledProcessError
 from phyre_engine.component.pbs.jobscript import StartScript
 import time
+import phyre_engine.tools.yaml as yaml
+
 
 r"""
 Components for running sub-pipelines on PBS nodes.
@@ -169,7 +170,7 @@ class BaseQsub(PipelineComponent):
         """
         pipeline_defn = self.pipeline_definition(base_config)
         with pipe_path.open("w") as pipe_out:
-            json.dump(pipeline_defn, pipe_out)
+            yaml.dump(pipeline_defn, pipe_out)
 
     def _save_state(self, state_path, state):
         """Pickle pipeline state and save it to state_path."""
@@ -301,7 +302,7 @@ class Slice(BaseQsub):
         stdout_dir.mkdir()
         stderr_dir.mkdir()
 
-        pipeline_path = job_dir / "pipeline.json"
+        pipeline_path = job_dir / "pipeline.yml"
         self._save_pipeline(pipeline_path, config)
         pickles = self._slice_state(job_dir, data, config)
 
@@ -424,7 +425,7 @@ class Trickle(BaseQsub):
         qsub_jobs = []
 
         # The pipeline is static across all jobs, so we can write it now
-        pipe_path = self.storage_dir / "pipeline.json"
+        pipe_path = self.storage_dir / "pipeline.yml"
         self._save_pipeline(pipe_path, config)
 
         # Pointer to the next chunk to be enqueued
@@ -486,7 +487,7 @@ class ContactNodes(BaseQsub):
         stdout_dir.mkdir()
         stderr_dir.mkdir()
 
-        pipeline_path = job_dir / "pipeline.json"
+        pipeline_path = job_dir / "pipeline.yml"
         self._save_pipeline(pipeline_path, config)
 
         if "qsub_jobs" not in data:
@@ -701,7 +702,7 @@ class Detach(BaseQsub):
             tempfile.mkdtemp("detach", "qsub", str(self.storage_dir)))
 
         pickle_path = job_dir / self._PICKLE_NAME
-        pipeline_path = job_dir / "pipeline.json"
+        pipeline_path = job_dir / "pipeline.yml"
         stdout_dir = job_dir / "stdout"
         stderr_dir = job_dir / "stderr"
         stdout_dir.mkdir()
