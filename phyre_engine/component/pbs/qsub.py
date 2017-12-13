@@ -1,6 +1,6 @@
 from . import jobscript
 from . import exception
-from phyre_engine.component.component import Component
+from phyre_engine.component.component import Component, PipelineComponent
 import abc
 import os
 import math
@@ -140,7 +140,7 @@ class RemoteArrayJob(RemoteJobBase):
             job_id=repr(self.job_id),
             join_var=repr(self.join_var))
 
-class BaseQsub(Component):
+class BaseQsub(PipelineComponent):
     """
     Base class for components making use of the :manpage:`qsub(1)` command.
 
@@ -154,9 +154,10 @@ class BaseQsub(Component):
     :param list[str] qsub_args: Extra arguments to pass to qsub.
     """
 
-    def __init__(self, pipeline, name, storage_dir=".", qsub_args=None):
+    def __init__(self, name, *pipeline_args, storage_dir=".",
+                 qsub_args=None, **pipeline_kwargs):
+        super().__init__(*pipeline_args, **pipeline_kwargs)
         self.storage_dir = Path(storage_dir)
-        self.pipeline = pipeline
         self.name = name
         self.qsub_args = qsub_args if qsub_args is not None else []
 
@@ -166,16 +167,9 @@ class BaseQsub(Component):
         supplied, it is used as the "base" configuration: any configuration
         set in "pipeline.config" overwrites the base configuration.
         """
-        if base_config is None:
-            base_config = {}
-        original_config = self.pipeline.get("config", {})
-        try:
-            self.pipeline["config"] = copy.deepcopy(base_config)
-            self.pipeline["config"].update(original_config)
-            with pipe_path.open("w") as pipe_out:
-                json.dump(self.pipeline, pipe_out)
-        finally:
-            self.pipeline["config"] = original_config
+        pipeline_defn = self.pipeline_definition(base_config)
+        with pipe_path.open("w") as pipe_out:
+            json.dump(pipeline_defn, pipe_out)
 
     def _save_state(self, state_path, state):
         """Pickle pipeline state and save it to state_path."""

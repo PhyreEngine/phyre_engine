@@ -250,19 +250,34 @@ class PipelineComponent(Component):
         :rtype: :py:class:`phyre_engine.pipeline.Pipeline`
         """
         if not isinstance(self._pipeline, phyre_engine.Pipeline):
-            if runtime_config is None:
-                runtime_config = {}
-
-            pipeline_definition = copy.deepcopy(self._pipeline)
-            pipeline_definition["config"] = self.combine_configs(
-                runtime_config,
-                pipeline_definition.get("config", {}))
-
-            if start is not None:
-                pipeline_definition["start"] = start
-            return phyre_engine.Pipeline.load(pipeline_definition)
+            pipeline_defn = self.pipeline_definition(runtime_config, start)
+            return phyre_engine.Pipeline.load(pipeline_defn)
         return self._pipeline
 
+    def pipeline_definition(self, runtime_config, start=None):
+        """
+        Retrieve the definition of the child pipeline, as would be specified in
+        a YAML pipeline file.
+
+        :raises TypeError: If the pipeline was passed as an instance of
+        :py:class:`phyre_engine.pipeline.Pipeline`.
+        """
+        if isinstance(self._pipeline, phyre_engine.Pipeline):
+            raise TypeError(
+                ("Cannot get pipeline definition for instance of Pipeline "
+                 "class."))
+
+        if runtime_config is None:
+            runtime_config = {}
+
+        pipeline_definition = copy.deepcopy(self._pipeline)
+        pipeline_definition["config"] = self.combine_configs(
+            runtime_config,
+            pipeline_definition.get("config", {}))
+
+        if start is not None:
+            pipeline_definition["start"] = start
+        return pipeline_definition
 
     def combine_configs(self, parent_config, child_config):
         """
