@@ -347,13 +347,10 @@ class Pipeline:
             component_cls = getattr(component_cls, nested_cls_name)
 
         # Collect **kwargs
-        kwargs = {}
+        if arg_dict is None:
+            arg_dict = {}
+        kwargs = component_cls.config(arg_dict, config)
 
-        if component_cls.CONFIG_SECTION is not None:
-            kwargs.update(config.get(component_cls.CONFIG_SECTION, {}))
-
-        if arg_dict is not None:
-            kwargs.update(arg_dict)
         return component_cls(**kwargs)
 
     @classmethod
@@ -410,7 +407,9 @@ class Pipeline:
         variable of a component is not ``None``, then the corresponding section
         of the pipeline configuration is passed into the constructor of the
         component. Explicitly-supplied arguments will override the arguments
-        from the configuration.
+        from the configuration. Some components may override this behaviour in
+        order to implement more complex merging of parameters and
+        configuration.
 
         To reduce boilerplate, components may be loaded with a shorthand
         notation by supplying a top-level ``namespace`` key and specifying

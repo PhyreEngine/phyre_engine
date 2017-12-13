@@ -2,6 +2,7 @@
 Module containing various utility classes and functions that may be used in many
 places.
 """
+import collections.abc
 import os
 import pathlib
 
@@ -205,3 +206,20 @@ def apply_dotted_key(dictionary, dotted_key, value):
             dict_section[key] = {}
         dict_section = dict_section[key]
     dict_section[keys[-1]] = value
+
+def deep_merge(src, dst):
+    """
+    Merge two dictionaries, overwriting elements of `dst` with the
+    corresponding elements of `src`. Dictionary elements are in turn merged.
+
+    >>> from phyre_engine.tools.util import deep_merge
+    >>> deep_merge({"a": {"x": 1}, "b": 2}, {"a": {"y": 2}, "b": 1})
+    {"a": {"x": 1, "y": 2}, "b": 2}
+    """
+    for key, value in src.items():
+        if isinstance(value, collections.abc.Mapping):
+            node = dst.setdefault(key, {})
+            deep_merge(value, node)
+        else:
+            dst[key] = value
+    return dst

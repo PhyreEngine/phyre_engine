@@ -45,6 +45,21 @@ class TestComponent(unittest.TestCase):
         self.assertEqual(a, 123)
         self.assertEqual(b, 456)
 
+    def test_config(self):
+        pipeline_config = {"conf": {"a": 1, "b": 2, "c": {"x": 1}}}
+        component_params = {"a": 2, "c": {"x": 2, "y": 3}}
+
+        # CONFIG_SECTION not defined
+        self.assertEqual(
+            Double.config(component_params, pipeline_config),
+            component_params)
+
+        with unittest.mock.patch.object(Double, "CONFIG_SECTION", new="conf"):
+            # CONFIG_SECTION defined, so "a" is overridden.
+            self.assertEqual(
+                Double.config(component_params, pipeline_config),
+                {"a": 2, "b": 2, "c": {"x": 2, "y": 3}})
+
 class TestPipelineComponent(unittest.TestCase):
     """Test PipelineComponent."""
 

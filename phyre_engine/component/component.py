@@ -8,7 +8,7 @@ import enum
 import jmespath
 
 from phyre_engine.tools.jmespath import JMESExtensions
-from phyre_engine.tools.util import apply_dotted_key
+from phyre_engine.tools.util import apply_dotted_key, deep_merge
 
 class ComponentMeta(ABCMeta):
     """Metaclass for components.
@@ -46,6 +46,62 @@ class Component(metaclass=ComponentMeta):
     @abstractmethod
     def REMOVES(self):
         pass
+
+    @classmethod
+    def config(cls, params, pipeline_config):
+        """
+        Combine pipeline configuration options with constructor parameters.
+
+        The pipeline configuration provides a means of configuring multiple
+        similar components at once. The default strategy, implemented by this
+        class method, is to look up a configuration section in the pipeline
+        configuration, then update that dictionary with the component-specific
+        parameters. These parameters are then passed to the constructor of the
+        component as named arguments. The configuration section is chosen
+        according to the `CONFIG_SECTION` class attribute.
+
+        For example, consider this toy pipeline definition:
+
+        .. code-block:: yaml
+
+            pipeline:
+              config:
+                thing:
+                  foo: 3.141
+                  bar: {"x": 1, "y": 2}
+              components:
+              - .foo.Thing:
+                  foo: 3
+                  bar: {"x": 3}
+
+        If we assume that the ``.foo.Thing`` component has ``CONFIG_SECTION =
+        "thing"``, then the component will be instantiated with the arguments
+        ``foo=3, bar={"x": 3, "y": 2}``. Notice that the parameters supplied
+        specifically to the component override the parameters supplied in the
+        pipeline configuration. This applies even in "child" dictionaries: the
+        configurations are merged using
+        :py:func:`phyre_engine.tools.util.deep_merge`.
+
+
+        :param dict[str, any] params: Keyword parameters for the component
+            constructor.
+        :param dict[str, any] pipeline_config: Global pipeline configuration.
+
+        .. note::
+
+            Components that require more complex combinations of the
+            configurations should override this method.
+        """
+        if (pipeline_config is not None
+                and cls.CONFIG_SECTION is not None
+                and cls.CONFIG_SECTION in pipeline_config):
+            config = copy.deepcopy(pipeline_config[cls.CONFIG_SECTION])
+            if params is not None:
+                deep_merge(params, config)
+            return config
+        # If no pipeline config can be extracted, the supplied params must
+        # suffice.
+        return params
 
     @property
     def logger(self):
