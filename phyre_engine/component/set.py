@@ -13,7 +13,9 @@ class SetOperation(Component):
     value used to compare sets is chosen by evaluating the JMESPath expression
     `key` relative to each item in the set. If an item appears in multiple
     sets, the version of that item that appears in the leftmost set in the
-    `sets` list is preferred.
+    `sets` list is preferred. If identical identifiers are found in a single
+    set, the first identifier is the one that is kept, preserving the sort
+    order.
 
     The results of the operation are stored in the `destination` field.
 
@@ -67,8 +69,9 @@ class SetOperation(Component):
 
             # Build map of identifiers to items, and list of sets of IDs.
             for ident, item in zip(identifiers, item_list):
-                key_map[ident] = item
-                item_set.add(ident)
+                if ident not in item_set:
+                    key_map[ident] = item
+                    item_set.add(ident)
             key_sets.append(item_set)
         # Compensate for initial "reverse"
         key_sets.reverse()

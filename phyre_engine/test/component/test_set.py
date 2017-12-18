@@ -52,6 +52,7 @@ class SetTestBase(unittest.TestCase):
                     self.assertIn(elem, got)
         self.assertEqual(result, SAMPLE_STATE)
 
+
 class TestDifference(SetTestBase):
     """Test Difference component."""
 
@@ -77,6 +78,12 @@ class TestDifference(SetTestBase):
         """Pass data through unchanged for a single set."""
         cmpt = phyre_engine.component.set.Difference(["A"], "value", "result")
         self.verify_state(cmpt.run(self.state), {"result": SAMPLE_STATE["A"]})
+
+    def test_ordering(self):
+        """First element with identical keys is retained."""
+        cmpt = phyre_engine.component.set.Difference(["D"], "a", "result")
+        self.verify_state(cmpt.run(self.state),
+                          {"result": SAMPLE_STATE["D"][0:1]})
 
 
 class TestUnion(SetTestBase):
@@ -121,6 +128,12 @@ class TestUnion(SetTestBase):
         cmpt = phyre_engine.component.set.Union(["A"], "value", "result")
         self.verify_state(cmpt.run(self.state), {"result": SAMPLE_STATE["A"]})
 
+    def test_ordering(self):
+        """First element with identical keys is retained."""
+        cmpt = phyre_engine.component.set.Union(["D"], "a", "result")
+        self.verify_state(cmpt.run(self.state),
+                          {"result": SAMPLE_STATE["D"][0:1]})
+
 
 class TestIntersection(SetTestBase):
     """Test Intersection component."""
@@ -146,3 +159,9 @@ class TestIntersection(SetTestBase):
         cmpt = phyre_engine.component.set.Intersection(
             ["A"], "value", "result")
         self.verify_state(cmpt.run(self.state), {"result": SAMPLE_STATE["A"]})
+
+    def test_ordering(self):
+        """First element with identical keys is retained."""
+        cmpt = phyre_engine.component.set.Intersection(["D"], "a", "result")
+        self.verify_state(cmpt.run(self.state),
+                          {"result": SAMPLE_STATE["D"][0:1]})
