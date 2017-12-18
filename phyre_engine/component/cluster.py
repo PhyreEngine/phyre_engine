@@ -1,3 +1,9 @@
+"""
+Components for clustering the pipeline state.
+
+Some of these components can be used to cluster according to model similarity,
+and some can operate on arbitrary sections of the pipeline state.
+"""
 import json
 import subprocess
 import tempfile
