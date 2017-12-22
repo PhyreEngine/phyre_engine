@@ -2,6 +2,8 @@
 Tools used by PhyreEngine when dealing with `JMESPath <http://jmespath.org/>`_
 expressions.
 """
+import datetime
+
 import jmespath
 
 
@@ -33,6 +35,14 @@ class JMESExtensions(jmespath.functions.Functions):
         calling this function, the underlying JMESPath library will see a tuple
         as an opaque Python object.
 
+    ``date(string, format)``
+        Parse ``string`` into a :py:class:`datetime.date` object. The
+        ``format`` string is interpreted as for
+        :py:meth:`~datetime.datetime.strptime`.
+
+    ``datetime(string, format)``
+        Similar to ``date()``, but returning a :py:class:`~datetime.datetime`
+        object.
 
 
     :param root: Root of the pipeline state.
@@ -67,3 +77,11 @@ class JMESExtensions(jmespath.functions.Functions):
             if field in obj:
                 del obj[field]
         return obj
+
+    @jmespath.functions.signature({"types": ["string"]}, {"types": ["string"]})
+    def _func_date(self, string, format_str):
+        return datetime.datetime.strptime(string, format_str).date()
+
+    @jmespath.functions.signature({"types": ["string"]}, {"types": ["string"]})
+    def _func_datetime(self, string, format_str):
+        return datetime.datetime.strptime(string, format_str)
