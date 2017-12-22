@@ -35,6 +35,9 @@ class JMESExtensions(jmespath.functions.Functions):
         calling this function, the underlying JMESPath library will see a tuple
         as an opaque Python object.
 
+    ``delete(object, fields)``
+        Delete each field in the ``fields`` list from ``object``.
+
     ``date(string, format)``
         Parse ``string`` into a :py:class:`datetime.date` object. The
         ``format`` string is interpreted as for
