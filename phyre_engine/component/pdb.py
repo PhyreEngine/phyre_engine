@@ -3,15 +3,19 @@ This module contains components for interacting with PDB (or mmCIF) files.
 """
 import enum
 import Bio.PDB
+import Bio.PDB.MMCIF2Dict
 import phyre_engine.tools.pdb
 import phyre_engine.tools.util
 import phyre_engine.tools.template
 from phyre_engine.component.component import Component
+from phyre_engine.tools.jmespath import JMESExtensions
+import jmespath
 import tempfile
 import os
 import datetime
 import urllib
 import xml.etree.ElementTree
+import io
 
 class StructureType(enum.Enum):
     """Possible structure types."""
@@ -186,6 +190,111 @@ class TemplateMapping(Component):
         template = phyre_engine.tools.template.Template.load(structure_file)
         data["residue_mapping"] = template.mapping
         return data
+
+class MMCIFMetadata(Component):
+    """
+    Parse metadata from an mmCIF file.
+
+    This component will look up the mmCIF file specified by the ``PDB`` field
+    in the pipeline state from the directory `mmcif_dir`. It will then parse
+    the mmCIF file into a dictionary using
+    :py:class:`~Bio.PDB.MMCIF2Dict.MMCIF2Dict`.
+
+    Each pair of expressions in the `fields` dictionary is then evaluated: the
+    value of each pair in the dictionary is a JMESPath expression evaluated
+    against the metadata dictionary, and the key is the field name to be placed
+    into the ``metadata`` dictionary in the pipeline state. For example:
+
+    >>> from phyre_engine.component.pdb import MMCIFMetadata
+    >>> meta = MMCIFMetadata(
+    ...     mcif_dir="/path/to/mmcif/files",
+    ...     fields={
+    ...         "resolution": "to_number(_reflns.d_resolution_high)",
+    ...         "title": "_struct.title",
+    ...     })
+    >>> results = meta.run({"PDB": "12AS"})
+    >>> results["metadata"]
+    {"resolution": 2.2, "title": "ASPARAGINE SYNTHETASE MUTANT C51A..."}
+
+    .. note::
+
+        Some mmCIF files can be very large, so by default mmCIF files are
+        filtered to remove all lines beginning with ``ATOM`` or ``HETATM``.
+        This is technically incorrect, because the mmCIF specification does not
+        require the ``_atom_site`` records to begin with the ``group_PDB``
+        field. However, all the mmCIF files from the PDB obey this format for
+        (supposed) compatibility with some line-based PDB-format parsers.
+        If this pre-filter is causing problems, it can be disabled by setting
+        `prefilter=False`.
+
+    .. note::
+
+        Most of the keys in the mmCIF dictionary will contain a dot (``.``),
+        which is parsed by JMESPath as a sub-expression unless it is escaped.
+        To escape a JMESPath expression, surround it in double quotes. This
+        can be slightly tricky depending on how you are passing strings into
+        this class. In Python and YAML, it is probably easiest to specify the
+        string with single quotes, and then use double quotes to specify a
+        literal JMESPath expression: ``'"a.b"'``.
+
+    :param str mmcif_dir: Base directory of mmCIF files, divided according
+        to the middle two letters of the PDB identifier.
+
+    :param dict[str, str] fields: Mapping of field names to JMESPath
+        expressions evaluated against the parsed mmCIF dictionary.
+
+    :param bool prefilter: Strip lines beginning with ``ATOM`` or ``HETATM``
+        before parsing the mmCIF file. This will greatly speed up the parsing
+        of large files, but technically violates the mmCIF specification. The
+        default is `True`, because the prefilter should work with all the
+        mmCIF files from the Protein Data Bank.
+    """
+
+    REQUIRED = ["PDB"]
+    ADDS = ["metadata"]
+    REMOVES = []
+
+    def __init__(self, mmcif_dir, fields, prefilter=True):
+        self.mmcif_dir = mmcif_dir
+        self.fields = fields
+        self.prefilter = prefilter
+
+    @staticmethod
+    def _prefilter(mmcif_in):
+        """
+        Read file handle mmcif_in, strip lines beginning with ATOM or HETATM
+        and return an io.StringIO buffer containing the pre-filtered lines.
+        """
+        buf = io.StringIO()
+        for line in mmcif_in:
+            if not (line.startswith("ATOM") or line.startswith("HETATM")):
+                buf.write(line)
+        buf.seek(0)
+        return buf
+
+    def run(self, data, config=None, pipeline=None):
+        """Parse metadata from mmCIF file."""
+        pdb_id = self.get_vals(data)
+
+        mmcif_file = phyre_engine.tools.pdb.find_pdb(
+            pdb_id, suffix_list=(".cif", ".cif.gz"),
+            base_dir=self.mmcif_dir)
+        data.setdefault("metadata", {})
+
+
+        with phyre_engine.tools.pdb.open_pdb(mmcif_file) as mmcif_in:
+            if self.prefilter:
+                mmcif_in = self._prefilter(mmcif_in)
+
+            mmcif_dict = Bio.PDB.MMCIF2Dict.MMCIF2Dict(mmcif_in)
+            jmes_extensions = JMESExtensions(mmcif_dict)
+            jmes_opts = jmespath.Options(custom_functions=jmes_extensions)
+            for field, jmespath_expr in self.fields.items():
+                value = jmespath.search(jmespath_expr, mmcif_dict, jmes_opts)
+                data["metadata"][field] = value
+
+        return data
+
 
 class RCSBMetadata(Component):
     """
