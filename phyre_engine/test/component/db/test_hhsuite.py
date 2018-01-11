@@ -51,7 +51,7 @@ class TestAddDSSP(unittest.TestCase):
         with io.StringIO(minimal.MINIMAL_MMCIF) as mmcif_buf:
             parser = Bio.PDB.MMCIFParser()
             template_structure = parser.get_structure("", mmcif_buf)
-            template = Template.build(template_structure[0]["A"])
+            template = Template.build("1MIN", "A", template_structure[0]["A"])
             with structure.open("w") as template_out:
                 template.write(template_out)
 
@@ -60,7 +60,7 @@ class TestAddDSSP(unittest.TestCase):
             a3m_out.write(self.BEFORE_A3M)
 
         self.pipeline = {
-            "structure": str(structure),
+            "template_obj": template,
             "a3m": str(a3m),
             "secondary_structure": {"dssp": self.SEC_STRUC}
         }

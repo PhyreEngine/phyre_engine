@@ -2,37 +2,21 @@
 This module contains tools for dealing with PhyreEngine's concept of template
 structures.
 
+Templates in PhyreEngine
+------------------------
+
 At their most basic, a template structure is a protein structure onto which an
 aligned sequence may be threaded in order to generate a homology model.
 PhyreEngine's idea of a template is a little more specific: a template is a PDB
 file containing a single chain, starting at residue 1 and with residues numbered
-consecutively, with no alternate conformations and with some ``REMARK`` fields
-indicating the residues containined within the template file that should be
-included in the sequence of the template.
+consecutively, with no alternate conformations.
 
-Each template must contain a ``REMARK 161`` (the sum of the decimal ascii codes
-"T" and "M") field. The ``REMARK 161`` fields will contain a JSON-formatted list
-of original author-assigned IDs in Biopython format. This will look like this:
-
-.. code-block:: none
-
-    REMARK 161 [
-    REMARK 161     [' ', 3, ' '],
-    REMARK 161     [' ', 3, 'A'],
-    ...
-
-And so on. Template residue IDs are given in three parts: a hetero flag, the
-residue ID and an insertion code. In this case, residue 1 in the chain PDB is
-mapped to residue 3 in the original template, and residue 2 maps to residue 3A.
-
-Templates must also contain metadata giving the "canonical" sequence of a PDB
-structure. This sequence is generated from all residues in the ``ATOM`` records
-of the PDB file that are standard amino acids and have a ``CA`` atom. This
-sequence is stored as a single line in ``REMARK 150`` (ASCII "C" + "S" for
-Canonical Sequence).
-
-Finally, a ``REMARK 156`` ("S" + "I" for Sequence Index) must be included
-containing the *renumbered* residue ID corresponding to the canonical sequence.
+Templates contain metadata giving the "canonical" sequence of a PDB structure.
+This sequence is generated from all residues in the ``ATOM`` records of the PDB
+file that are standard amino acids and have a ``CA`` atom. Templates also
+contain metadata giving the mapping between the canonical sequence and the
+(renumbered) residue IDs of each residue contained within the canonical
+sequence.
 
 For example, we might start with the following original PDB file (with
 everything right of the residue index excised for legibility):
@@ -45,30 +29,40 @@ everything right of the residue index excised for legibility):
     ATOM      4 CB A  ALA A 12
 
 This PDB file will be renumbered beginning from 1, and insertion codes will be
-stripped. With ``REMARK 161`` giving the original author-assigned residue
-indices, the template will then look like this:
+stripped. It will then look like this:
 
 .. code-block:: none
 
-    REMARK 161 [
-    REMARK 161     [' ', 10, ' '],
-    REMARK 161     [' ', 11, ' '],
-    REMARK 161     ['H_AMP', 11, 'A'],
-    REMARK 161     [' ', 12, ' ']
-    REMARK 161 ]
     ATOM      1 CA A  ALA A 1
     ATOM      2 CA A  GLY A 2
     HETATM    3 CA A  AMP A 3
     ATOM      4 CB A  ALA A 4
 
-Next, the canonical sequence and sequence mapping must be added. Residues 3 and
-4 will not be included in the sequence: residue 3 is a ``HETATM`` and residue 4
-does not contain a ``CA`` atom. The mapping is onto the
-*renumbered* residue IDs:
+The original residue mapping will be preserved as an array of residue IDs.
+BioPython's idea of residue IDs is used, so each residue ID is a triplet of
+values. The first value in the triplet indicates the type of ``HETATM``, if
+any, the second gives the residue ID and the third gives the insertion code, if
+any. Null values are represented as spaces. In this case, the mapping will look
+like this:
+
+.. code-block::
+
+    [
+        (' ', 10, ' '),
+        (' ', 11, ' '),
+        ('H_AMP', 11, 'A'),
+        (' ', 12, ' ')
+    ]
+
+Next, the canonical sequence and sequence mapping are calculated. In this
+example, residues 3 and 4 will not be included in the sequence: residue 3 is a
+``HETATM`` and residue 4 does not contain a ``CA`` atom. The canonical sequence
+is ``AG``, and the the *renumbered* residue IDs are ``[1, 2]]``. For the sake
+of convenience, the canonical sequence and list of canonical indices will be
+stoerd in ``REMARK`` fields:
 
 .. code-block:: none
 
-    REMARK 161 (unchanged)
     REMARK 150 AG
     REMARK 156 [1, 2]
     ATOM      1 CA A  ALA A 1
@@ -76,17 +70,412 @@ does not contain a ``CA`` atom. The mapping is onto the
     HETATM    3 CA A  AMP A 3
     ATOM      4 CB A  ALA A 4
 
+The canonical sequence is stored in ``REMARK 150``, named for the sum of the
+ASCII values of ``C`` and ``S`` (Canonical Sequence). The residue IDs of the
+residues in the canonical sequence are stored as a JSON array in ``REMARK 156``
+(``S`` + ``I`` for Sequence Index).
+
 .. warning::
 
     Templates may include JSON-encoded remarks in any format, not necessarily as
     it is shown in these examples. At the moment, JSON data is actually written
     on a single line. I hope that this doesn't break too many programs.
+
+Template Objects
+----------------
+
+A template is represented by a :py:class:`~.Template` object. Each
+:py:class:`phyre_engine.tools.template.Template` object has a with a
+:py:class:`~Bio.PDB.Chain.Chain` object, canonical sequence and list of
+canonical indices. Each object also contains an array of residue IDs giving the
+ID of the original residue before renumbering and sanitisation.
+
+.. seealso::
+
+    :py:class:`phyre_engine.tools.template.Template`
+        For more information about building and instantiating templates.
+
+Template Database
+-----------------
+
+Template data are stored in a template database. The template database consists
+of two components: an SQLite database to contain template metadata, and a
+directory containing the PDB files for each template. PDB files are placed into
+subdirectories named for the middle two letters of the PDB ID, then the full
+PDB ID, and then into a file named for the PDB ID and chain ID. For example, if
+the root is at :file:`{foldlib}`, then chain ``A`` of ``1XYZ`` will be stored
+in :file:`{foldlib}/xy/1xyz/1xyz_A.pdb`.
+
+The SQLite database portion of the template database contains metadata for an
+entire PDB file such as deposition date, as well as metadata for the template
+such as canonical sequence.
+
+The metadata describing a PDB entry are the same as the metadata that can be
+specified when adding a PDB entry via :py:meth:`~.TemplateDatabase.add_pdb`.
+Metadata may be retrieved via the :py:meth:`~.TemplateDatabase.get_pdb`
+method.
+
+The metadata describing a template is the same as described in
+:py:class:`~.Template`.
+
 """
 import collections
 import json
+import operator
+from pathlib import Path
+import sqlite3
+
 import phyre_engine.tools.pdb as pdb
 import phyre_engine.tools.util as util
 import Bio.PDB
+
+class TemplateDatabase:
+    """
+    Database of templates. This is implemented internally as a relational
+    (sqlite) database.
+
+    :param str database: Path to the database file.
+
+    :param str file_root: Root of the directory structure containing the
+        template files.
+
+    .. warning::
+
+        Changes will not be committed to the database until :py:meth:`~.commit`
+        is called.
+    """
+
+    CREATE = """\
+        CREATE TABLE pdbs (
+            pdb_id           TEXT,
+            deposition_date  DATE NOT NULL,
+            last_update_date DATE NOT NULL,
+            release_date     DATE NOT NULL,
+            method           TEXT NOT NULL,
+            resolution       REAL,
+            organism_name    TEXT,
+            organism_id      INTEGER,
+            title            TEXT,
+            descriptor       TEXT,
+            PRIMARY KEY(pdb_id)
+        );
+
+        CREATE TABLE chains (
+            pdb_id             TEXT,
+            chain_id           TEXT,
+            canonical_sequence TEXT NOT NULL,
+            PRIMARY KEY (pdb_id, chain_id),
+            FOREIGN KEY (pdb_id) REFERENCES pdbs(pdb_id)
+                 ON DELETE CASCADE
+        );
+
+        CREATE TABLE canonical (
+            pdb_id           TEXT,
+            chain_id         TEXT,
+            --
+            -- Beginning from zero, gives the index in the canonical sequence.
+            sequence_index   INTEGER,
+            --
+            -- Single-letter residue type.
+            aa               TEXT,
+            --
+            -- Residue ID (beginning from 1) of corresponding residue in the
+            -- PDB file. This is the ID of a residue after renumbering.
+            residue_id       INTEGER,
+            PRIMARY KEY (pdb_id, chain_id, sequence_index),
+            FOREIGN KEY (pdb_id, chain_id) REFERENCES chains(pdb_id, chain_id)
+                 ON DELETE CASCADE
+        );
+
+        CREATE TABLE original_residues (
+            pdb_id           TEXT,
+            chain_id         TEXT,
+            -- Beginning from 0, the index of the residue as it appears in the
+            -- original chain.
+            sequence_index    INTEGER,
+            --
+            -- Hetero flag, original residue ID and insertion code. These fully
+            -- specify a residue, and can be used with BioPython to look up a
+            -- residue. These give the original residue ID before renumbering.
+            hetero_flag      TEXT,
+            orig_residue_id  INTEGER,
+            insertion_code   TEXT,
+            PRIMARY KEY (pdb_id, chain_id, sequence_index),
+            FOREIGN KEY (pdb_id, chain_id) REFERENCES chains(pdb_id, chain_id)
+                 ON DELETE CASCADE
+        );
+        """
+
+    SELECT_PDB = """
+    SELECT * FROM pdbs WHERE pdb_id = :pdb_id
+    """
+
+    SELECT_TEMPLATE = """
+    SELECT canonical_sequence
+      FROM chains
+     WHERE pdb_id = :pdb_id AND chain_id = :chain_id
+    """
+
+    SELECT_TEMPLATE_CANONICAL = """
+    SELECT residue_id, aa
+      FROM canonical
+     WHERE pdb_id = :pdb_id AND chain_id = :chain_id
+     ORDER BY sequence_index ASC
+    """
+
+    SELECT_TEMPLATE_ORIGINAL = """
+    SELECT IFNULL(hetero_flag, ' ') as hetero_flag,
+           orig_residue_id,
+           IFNULL(insertion_code, ' ') as insertion_code
+      FROM original_residues
+     WHERE pdb_id = :pdb_id AND chain_id = :chain_id
+     ORDER BY sequence_index ASC
+    """
+
+    INSERT_PDB = """
+    INSERT INTO pdbs (
+           pdb_id, deposition_date, last_update_date, release_date,
+           method, resolution,
+           organism_name, organism_id,
+           title, descriptor)
+    VALUES (
+           :pdb_id, :deposition_date, :last_update_date, :release_date,
+           :method, :resolution,
+           :organism_name, :organism_id,
+           :title, :descriptor)
+    """
+
+    INSERT_TEMPLATE = """
+    INSERT INTO chains (pdb_id, chain_id, canonical_sequence)
+    VALUES (:pdb_id, :chain_id, :canonical_sequence)
+    """
+
+    INSERT_CANONICAL = """
+    INSERT INTO canonical (
+           pdb_id, chain_id, sequence_index, aa, residue_id)
+    VALUES (:pdb_id, :chain_id, :sequence_index, :aa, :residue_id)
+    """
+
+    INSERT_MAPPING = """
+    INSERT INTO original_residues (
+           pdb_id, chain_id, sequence_index,
+           hetero_flag, orig_residue_id, insertion_code)
+    VALUES (
+           :pdb_id, :chain_id, :sequence_index,
+           :hetero_flag, :orig_residue_id, :insertion_code)
+    """
+
+    DELETE_PDB = """
+    DELETE FROM pdbs
+     WHERE pdb_id = :pdb_id
+    """
+
+    DELETE_TEMPLATE = """
+    DELETE FROM chains
+     WHERE pdb_id = :pdb_id AND chain_id = :chain_id
+    """
+
+    class TemplateNotFoundException(Exception):
+        ERR_MSG = "Template {} not found in database."
+
+        def __init__(self, pdb_id, chain_id):
+            super().__init__(self.ERR_MSG.format((pdb_id, chain_id)))
+
+    class PdbNotFoundException(Exception):
+        ERR_MSG = "PDB entry {} not found in database."
+
+        def __init__(self, pdb_id):
+            super().__init__(self.ERR_MSG.format(pdb_id))
+
+
+    def __init__(self, database, file_root):
+        self.database = database
+        self.conn = sqlite3.connect(
+            self.database,
+            detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
+        self.conn.row_factory = sqlite3.Row
+        self.conn.execute("PRAGMA foreign_keys = 1")
+        self.file_root = Path(file_root)
+
+    @classmethod
+    def create(cls, database):
+        """Create an empty template database."""
+        conn = sqlite3.connect(database)
+        conn.executescript(cls.CREATE)
+        conn.commit()
+
+    def _canonical(self, pdb_id, chain_id):
+        """Returns the canonical sequence and canonical indices."""
+        where = {"pdb_id": pdb_id.lower(), "chain_id": chain_id}
+        canonical = self.conn.execute(
+            self.SELECT_TEMPLATE_CANONICAL, where
+        ).fetchall()
+        canonical_sequence = "".join([r["aa"] for r in canonical])
+        canonical_indices = [r["residue_id"] for r in canonical]
+        return canonical_sequence, canonical_indices
+
+    def _original(self, pdb_id, chain_id):
+        """Returns the IDs of the original residues."""
+        where = {"pdb_id": pdb_id.lower(), "chain_id": chain_id}
+        original_residues = self.conn.execute(
+            self.SELECT_TEMPLATE_ORIGINAL, where
+        ).fetchall()
+        mapping = [
+            (r["hetero_flag"], r["orig_residue_id"], r["insertion_code"])
+            for r in original_residues]
+        return mapping
+
+    def get_pdb(self, pdb_id):
+        """
+        Retrieve metadata for the PDB with ID `pdb_id`.
+
+        :returns: Dictionary containing metadata in the form described
+            in :py:meth:`.add_pdb`.
+        """
+        result_row = self.conn.execute(
+            self.SELECT_PDB,
+            {"pdb_id": pdb_id.lower()}).fetchone()
+        if result_row is None:
+            raise self.PdbNotFoundException(pdb_id)
+
+        result_dict = dict(result_row)
+        del result_dict["pdb_id"]
+        return result_dict
+
+    def get_template(self, pdb_id, chain_id):
+        """
+        Returns the :py:class:`.Template` with the specified PDB and chain
+        IDs.
+
+        :param str pdb_id: PDB identifier for the structure.
+        :param str chain_id: Identifier of the chain.
+        """
+        where = {"pdb_id": pdb_id.lower(), "chain_id": chain_id}
+        template_results = self.conn.execute(self.SELECT_TEMPLATE,
+                                             where).fetchone()
+        if template_results is None:
+            raise self.TemplateNotFoundException(pdb_id, chain_id)
+
+        canon_seq, canon_idx = self._canonical(pdb_id, chain_id)
+        mapping = self._original(pdb_id, chain_id)
+
+        template_file = pdb.find_pdb(pdb_id, chain_id, self.file_root)
+        if template_file is None:
+            raise FileNotFoundError("Could not find template {} in {}".format(
+                (pdb_id, chain_id), self.file_root))
+
+        pdb_parser = Bio.PDB.PDBParser(QUIET=True)
+        with pdb.open_pdb(template_file) as pdb_in:
+            chain = pdb_parser.get_structure("", pdb_in)[0]["A"]
+
+        return Template(pdb_id, chain_id, chain, mapping, canon_seq, canon_idx)
+
+    def add_template(self, pdb_id, chain_id, template):
+        """
+        Add template to database, including residue mappings.
+
+        The corresponding PDB entry must already have been inserted. If it has
+        not, a foreign key constraint error will be raised.
+
+        :param str pdb_id: PDB identifier for the structure.
+        :param str chain_id: Identifier of the chain.
+        :param Template template: Template to add.
+        """
+        self.conn.execute(
+            self.INSERT_TEMPLATE, {
+                "pdb_id": pdb_id.lower(),
+                "chain_id": chain_id,
+                "canonical_sequence": template.canonical_seq})
+
+        iterator = zip(template.canonical_seq, template.canonical_indices)
+        for i, (aa, seq_idx) in enumerate(iterator):
+            fields = {
+                "pdb_id": pdb_id.lower(),
+                "chain_id": chain_id,
+                "sequence_index": i,
+                "aa": aa,
+                "residue_id": seq_idx,
+            }
+            self.conn.execute(self.INSERT_CANONICAL, fields)
+
+        for i, orig_id in enumerate(template.mapping):
+            hetero_flag = None if orig_id[0] == " " else orig_id[0]
+            icode = None if orig_id[2] == " " else orig_id[2]
+            fields = {
+                "pdb_id": pdb_id.lower(),
+                "chain_id": chain_id,
+                "sequence_index": i,
+                "hetero_flag": hetero_flag,
+                "insertion_code": icode,
+                "orig_residue_id": orig_id[1],
+            }
+            self.conn.execute(self.INSERT_MAPPING, fields)
+
+    def add_pdb(self, pdb_id, metadata):
+        """
+        Insert entry for PDB with ID `pdb_id` into the database.
+
+        The following fields must be present in the `metadata` dictionary:
+
+        ``deposition_date``, ``last_update_date``, ``release_date``:
+            :py:class:`datetime.date` objects giving the deposition date,
+            date of the last revision and the relase date, respectively.
+
+        ``method``
+            String describing the method used to resolve the structure.  This
+            is taken from the ``_exptl.method`` field of the mmCIF file.
+
+        The following fields are optional, but should be present in most
+        cases:
+
+        ``resolution``
+            Real number giving the resolution of the structure, if applicable.
+
+        ``organism_name``, ``organism_id``
+            String and integer giving the name and NCBI taxonomy ID of the
+            organism in which the protein was found.
+
+        ``title``, ``descriptor``
+            Title and description (``_struct.title`` and
+            ``_struct.pdbx_descriptor`` fields) of the structure.
+
+        :param str pdb_id: PDB identifier.
+
+        :param dict metadata: Dictionary of metadata to be inserted into the
+            database.
+        """
+        fields = collections.defaultdict(lambda: None)
+        fields["pdb_id"] = pdb_id.lower()
+        fields.update(metadata)
+        for date in ("deposition_date", "last_update_date", "release_date"):
+            fields[date] = fields[date].strftime("%Y-%m-%d")
+        self.conn.execute(self.INSERT_PDB, fields)
+
+    def del_pdb(self, pdb_id):
+        """
+        Delete the PDB with ID `pdb_id` and all templates based on that PDB
+        entry from the database.
+
+        :param str pdb_id: Identifier of the PDB entry to delete.
+        """
+        self.conn.execute(self.DELETE_PDB, {"pdb_id": pdb_id.lower()})
+
+    def del_template(self, pdb_id, chain_id):
+        """
+        The the template with the given PDB and chain IDs, along with all
+        metatadata associated with that template.
+
+        :param str pdb_id: PDB ID of the template to delete.
+        :param str chain_id: Chain ID of the template to delete.
+        """
+        self.conn.execute(
+            self.DELETE_TEMPLATE,
+            {"pdb_id": pdb_id.lower(), "chain_id": chain_id})
+
+    def commit(self):
+        """Commit changes to the database."""
+        self.conn.commit()
+
 
 class Template:
     """
@@ -128,7 +517,10 @@ class Template:
     #: ``REMARK`` number of the canonical sequence residue IDs.
     CANONICAL_INDICES_REMARK_NUM = 156
 
-    def __init__(self, chain, mapping, canonical_seq, canonical_indices):
+    def __init__(self, pdb_id, chain_id, chain, mapping, canonical_seq,
+                 canonical_indices):
+        self.pdb_id = pdb_id
+        self.chain_id = chain_id
         self.chain = chain
         self.mapping = mapping
         self.canonical_seq = canonical_seq
@@ -136,7 +528,7 @@ class Template:
         self.remarks = collections.defaultdict(lambda: [])
 
     @classmethod
-    def build(cls, chain):
+    def build(cls, pdb_id, chain_id, chain):
         """
         Built a template from a raw chain.
 
@@ -146,34 +538,8 @@ class Template:
         mapping, chain = pdb.renumber(chain, "A")
         canonical_seq, canonical_res = pdb.atom_seq(chain)
         canonical_indices = [ r.get_id()[1] for r in canonical_res ]
-        return cls(chain, mapping, canonical_seq, canonical_indices)
-
-    @classmethod
-    def load(cls, file):
-        """
-        Load a template from a stream, file or :py:class:`pathlib.Path` object.
-        """
-        pdb_parser = Bio.PDB.PDBParser(QUIET=True)
-        with util.Stream(file, "r") as stream:
-            canonical_seq = "".join(
-                pdb.read_remark(stream, cls.CANONICAL_SEQ_REMARK_NUM))
-            stream.seek(0)
-
-            index_remark = "".join(
-                pdb.read_remark(stream, cls.CANONICAL_INDICES_REMARK_NUM))
-            stream.seek(0)
-            mapping_remark = "".join(
-                pdb.read_remark(stream, cls.ORIG_MAPPING_REMARK_NUM))
-            stream.seek(0)
-
-            canonical_indices = json.loads(index_remark)
-            # Load residue mappings, converting lists to tuples (not a JSON
-            # concept).
-            mapping = [tuple(res_id) for res_id in json.loads(mapping_remark)]
-
-            structure = pdb_parser.get_structure("template", stream)
-            chain = structure[0]["A"]
-            return cls(chain, mapping, canonical_seq, canonical_indices)
+        return cls(pdb_id, chain_id,
+                   chain, mapping, canonical_seq, canonical_indices)
 
     def write(self, pdb_out):
         """
@@ -187,9 +553,6 @@ class Template:
         pdb.write_remark(
             pdb_out, [json.dumps(self.canonical_indices)],
             self.CANONICAL_INDICES_REMARK_NUM)
-        pdb.write_remark(
-            pdb_out, [json.dumps(self.mapping)],
-            self.ORIG_MAPPING_REMARK_NUM)
 
         for remark_num, remark_lines in self.remarks.items():
             pdb.write_remark(pdb_out, remark_lines, remark_num)

@@ -118,17 +118,18 @@ class AddDSSP(Component):
 
     This component requires the ``secondary_structure`` key of the pipeline
     state as the source of secondary structure data. It also requires the
-    ``structure`` field to point to a template structure so the secondary
-    structure can be matched to the canonical sequence.
+    ``template_obj`` field to point to a
+    :py:class:`phyre_engine.tools.template.Template` object so that the
+    secondary structure can be matched to the canonical sequence.
     """
-    REQUIRED = ["a3m", "secondary_structure", "structure"]
+
+    REQUIRED = ["a3m", "secondary_structure", "template_obj"]
     ADDS = []
     REMOVES = []
 
     def run(self, data, config=None, pipeline=None):
         """Add ``>ss_dssp`` and ``>aa_dssp`` fields."""
-        a3m, sec_struc, structure = self.get_vals(data)
-        template = Template.load(structure)
+        a3m, sec_struc, template = self.get_vals(data)
         sec_struc = sec_struc["dssp"]
 
         # Index secondary structure states by residue ID

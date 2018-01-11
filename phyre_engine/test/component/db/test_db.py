@@ -1,3 +1,4 @@
+import io
 import json
 import tempfile
 import unittest
@@ -103,7 +104,7 @@ class TestChainPDBBuilder(unittest.TestCase):
     def test_template(self):
         """Ensure that template metadata is correct."""
         results = self._build()
-        template = Template.load(results[0]["structure"])
+        template = results[0]["template_obj"]
         self.assertListEqual(
             template.mapping,
             minimal.ORIG_MAPPING)
@@ -117,20 +118,12 @@ class TestChainPDBBuilder(unittest.TestCase):
 class TestPDBSequence(unittest.TestCase):
     """Tests for the PDBSequence component."""
 
-    _MINIMAL_TEMPLATE = "REMARK 150 AAG\n"
-
-    def setUp(self):
-        _, self.template_name = tempfile.mkstemp(".pdb", "template-", text=True)
-        with open(self.template_name, "w") as template_fh:
-            template_fh.write(self._MINIMAL_TEMPLATE)
-            template_fh.flush()
-
     def test_sequence(self):
         """Sequence should match atom_seq function."""
         seq_parser = db.PDBSequence()
-        results = seq_parser.run({ "structure": self.template_name })
+        results = seq_parser.run({"template_obj": minimal.MINIMAL_TEMPLATE})
         self.assertEqual(
-            results["sequence"], "AAG",
+            results["sequence"], minimal.CANONICAL_SEQ,
             "Sequence read correctly")
 
 class TestReduceExpand(unittest.TestCase):
@@ -212,30 +205,27 @@ class TestAnnotateCATrace(unittest.TestCase):
         ATOM     32  CB  ALA A   3      16.137  34.313  27.425  1.00  4.96
     """)
 
-    def setUp(self):
+    @classmethod
+    def setUpClass(cls):
         """Write mock structures to PDB files."""
-        self.template_dir = Path(tempfile.mkdtemp())
-        self.ca_pdb = (self.template_dir / "ca_trace.pdb")
-        self.bb_pdb = (self.template_dir / "backbone.pdb")
-
-        with self.ca_pdb.open("w") as pdb_out:
-            pdb_out.write(self._CA_TRACE)
-
-        with self.bb_pdb.open("w") as pdb_out:
-            pdb_out.write(self._NON_CA_TRACE)
-
-    def tearDown(self):
-        """Remove temporary files."""
-        shutil.rmtree(str(self.template_dir))
+        parser = Bio.PDB.PDBParser(QUIET=True)
+        ca_pdb = parser.get_structure("CA", io.StringIO(cls._CA_TRACE))
+        bb_pdb = parser.get_structure("BB", io.StringIO(cls._NON_CA_TRACE))
+        cls.ca_template = unittest.mock.MagicMock(
+            chain=ca_pdb[0]["A"],
+            canonical_indices=[1, 2])
+        cls.bb_template = unittest.mock.MagicMock(
+            chain=bb_pdb[0]["A"],
+            canonical_indices=[1, 2])
 
     def test_annotate_ca_trace(self):
         """Check that a CA trace is marked with ``ca_trace = True``."""
         annotator = db.AnnotateCATrace()
-        result = annotator.run({"structure": str(self.ca_pdb)})
+        result = annotator.run({"template_obj": self.ca_template})
         self.assertTrue(result["ca_trace"], "Annotated as CA trace")
 
     def test_annotate_non_ca_trace(self):
         """Check that a PDB with backbone is marked ``ca_trace = False.``"""
         annotator = db.AnnotateCATrace()
-        result = annotator.run({"structure": str(self.bb_pdb)})
+        result = annotator.run({"template_obj": self.bb_template})
         self.assertFalse(result["ca_trace"], "Annotated as not a CA trace")

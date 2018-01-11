@@ -493,6 +493,7 @@ class AlignmentToFasta(Component):
     :param str t_name: The template name will be taken from this field. By
         default, the template name is "Template".
     """
+    # TODO: This should operate on a single hit
     REQUIRED = ["sequence"]
     ADDS = []
     REMOVES = []

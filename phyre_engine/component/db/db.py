@@ -104,36 +104,35 @@ class ChainPDBBuilder(Component):
     Extract each chain from an MMCIF file and save it as a PDB file. The PDB ID
     must be given by the ``PDB`` field of the pipeline state. This component
     returns a *list* of elements, one for each field. Each element will contain
-    the fields ``chain``, giving the chain ID, as well as ``structure``,
-    containing the file path of the new PDB file.
+    the following fields:
+
+    ``chain``
+        The chain ID.
+
+    ``structure``
+        The file path of the new PDB file.
+
+    ``template_obj``
+        :py:class:`phyre_engine.tools.template.Template` object. This object
+        contains a :py:class:`Bio.PDB.Chain.Chain` object, as well as
+        information about the template sequence and mapping of original residue
+        numbers to new residue numbers.
+
+    .. note::
+
+        The ``template_obj`` key will contain a Python object, and so can not
+        be serialised to JSON or YAML.
 
     The chains written by this component are renumbered consecutively starting
     from 1 without any insertion codes. Unless an extra filter is added using
     the `conf_sel` argument, all residue and atom types are written to the PDB
     file.
 
-    Each PDB file written by this component will contain a ``REMARK 161`` (the
-    sum of the decimal ascii codes "T" and "M") field. The ``REMARK 161`` fields
-    will contain a JSON-formatted list of original author-assigned IDs in
-    Biopython format. This will look like this:
-
-    .. code-block:: none
-
-        REMARK 161 [
-        REMARK 161     [' ', 3, ' '],
-        REMARK 161     [' ', 3, 'A'],
-        ...
-
-    And so on. Template residue IDs are given in three parts: a hetero flag,
-    the residue ID and an insertion code. In this case, residue 1 in the chain
-    PDB is mapped to residue 3 in the original template, and residue 2 maps to
-    residue 3A.
-
-    This component will also generate the "canonical" sequence of a PDB
-    structure. This sequence is generated from all residues in the ``ATOM``
-    records of the PDB file that are standard amino acids and have a ``CA``
-    atom. This sequence is written as a single line to ``REMARK 150`` (ASCII
-    "C" + "S" for Canonical Sequence).
+    This component generate the "canonical" sequence of a PDB structure. This
+    sequence is generated from all residues in the ``ATOM`` records of the PDB
+    file that are standard amino acids and have a ``CA`` atom. This sequence is
+    written as a single line to ``REMARK 150`` (ASCII "C" + "S" for Canonical
+    Sequence).
 
     Finally, a ``REMARK 156`` ("S" + "I" for Sequence Index) will be written
     containing the *renumbered* residue ID corresponding to the canonical
@@ -154,12 +153,6 @@ class ChainPDBBuilder(Component):
 
     .. code-block:: none
 
-        REMARK 161 [
-        REMARK 161     [' ', 10, ' '],
-        REMARK 161     [' ', 11, ' '],
-        REMARK 161     ['H_AMP', 11, 'A'],
-        REMARK 161     [' ', 12, ' ']
-        REMARK 161 ]
         ATOM      1 CA A  ALA A 1
         ATOM      2 CA A  GLY A 2
         HETATM    3 CA A  AMP A 3
@@ -172,7 +165,6 @@ class ChainPDBBuilder(Component):
 
     .. code-block:: none
 
-        REMARK 161 (unchanged)
         REMARK 150 AG
         REMARK 156 [1, 2]
         ATOM      1 CA A  ALA A 1
@@ -204,19 +196,8 @@ class ChainPDBBuilder(Component):
     """
 
     REQUIRED = ["PDB"]
-    ADDS = ["structure", "name", "chain"]
+    ADDS = ["structure", "name", "chain", "template_obj"]
     REMOVES  = []
-
-    #: Number used in ``REMARK`` fields for the JSON-encoded mapping between
-    #: the current residue index and the residue ID assigned by the author of
-    #: the original structure.
-    ORIG_MAPPING_REMARK_NUM = 161
-
-    #: ``REMARK`` number of the canonical sequence.
-    CANONICAL_SEQ_REMARK_NUM = 150
-
-    #: ``REMARK`` number of the canonical sequence residue IDs.
-    CANONICAL_INDICES_REMARK_NUM = 156
 
     class MissingSourceError(RuntimeError):
         """Raised when an MMCIF file is unexpectedly missing."""
@@ -293,7 +274,9 @@ class ChainPDBBuilder(Component):
                         # Select conformations.
                         for selector in self.conf_sel:
                             chain = selector.select(chain)
-                        template = Template.build(chain)
+                        template = Template.build(pdb_id, result["chain"],
+                                                  chain)
+                        result["template_obj"] = template
 
                         log_buf.seek(0)
                         template.remarks[999].extend(log_buf.readlines())
@@ -311,45 +294,42 @@ class PDBSequence(Component):
     """
     Read a sequence from the ATOM records of a PDB structure.
 
-    The pipeline state must have the ``structure`` key defined, pointing to a
-    PDB file from which ATOM records will be parsed. This component adds the
-    ``sequence`` key to the pipeline state. The value of the ``sequence`` field
-    will be a Python string consisting of single-letter amino acids.
+    The pipeline state must have the ``template_obj`` key defined, pointing to
+    a :py:class:`phyre_engine.tools.template.Template` object.
+
+    This component adds the ``sequence`` key to the pipeline state. The value
+    of the ``sequence`` field will be a Python string consisting of
+    single-letter amino acids.
     """
 
     ADDS = ["sequence"]
     REMOVES = []
-    REQUIRED = ["structure"]
+    REQUIRED = ["template_obj"]
 
     def run(self, data, config=None, pipeline=None):
-        structure_path = self.get_vals(data)
-        with open(structure_path, "r") as pdb_in:
-            canonical_sequence = "".join(
-                pdb.read_remark(
-                    pdb_in,
-                    ChainPDBBuilder.CANONICAL_SEQ_REMARK_NUM))
-            data["sequence"] = canonical_sequence
+        template = self.get_vals(data)
+        data["sequence"] = template.canonical_seq
         return data
 
 class AnnotateCATrace(Component):
     """
-    Adds a ``ca_trace`` field indicating whether ``structure`` is a C-α trace.
+    Adds a ``ca_trace`` field indicating whether the
+    :py:class:`phyre_engine.tools.template.Template` object ``template_obj`` is
+    a C-α trace.
 
-    This component will read the PDB file pointed to by the ``structure`` field
-    of the pipeline state. The PDB file should contain the ``REMARK`` fields
-    generated by :py:class:`.ChainPDBBuilder`: this component will only examine
-    those residues marked as part of the canonical sequence.
+    This component will read the chain contained within the ``template_obj``,
+    examining only those residues in the canonical sequence.
     """
 
-    REQUIRED = ["structure"]
+
+    REQUIRED = ["template_obj"]
     ADDS = ["ca_trace"]
     REMOVES = []
 
     def run(self, data, config=None, pipeline=None):
         """Add a ``ca_trace`` field."""
-        structure_file = self.get_vals(data)
+        template = self.get_vals(data)
         # Read list of residues in canonical sequence
-        template = Template.load(structure_file)
         residues = [template.chain[i] for i in template.canonical_indices]
 
         for res in residues:

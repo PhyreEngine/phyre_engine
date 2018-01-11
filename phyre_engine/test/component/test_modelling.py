@@ -1,6 +1,8 @@
 """Test components in the :py:mod:`phyre_engine.component.modelling` module."""
 
 import copy
+import datetime
+import io
 import os.path
 import pathlib
 import shutil
@@ -8,6 +10,7 @@ import tempfile
 import textwrap
 import unittest
 import phyre_engine.tools.pdb as pdb
+from phyre_engine.tools.template import Template, TemplateDatabase
 import phyre_engine.test
 from phyre_engine.component.modelling import (HomologyModeller, SoedingSelect,
                                               LoopModel)
@@ -48,6 +51,19 @@ class TestHomologyModeller(unittest.TestCase):
     """)
     _ALIGNMENT = [(2, 1), (3, 2)]
 
+
+    def template(self):
+        parser = Bio.PDB.PDBParser(QUIET=True)
+        chain_buf = io.StringIO(self._TEMPLATE_PDB)
+        chain = parser.get_structure("", chain_buf)[0]["A"]
+
+        return Template(
+            "1xyz", "A",
+            chain,
+            [[" ", 4, " "], [" ", 5, " "], ["H_AMP", 331, " "]],
+            "PY",
+            [1, 2])
+
     def setUp(self):
         """Create a temporary pipeline state in `self.state`."""
 
@@ -55,8 +71,25 @@ class TestHomologyModeller(unittest.TestCase):
         self.pdb_lib_dir = pathlib.Path(tempfile.mkdtemp())
         template_file = (self.pdb_lib_dir / "xy" / "1xyz" / "1xyz_A.pdb")
         template_file.parent.mkdir(parents=True)
+        template = self.template()
         with template_file.open("w") as template_out:
-            template_out.write(self._TEMPLATE_PDB)
+            template.write(template_out)
+
+        # Create a temporary template database and add dummy template
+        _, db_file = tempfile.mkstemp("-foldlib", "phyreengine-")
+        self.template_db = pathlib.Path(db_file)
+        TemplateDatabase.create(str(self.template_db))
+        template_db = TemplateDatabase(
+            str(self.template_db),
+            str(self.pdb_lib_dir))
+        template_db.add_pdb("1xyz", {
+            "deposition_date": datetime.date(2000, 1, 1),
+            "release_date": datetime.date(2000, 1, 1),
+            "last_update_date": datetime.date(2000, 1, 1),
+            "method": "X-RAY CRYSTALLOGRAPHY",
+        })
+        template_db.add_template("1xyz", "A", template)
+        template_db.commit()
 
         # Create empty directory for storing models and chdir there.
         self.model_dir = pathlib.Path(tempfile.mkdtemp())
@@ -72,7 +105,9 @@ class TestHomologyModeller(unittest.TestCase):
             "rank": 1
         }
 
-        self.modeller = HomologyModeller(str(self.pdb_lib_dir))
+        self.modeller = HomologyModeller(
+            str(self.template_db),
+            str(self.pdb_lib_dir))
         self.results = self.modeller.run(self.state)
 
     def tearDown(self):
@@ -80,6 +115,7 @@ class TestHomologyModeller(unittest.TestCase):
         os.chdir(self.orig_dir)
         shutil.rmtree(str(self.pdb_lib_dir))
         shutil.rmtree(str(self.model_dir))
+        os.unlink(str(self.template_db))
 
     def test_model_exists(self):
         """Generated model must exist in pipeline state and on disk."""
