@@ -500,6 +500,10 @@ class TemplateDatabase:
         """Commit changes to the database."""
         self.conn.commit()
 
+    def rollback(self):
+        """Roll back changes made in this transaction."""
+        self.conn.rollback()
+
 
 class Template:
     """
