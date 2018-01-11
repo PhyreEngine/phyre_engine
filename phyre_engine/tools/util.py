@@ -2,6 +2,7 @@
 Module containing various utility classes and functions that may be used in many
 places.
 """
+import collections.abc
 import os
 import pathlib
 
@@ -190,3 +191,35 @@ class NamedTuple:
 
     def __iter__(self):
         return (getattr(self, f) for f in self.FIELDS)
+
+
+def apply_dotted_key(dictionary, dotted_key, value):
+    """
+    Set a key deep in a dictionary. The key is split on each dot (``.``), and
+    each level is assumed to be a nested map. For example, ``a.b.c`` will set
+    the key ``{"a": {"b": {"c": value}}}``.
+    """
+    keys = dotted_key.split(".")
+    dict_section = dictionary
+    for key in keys[:-1]:
+        if key not in dict_section:
+            dict_section[key] = {}
+        dict_section = dict_section[key]
+    dict_section[keys[-1]] = value
+
+def deep_merge(src, dst):
+    """
+    Merge two dictionaries, overwriting elements of `dst` with the
+    corresponding elements of `src`. Dictionary elements are in turn merged.
+
+    >>> from phyre_engine.tools.util import deep_merge
+    >>> deep_merge({"a": {"x": 1}, "b": 2}, {"a": {"y": 2}, "b": 1})
+    {"a": {"x": 1, "y": 2}, "b": 2}
+    """
+    for key, value in src.items():
+        if isinstance(value, collections.abc.Mapping):
+            node = dst.setdefault(key, {})
+            deep_merge(value, node)
+        else:
+            dst[key] = value
+    return dst

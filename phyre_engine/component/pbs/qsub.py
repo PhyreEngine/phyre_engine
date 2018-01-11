@@ -1,11 +1,10 @@
 from . import jobscript
 from . import exception
-from phyre_engine.component.component import Component
+from phyre_engine.component.component import Component, PipelineComponent
 import abc
 import os
 import math
 import copy
-import json
 import pickle
 from pathlib import Path
 import subprocess
@@ -16,6 +15,8 @@ import sys
 from subprocess import CalledProcessError
 from phyre_engine.component.pbs.jobscript import StartScript
 import time
+import phyre_engine.tools.yaml as yaml
+
 
 r"""
 Components for running sub-pipelines on PBS nodes.
@@ -140,7 +141,7 @@ class RemoteArrayJob(RemoteJobBase):
             job_id=repr(self.job_id),
             join_var=repr(self.join_var))
 
-class BaseQsub(Component):
+class BaseQsub(PipelineComponent):
     """
     Base class for components making use of the :manpage:`qsub(1)` command.
 
@@ -154,9 +155,10 @@ class BaseQsub(Component):
     :param list[str] qsub_args: Extra arguments to pass to qsub.
     """
 
-    def __init__(self, pipeline, name, storage_dir=".", qsub_args=None):
+    def __init__(self, name, *pipeline_args, storage_dir=".",
+                 qsub_args=None, **pipeline_kwargs):
+        super().__init__(*pipeline_args, **pipeline_kwargs)
         self.storage_dir = Path(storage_dir)
-        self.pipeline = pipeline
         self.name = name
         self.qsub_args = qsub_args if qsub_args is not None else []
 
@@ -166,16 +168,9 @@ class BaseQsub(Component):
         supplied, it is used as the "base" configuration: any configuration
         set in "pipeline.config" overwrites the base configuration.
         """
-        if base_config is None:
-            base_config = {}
-        original_config = self.pipeline.get("config", {})
-        try:
-            self.pipeline["config"] = copy.deepcopy(base_config)
-            self.pipeline["config"].update(original_config)
-            with pipe_path.open("w") as pipe_out:
-                json.dump(self.pipeline, pipe_out)
-        finally:
-            self.pipeline["config"] = original_config
+        pipeline_defn = self.pipeline_definition(base_config)
+        with pipe_path.open("w") as pipe_out:
+            yaml.dump(pipeline_defn, pipe_out)
 
     def _save_state(self, state_path, state):
         """Pickle pipeline state and save it to state_path."""
@@ -233,9 +228,12 @@ class Slice(BaseQsub):
         If there are no items present in `split_var` a :py:exc:`ValueError` will
         be raised when this component is run.
     """
-    REQUIRED = []
     ADDS = ["qsub_jobs"]
     REMOVES = []
+
+    @property
+    def REQUIRED(self):
+        return [self.split_var]
 
     CONFIG_SECTION = "qsub"
 
@@ -304,7 +302,7 @@ class Slice(BaseQsub):
         stdout_dir.mkdir()
         stderr_dir.mkdir()
 
-        pipeline_path = job_dir / "pipeline.json"
+        pipeline_path = job_dir / "pipeline.yml"
         self._save_pipeline(pipeline_path, config)
         pickles = self._slice_state(job_dir, data, config)
 
@@ -368,9 +366,12 @@ class Trickle(BaseQsub):
         :py:class:`.BaseQsub`
             For the remaining constructor parameters.
     """
-    REQUIRED = []
     ADDS = ["qsub_jobs"]
     REMOVES = []
+
+    @property
+    def REQUIRED(self):
+        return [self.split_var]
 
     CONFIG_SECTION = "qsub"
 
@@ -424,7 +425,7 @@ class Trickle(BaseQsub):
         qsub_jobs = []
 
         # The pipeline is static across all jobs, so we can write it now
-        pipe_path = self.storage_dir / "pipeline.json"
+        pipe_path = self.storage_dir / "pipeline.yml"
         self._save_pipeline(pipe_path, config)
 
         # Pointer to the next chunk to be enqueued
@@ -486,7 +487,7 @@ class ContactNodes(BaseQsub):
         stdout_dir.mkdir()
         stderr_dir.mkdir()
 
-        pipeline_path = job_dir / "pipeline.json"
+        pipeline_path = job_dir / "pipeline.yml"
         self._save_pipeline(pipeline_path, config)
 
         if "qsub_jobs" not in data:
@@ -701,7 +702,7 @@ class Detach(BaseQsub):
             tempfile.mkdtemp("detach", "qsub", str(self.storage_dir)))
 
         pickle_path = job_dir / self._PICKLE_NAME
-        pipeline_path = job_dir / "pipeline.json"
+        pipeline_path = job_dir / "pipeline.yml"
         stdout_dir = job_dir / "stdout"
         stderr_dir = job_dir / "stderr"
         stdout_dir.mkdir()

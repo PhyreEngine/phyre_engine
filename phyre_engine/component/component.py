@@ -5,6 +5,11 @@ import phyre_engine
 import copy
 import enum
 
+import jmespath
+
+from phyre_engine.tools.jmespath import JMESExtensions
+from phyre_engine.tools.util import apply_dotted_key, deep_merge
+
 class ComponentMeta(ABCMeta):
     """Metaclass for components.
 
@@ -42,6 +47,62 @@ class Component(metaclass=ComponentMeta):
     def REMOVES(self):
         pass
 
+    @classmethod
+    def config(cls, params, pipeline_config):
+        """
+        Combine pipeline configuration options with constructor parameters.
+
+        The pipeline configuration provides a means of configuring multiple
+        similar components at once. The default strategy, implemented by this
+        class method, is to look up a configuration section in the pipeline
+        configuration, then update that dictionary with the component-specific
+        parameters. These parameters are then passed to the constructor of the
+        component as named arguments. The configuration section is chosen
+        according to the `CONFIG_SECTION` class attribute.
+
+        For example, consider this toy pipeline definition:
+
+        .. code-block:: yaml
+
+            pipeline:
+              config:
+                thing:
+                  foo: 3.141
+                  bar: {"x": 1, "y": 2}
+              components:
+              - .foo.Thing:
+                  foo: 3
+                  bar: {"x": 3}
+
+        If we assume that the ``.foo.Thing`` component has ``CONFIG_SECTION =
+        "thing"``, then the component will be instantiated with the arguments
+        ``foo=3, bar={"x": 3, "y": 2}``. Notice that the parameters supplied
+        specifically to the component override the parameters supplied in the
+        pipeline configuration. This applies even in "child" dictionaries: the
+        configurations are merged using
+        :py:func:`phyre_engine.tools.util.deep_merge`.
+
+
+        :param dict[str, any] params: Keyword parameters for the component
+            constructor.
+        :param dict[str, any] pipeline_config: Global pipeline configuration.
+
+        .. note::
+
+            Components that require more complex combinations of the
+            configurations should override this method.
+        """
+        if (pipeline_config is not None
+                and cls.CONFIG_SECTION is not None
+                and cls.CONFIG_SECTION in pipeline_config):
+            config = copy.deepcopy(pipeline_config[cls.CONFIG_SECTION])
+            if params is not None:
+                deep_merge(params, config)
+            return config
+        # If no pipeline config can be extracted, the supplied params must
+        # suffice.
+        return params
+
     @property
     def logger(self):
         """Get a logger named for this component."""
@@ -77,7 +138,7 @@ class Component(metaclass=ComponentMeta):
         """Get all required values from a key-value mapping.
 
         This method returns a list containing the values corresponding to the
-        keys given in the class variable list `REQUIRED`. It is designed to make
+        keys given in the list property `REQUIRED`. It is designed to make
         it easy to unpack all required variables from a dictionary:
 
         >>> required_1, required_2 = self.get_vals(data)
@@ -95,10 +156,10 @@ class Component(metaclass=ComponentMeta):
             the data field. If multiple items are required, a list containing
             the corresponding values is returned.
         """
-        if len(type(self).REQUIRED) == 1:
-            return data[type(self).REQUIRED[0]]
+        if len(self.REQUIRED) == 1:
+            return data[self.REQUIRED[0]]
         else:
-            return [data[x] for x in type(self).REQUIRED]
+            return [data[x] for x in self.REQUIRED]
 
     @abstractmethod
     def run(self, data, config=None, pipeline=None):
@@ -119,6 +180,12 @@ class PipelineComponent(Component):
     :param pipeline: Either a :py:class:`phyre_engine.pipeline.Pipeline` class
         or a list of component names and arguments to be passed to
         :py:meth:`phyre_engine.pipeline.Pipeline.load`.
+
+    :param components: List of component names and arguments to be passed to
+        :py:meth:`phyre_engine.pipeline.Pipeline.load`. *Either* this or
+        `pipeline` must be supplied. This parameter exists purely for the sake
+        of convenience: it is equivalent to supplying the `pipeline` parameter
+        with the same components and no extra configuration.
 
     :param str config_mode: Value describing how to combine the parent and
         child pipeline configurations. This parameter may be passed as either a
@@ -152,15 +219,22 @@ class PipelineComponent(Component):
         #: configuration of the child.
         DISCARD_PARENT = "discard"
 
-    def __init__(self, pipeline, config_mode="child", lazy_load=True):
+    def __init__(self, pipeline=None, config_mode="child", lazy_load=True,
+                 components=None):
         self.config_mode = type(self).ConfigurationPreference(config_mode)
+
+        if (pipeline, components).count(None) != 1:
+            raise ValueError(
+                "Supply one and only one of 'pipeline' or 'components'")
+        if components is not None:
+            pipeline = {"components": components}
 
         if not lazy_load and not isinstance(pipeline, phyre_engine.Pipeline):
             self._pipeline = phyre_engine.Pipeline.load(pipeline)
         else:
             self._pipeline = pipeline
 
-    def pipeline(self, runtime_config):
+    def pipeline(self, runtime_config, start=None):
         """
         Retrieve the child pipeline.
 
@@ -176,17 +250,34 @@ class PipelineComponent(Component):
         :rtype: :py:class:`phyre_engine.pipeline.Pipeline`
         """
         if not isinstance(self._pipeline, phyre_engine.Pipeline):
-            if runtime_config is None:
-                runtime_config = {}
-
-            pipeline_definition = copy.deepcopy(self._pipeline)
-            pipeline_definition["config"] = self.combine_configs(
-                runtime_config,
-                pipeline_definition.get("config", {}))
-
-            return phyre_engine.Pipeline.load(pipeline_definition)
+            pipeline_defn = self.pipeline_definition(runtime_config, start)
+            return phyre_engine.Pipeline.load(pipeline_defn)
         return self._pipeline
 
+    def pipeline_definition(self, runtime_config, start=None):
+        """
+        Retrieve the definition of the child pipeline, as would be specified in
+        a YAML pipeline file.
+
+        :raises TypeError: If the pipeline was passed as an instance of
+        :py:class:`phyre_engine.pipeline.Pipeline`.
+        """
+        if isinstance(self._pipeline, phyre_engine.Pipeline):
+            raise TypeError(
+                ("Cannot get pipeline definition for instance of Pipeline "
+                 "class."))
+
+        if runtime_config is None:
+            runtime_config = {}
+
+        pipeline_definition = copy.deepcopy(self._pipeline)
+        pipeline_definition["config"] = self.combine_configs(
+            runtime_config,
+            pipeline_definition.get("config", {}))
+
+        if start is not None:
+            pipeline_definition["start"] = start
+        return pipeline_definition
 
     def combine_configs(self, parent_config, child_config):
         """
@@ -231,9 +322,12 @@ class Map(PipelineComponent):
         :py:class:`.PipelineComponent`
             For extra class parameters.
     """
-    REQUIRED = []
     ADDS = []
     REMOVES = []
+
+    @property
+    def REQUIRED(self):
+        return [self.field]
 
     def __init__(self, field, *args, discard=False, **kwargs):
         super().__init__(*args, **kwargs)
@@ -362,8 +456,8 @@ class Branch(PipelineComponent):
     REMOVES = []
     REQUIRED = []
 
-    def __init__(self, pipeline, keep=(), *args, **kwargs):
-        super().__init__(pipeline, *args, **kwargs)
+    def __init__(self, *args, keep=(), **kwargs):
+        super().__init__(*args, **kwargs)
         self.keep = keep
 
     def run(self, data, config=None, pipeline=None):
@@ -375,3 +469,101 @@ class Branch(PipelineComponent):
             if field in branch_results:
                 data[field] = branch_results[field]
         return data
+
+
+class ConfigLoader(PipelineComponent):
+    """
+    Convenience component for loading pipeline state into sub-pipeline
+    configuration.
+
+    It can sometimes be useful to use part of the pipeline state as
+    configuration parameters to some components. This component provides this
+    capability by converting parts of the pipeline state into configuration
+    according to `config_map`, then loading and executing the child pipeline
+    with the current pipeline state.
+
+    For example, let's say we want to take a slice from the ``templates`` list.
+    We can do this easily using the
+    :py:class:`phyre_engine.component.jmespath.Replace` component by passing
+    the slice as the `value_expr`. To take the first ten templates, we would
+    write the following:
+
+    .. code-block:: yaml
+
+        # In pipeline configuration file
+        pipeline:
+          components:
+          # ...
+          - .jmespath.Replace:
+              select_expr: templates
+              value_expr: [0:10]
+
+    This slice could be configured on the command line with the parameter
+    ``--config 'jmespath.value_expr:[0:10]'``. However, this is quite obtuse:
+    it's not immediately clear what the ``value_expr`` is selecting. If we
+    wanted to configure two separate JMESPath components from the command line,
+    we would be out of luck.
+
+    This component will transfer fields from the pipeline state into the child
+    configuration according to a predefined set of aliases. For the example
+    given above, we could use the ``slice`` field of the pipeline state as
+    follows:
+
+    .. code-block:: yaml
+
+        # In pipeline configuraton file
+        pipeline:
+          components:
+          # ...
+          - .component.ConfigLoader:
+              mapping:
+                slice: jmespath.value_expr
+              components:
+              - .jmespath.Replace:
+                  select_expr: templates
+
+    This pipeline can then be run with the parameters ``--start
+    'slice:[0:10]'``. The `ConfigLoader` component will transfer the ``slice``
+    field into the ``value_expr`` field of the ``jmespath`` section of the
+    sub-pipeline config.
+
+    The value of each field in the ``mapping`` parameter is a string, with
+    field names separated by dots. Each dot indicates drilling down into a
+    new dictionary. That is, ``jmespath.value_expr`` is the same as
+    ``config["jmespath"]["value_expr"]``.
+
+    :param dict mapping: Mapping of pipeline state fields to configuration
+        fields. The keys of this mapping are JMESPath expressions applied to
+        the pipeline state, which must return the data to be transferred into
+        the pipeline configuration. The values of each field are similar to
+        JMESPath expressions, but more limited: they may only be dot-separated
+        strings, each drilling further into a dictionary.
+    """
+    @property
+    def REQUIRED(self):
+        return list(self.mapping.keys())
+
+    ADDS = []
+    REMOVES = []
+
+    def __init__(self, mapping, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.mapping = mapping
+
+    def generate_config(self, data, config):
+        """
+        Generate child pipeline configuration from runtime configuration
+        and pipeline state.
+        """
+        config = config if config is not None else {}
+        jmes_opts = jmespath.Options(custom_functions=JMESExtensions(data))
+        for search_term, config_location in self.mapping.items():
+            state_value = jmespath.search(search_term, data, jmes_opts)
+            apply_dotted_key(config, config_location, state_value)
+        return config
+
+    def run(self, data, config=None, pipeline=None):
+        """Alias pipeline state into child configuraton."""
+        config = self.generate_config(data, config)
+        pipeline = self.pipeline(config, data)
+        return pipeline.run()

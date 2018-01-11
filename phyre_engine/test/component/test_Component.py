@@ -5,7 +5,8 @@ import unittest
 import unittest.mock
 from phyre_engine.component import Component
 from phyre_engine.component.component import (Map, Conditional, TryCatch,
-                                              PipelineComponent, Branch)
+                                              PipelineComponent, Branch,
+                                              ConfigLoader)
 import phyre_engine.pipeline
 
 class Double(Component):
@@ -43,6 +44,21 @@ class TestComponent(unittest.TestCase):
         a, b = TestComponent.MockComponentList().get_vals(data)
         self.assertEqual(a, 123)
         self.assertEqual(b, 456)
+
+    def test_config(self):
+        pipeline_config = {"conf": {"a": 1, "b": 2, "c": {"x": 1}}}
+        component_params = {"a": 2, "c": {"x": 2, "y": 3}}
+
+        # CONFIG_SECTION not defined
+        self.assertEqual(
+            Double.config(component_params, pipeline_config),
+            component_params)
+
+        with unittest.mock.patch.object(Double, "CONFIG_SECTION", new="conf"):
+            # CONFIG_SECTION defined, so "a" is overridden.
+            self.assertEqual(
+                Double.config(component_params, pipeline_config),
+                {"a": 2, "b": 2, "c": {"x": 2, "y": 3}})
 
 class TestPipelineComponent(unittest.TestCase):
     """Test PipelineComponent."""
@@ -102,6 +118,19 @@ class TestPipelineComponent(unittest.TestCase):
         # Runtime config ignored
         sub_pipe = sub_pipe_cpt.pipeline({"baz": "qux"})
         self.assertDictEqual(sub_pipe.config, {"foo": "bar"})
+
+    def test_load_components(self):
+        """Load components from `components` parameter."""
+        sub_pipe_cpt = self.SubPipeline(components=[Double.qualname])
+        self.assertIsInstance(sub_pipe_cpt.pipeline({}).components[0], Double)
+
+    def test_accept_pipeline_or_components(self):
+        """Only a single one of `pipeline` or `components` allowed."""
+        with self.assertRaises(ValueError):
+            self.SubPipeline(pipeline=self._EMPTY_PIPELINE, components=[])
+        with self.assertRaises(ValueError):
+            self.SubPipeline()
+
 
 class TestMap(unittest.TestCase):
     """Test the phyre_engine.component.Map class."""
@@ -324,3 +353,16 @@ class TestBranch(unittest.TestCase):
         results = Branch(pipe, keep=('foo',)).run(start_pipe)
         self.assertIn("foo", results)
         self.assertEqual(results["foo"], {"bar": "baz"})
+
+
+class TestConfigLoader(unittest.TestCase):
+    """Test ConfigLoader component."""
+
+    def test_config_transfer(self):
+        """Check that values are transferred from state to config."""
+        conf_loader = ConfigLoader(
+            mapping={"slice": "jmespath.value_expr"},
+            components=[])
+        self.assertEqual(
+            conf_loader.generate_config({"slice": "foo"}, None),
+            {"jmespath": {"value_expr": "foo"}})

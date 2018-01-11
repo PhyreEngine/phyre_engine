@@ -1,5 +1,6 @@
 import unittest
 from unittest.mock import MagicMock
+import unittest.mock
 from phyre_engine.component import Component
 from phyre_engine import Pipeline
 import tempfile
@@ -120,8 +121,7 @@ class TestPipeline(unittest.TestCase):
             "start": {"abc": 123, "xyz": 789},
             "components": [
                 TestPipeline.MockComponentStart.qualname,
-                {TestPipeline.MockComponentMid.qualname: [
-                    "foo", "bar", {"baz": "qux"}]},
+                {TestPipeline.MockComponentMid.qualname: { "baz": "qux" }},
                 MockNonNestedComponent.qualname
             ]
         }
@@ -140,8 +140,24 @@ class TestPipeline(unittest.TestCase):
         self.assertIsInstance(
             pipe.components[2],
             MockNonNestedComponent)
-        self.assertTupleEqual(pipe.components[1].args, ("foo", "bar"))
+        self.assertTupleEqual(pipe.components[1].args, ())
         self.assertDictEqual(pipe.components[1].kwargs, {"baz": "qux"})
+
+    @unittest.mock.patch("importlib.import_module")
+    def test_default_namespace(self, import_mock):
+        """Load a component from the default namespace."""
+        dict_pipe = {"components": [".x.y.Foo"]}
+        pipe = Pipeline.load(dict_pipe)
+        import_mock.assert_called_once_with("phyre_engine.component.x.y")
+        import_mock.return_value.Foo.assert_called_once_with()
+
+    @unittest.mock.patch("importlib.import_module")
+    def test_new_namespace(self, import_mock):
+        """Load a component from a new namespace."""
+        dict_pipe = {"namespace": "a.b", "components": [".x.y.Foo"]}
+        pipe = Pipeline.load(dict_pipe)
+        import_mock.assert_called_once_with("a.b.x.y")
+        import_mock.return_value.Foo.assert_called_once_with()
 
     def test_checkpointing(self):
         """Test that we can save and load checkpoints."""
@@ -201,7 +217,7 @@ class TestPipeline(unittest.TestCase):
         dict_pipe = {
             "config": {"mid": {"foo": 1, "bar": 2}},
             "components": [
-                {TestPipeline.MockComponentMid.qualname: [{"bar": 3}]}
+                {TestPipeline.MockComponentMid.qualname: {"bar": 3}}
             ]
         }
         pipe = Pipeline.load(dict_pipe)

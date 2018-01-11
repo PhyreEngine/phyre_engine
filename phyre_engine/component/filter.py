@@ -5,14 +5,14 @@ class Whitelist(Component):
     """
     Keep only the specified keys in the pipeline state.
 
-    :param list[str] *args: List of keys to keep.
+    :param list[str] whitelist: List of keys to keep.
     """
     ADDS = []
     REMOVES = []
     REQUIRED = []
 
-    def __init__(self, *args):
-        self.whitelist = set(args)
+    def __init__(self, whitelist):
+        self.whitelist = set(whitelist)
 
     def run(self, data, config=None, pipeline=None):
         """Apply a whitelist to the pipeline state."""
@@ -26,14 +26,14 @@ class Blacklist(Component):
     """
     Remove the specified keys from the pipeline state.
 
-    :param list[str] *args: List of keys to remove.
+    :param list[str] blacklist: List of keys to remove.
     """
     ADDS = []
     REMOVES = []
     REQUIRED = []
 
-    def __init__(self, *args):
-        self.blacklist = set(args)
+    def __init__(self, blacklist):
+        self.blacklist = set(blacklist)
 
     def run(self, data, config=None, pipeline=None):
         """Apply a whitelist to the pipeline state."""

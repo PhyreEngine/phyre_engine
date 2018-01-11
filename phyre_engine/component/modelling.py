@@ -23,22 +23,37 @@ BACKBONE_ATOMS = {"N", "C", "CA", "O"} # Set of backbone atoms
 
 class HomologyModeller(Component):
     """
-    Generate a model for each element of the ``templates`` field in the pipeline
-    state.
+    Generate a homology model from an alignment.
 
-    This modeller requires pre-generated PDB files for each chain in the
-    ``templates`` list. Each PDB template *must* contain the ``REMARK`` fields
-    written by :py:class:`phyre_engine.component.db.db.ChainPDBBuilder` so that
-    the sequence alignment can be correctly mapped onto the PDB structure. Each
-    template must contain an ``alignment`` key containing the mapping between
-    the query sequence and the template sequence.
+    This modeller requires pre-generated PDB files for the chain specified by
+    the ``PDB`` and ``chain`` fields. The PDB template *must* contain the
+    ``REMARK`` fields written by
+    :py:class:`phyre_engine.component.db.db.ChainPDBBuilder` so that the
+    sequence alignment can be correctly mapped onto the PDB structure. The
+    ``alignment`` key must contain the mapping between the query sequence and
+    the template sequence.
 
-    This component will add the ``model`` key to each template in the pipeline
-    state. This will contain a file path pointing to the generated model.
+    This component will add the ``model`` key to the pipeline state. This will
+    contain a file path pointing to the generated model.
+
+    .. versionchanged:: 0.1a1
+
+        Previously, this component operated on the ``templates`` list, rather
+        than on a single hit. Now, it requires the ``query_sequence`` key to be
+        present in the pipeline state. You can use
+        :py:class:`phyre_engine.component.jmespath.Update` to copy the query
+        sequence from the top level of the pipeline state into each template:
+
+        .. code-block:: yaml
+
+            # In the "components" section
+            - phyre_engine.component.jmespath.Update:
+              select_expr: templates
+              value_expr: '{query_sequence: root().sequence}'
 
     :param str chain_dir: Top-level directory containing the PDB chains.
     :param str model_name: Python template string, formatted with all the
-        elements of each template.
+        elements of the pipeline state.
 
     .. seealso::
 
@@ -46,7 +61,7 @@ class HomologyModeller(Component):
             For generating PDB files of the correct format for use as templates.
     """
 
-    REQUIRED = ["templates", "sequence"]
+    REQUIRED = ["PDB", "chain", "query_sequence", "alignment"]
     ADDS = ["model"]
     REMOVES = []
 
@@ -56,53 +71,47 @@ class HomologyModeller(Component):
 
     def run(self, data, config=None, pipeline=None):
         """Build a model."""
-        templates, query_seq = self.get_vals(data)
+        pdb_id, chain, query_seq, alignment = self.get_vals(data)
         pdb_io = Bio.PDB.PDBIO()
 
-        for template in templates:
-            alignment = template["alignment"]
-            pdb_id = template["PDB"]
-            chain = template["chain"]
+        model_file = self.model_name.format(**data)
 
+        if not Path(model_file).exists():
+            self.logger.debug("Creating model file %s", model_file)
 
-            model_file = self.model_name.format(**template)
+            template_file = pdb.pdb_path(
+                pdb_id, ".pdb", chain, self.chain_dir)
+            db_template = Template.load(template_file)
 
-            if not Path(model_file).exists():
-                self.logger.debug("Creating model file %s", model_file)
+            model_name = "model from {}_{}".format(pdb_id, chain)
+            model_structure = Bio.PDB.Structure.Structure(model_name)
+            model_model = Bio.PDB.Model.Model(1)
+            model_chain = Bio.PDB.Chain.Chain("A")
+            model_model.add(model_chain)
+            model_structure.add(model_model)
 
-                template_file = pdb.pdb_path(
-                    pdb_id, ".pdb", chain, self.chain_dir)
-                db_template = Template.load(template_file)
+            for residue_pair in alignment:
+                # Residue indices
+                i, j = residue_pair[0:2]
 
-                model_name = "model from {}_{}".format(pdb_id, chain)
-                model_structure = Bio.PDB.Structure.Structure(model_name)
-                model_model = Bio.PDB.Model.Model(1)
-                model_chain = Bio.PDB.Chain.Chain("A")
-                model_model.add(model_chain)
-                model_structure.add(model_model)
+                # Residue ID from canonical sequence map
+                j_id = db_template.canonical_indices[j - 1]
 
-                for residue_pair in alignment:
-                    # Residue indices
-                    i, j = residue_pair[0:2]
+                # Template residue
+                template_res = db_template.chain[j_id]
 
-                    # Residue ID from canonical sequence map
-                    j_id = db_template.canonical_indices[j - 1]
+                query_res_type = Bio.SeqUtils.seq3(query_seq[i - 1]).upper()
+                query_res = Bio.PDB.Residue.Residue(
+                    (" ", i, " "),
+                    query_res_type, " ")
+                for atom in template_res:
+                    if atom.get_name() in BACKBONE_ATOMS:
+                        query_res.add(atom.copy())
+                model_chain.add(query_res)
 
-                    # Template residue
-                    template_res = db_template.chain[j_id]
-
-                    query_res_type = Bio.SeqUtils.seq3(query_seq[i - 1]).upper()
-                    query_res = Bio.PDB.Residue.Residue(
-                        (" ", i, " "),
-                        query_res_type, " ")
-                    for atom in template_res:
-                        if atom.get_name() in BACKBONE_ATOMS:
-                            query_res.add(atom.copy())
-                    model_chain.add(query_res)
-
-                pdb_io.set_structure(model_structure)
-                pdb_io.save(model_file)
-            template["model"] = model_file
+            pdb_io.set_structure(model_structure)
+            pdb_io.save(model_file)
+        data["model"] = model_file
         return data
 
 class SoedingSelect(Component):
@@ -165,12 +174,18 @@ class SoedingSelect(Component):
     each element of which is a tuple containing the maximum assigned residue
     score and the winning template for that position (or `None` if no template
     was chosen for that position).
+
+    :param str templates: Field containing the templates to sort.
     """
-    REQUIRED = ["sequence", "templates"]
     ADDS = ["template_at_residue"]
     REMOVES = []
 
-    def __init__(self, alpha=0.95, beta=1.00):
+    @property
+    def REQUIRED(self):
+        return ["sequence", self.templates]
+
+    def __init__(self, templates="templates", alpha=0.95, beta=1.00):
+        self.templates = templates
         self.alpha = alpha
         self.beta = beta
 
@@ -254,7 +269,7 @@ class SoedingSelect(Component):
             for i in update_indices:
                 template_at_residue[i] = (top_confidences[i], best_template)
 
-        data["templates"] = accepted_templates
+        data[self.templates] = accepted_templates
         data["template_at_residue"] = template_at_residue
         return data
 
@@ -262,16 +277,23 @@ class LoopModel(Component):
     """
     Use Alex Herbert's loop modeler to fill in as many gaps as possible.
 
+    .. versionchanged:: 0.1a1
+
+        This component no longer operates on every component from the top
+        level of the pipeline. If you wish to apply the loop modeller to a
+        list of templates, call it from within a
+        :py:class:`~phyre_engine.component.component.Map` component.
+
+        You may use :py:class:`~phyre_engine.component.jmespath.Update` to
+        copy the ``pssm`` and ``sequence`` keys from the top level of the
+        pipeline state into each template.
+
     :param str bin_dir: Location of the loop modelling executable.
     :param str config: Loop modeller configuration file.
     :param str executable: Name of the executable to run, under `bin_dir`.
     """
 
-    # TODO: Write a component to transfer top-level keys to lower levels so
-    # we can run this component with component.Map instead of explicitly
-    # looping over ``templates.``
-
-    REQUIRED = ["pssm", "templates"]
+    REQUIRED = ["pssm", "query_sequence", "model"]
     ADDS = []
     REMOVES = []
 
@@ -307,13 +329,13 @@ class LoopModel(Component):
 
     def run(self, data, config=None, pipeline=None):
         """Fill short gaps with loop modeller."""
-        pssm, templates = self.get_vals(data)
+        pssm, sequence, model = self.get_vals(data)
 
         try:
             tmpdir = tempfile.mkdtemp("-loop", "phyreengine-")
             self.logger.debug("Loop modelling using tmpdir: %s", tmpdir)
 
-            out_dir = Path("loop")
+            out_dir = Path(model).with_suffix(".loop")
 
             # Attempt to use existing models if the output directory exists.
             if not out_dir.exists():
@@ -322,14 +344,12 @@ class LoopModel(Component):
                 model_list = Path(tmpdir, "model.list")
 
                 with model_list.open("w") as model_list_out:
-                    for template in templates:
-                        print(str(Path(template["model"]).resolve()),
-                              file=model_list_out)
+                    print(str(Path(model).resolve()), file=model_list_out)
                 with loop_pssm.open("w") as loop_out:
                     self.convert_ascii_pssm(pssm["ascii"], loop_out)
                 with query_fasta.open("w") as query_out:
-                    print(">{name}\n{sequence}\n".format(**data),
-                          file=query_out)
+                    fasta_seq = ">model\n{}\n".format(sequence)
+                    print(fasta_seq, file=query_out)
 
                 command_line = self.LOOP_MODELLER(
                     executable=(self.bin_dir, self.executable),
@@ -343,16 +363,12 @@ class LoopModel(Component):
                 self.logger.debug("Running %s", command_line)
                 subprocess.run(command_line, check=True)
 
-            # Replace "model" field of each template with the first loop model.
-            for i, template in enumerate(templates):
-                model_idx = i + 1
-                model_path = (out_dir
-                              / "model.{}".format(model_idx)
-                              / "model.1.pdb")
-                if not model_path.exists():
-                    err_msg = "Loop-modelled file '{}' does not exist"
-                    raise FileNotFoundError(err_msg.format(model_path))
-                template["model"] = str(model_path)
+            # Replace "model" field with the first loop model.
+            model_path = (out_dir / "model.1" / "model.1.pdb")
+            if not model_path.exists():
+                err_msg = "Loop-modelled file '{}' does not exist"
+                raise FileNotFoundError(err_msg.format(model_path))
+            data["model"] = str(model_path)
         finally:
             shutil.rmtree(tmpdir)
         return data

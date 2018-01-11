@@ -34,7 +34,7 @@ class TestSort(unittest.TestCase):
         pipe_state["parent"]["numbers"] = pipe_state["numbers"]
         del pipe_state["numbers"]
 
-        cmpt = Sort(field=["parent", "numbers"])
+        cmpt = Sort(field="parent.numbers")
         results = cmpt.run(pipe_state)
         self.assertListEqual(
             results["parent"]["numbers"],
@@ -42,10 +42,10 @@ class TestSort(unittest.TestCase):
 
     def test_sort_nested_key(self):
         """Sort a nested list by a nested key, breaking ties."""
-        cmpt = Sort(field=["parent", "templates"],
+        cmpt = Sort(field="parent.templates",
                     keys=[
-                        {"keys": ["score", 0]},
-                        {"keys": ["score", 1], "reverse": True},
+                        {"key": "list(score)[0]"},
+                        {"key": "list(score)[1]", "reverse": True},
                     ])
         results = cmpt.run(copy.deepcopy(PIPE_STATE))
         self.assertListEqual(
@@ -62,7 +62,7 @@ class TestSort(unittest.TestCase):
         pipe_state = copy.deepcopy(PIPE_STATE)
         pipe_state["numbers"] = [None] + pipe_state["numbers"] + [None]
 
-        cmpt = Sort(field="numbers", keys=[{"keys": [], "allow_none": True}])
+        cmpt = Sort(field="numbers", keys=[{"key": "@", "allow_none": True}])
         results = cmpt.run(pipe_state)
         self.assertListEqual(
             results["numbers"],
@@ -83,7 +83,7 @@ class TestShuffle(unittest.TestCase):
 
     def test_shuffle_nested_key(self):
         """Shuffle a nested list by a nested keys."""
-        cmpt = Shuffle(field=["parent", "templates"], seed=1)
+        cmpt = Shuffle(field="parent.templates", seed=1)
         results = cmpt.run(copy.deepcopy(PIPE_STATE))
         self.assertListEqual(
             results["parent"]["templates"], [

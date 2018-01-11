@@ -63,8 +63,8 @@ class HHSuiteTool(Component):  #pylint: disable=abstract-method
     def __init__(self, tool, flags, options, bin_dir, HHLIB, input_type,
                  cache_dir="."):
         self.name, self.tool = tool
-        self.flags = flags
-        self.options = options
+        self.flags = flags if flags is not None else []
+        self.options = options if options is not None else {}
         self.bin_dir = bin_dir
         self.HHLIB = HHLIB
         self.input_type = QueryType(input_type)
@@ -184,9 +184,9 @@ class HHBlits(HHSuiteTool):
     to search a fold library given an MSA.
 
     :param str database: Path to an hhblits database.
-    :param *args: Flags to pass to hhblits (e.g. ``all`` to pass the ``-all``
+    :param flags: Flags to pass to hhblits (e.g. ``all`` to pass the ``-all``
         option).
-    :param **kwargs: Flag/option pairs to pass to hhblits (e.g. ``n=3`` to pass
+    :param options: Flag/option pairs to pass to hhblits (e.g. ``n=3`` to pass
         the option ``-n 3`` to hhblits).
     :param str bin_dir: Directory containing the hh-suite binaries.
     :param str HHLIB: Set the ``HHLIB`` environment variable to this value
@@ -195,17 +195,22 @@ class HHBlits(HHSuiteTool):
     """
 
     REQUIRED = []
-    ADDS = []
     REMOVES = []
 
-    def __init__(
-            self, database, *args, bin_dir=None, HHLIB=None,
-            input_type=QueryType.SEQUENCE, **kwargs):
+    @property
+    def ADDS(self):
+        return list(self.output_keys())
 
-        kwargs["database"] = database
+    def __init__(self, database, flags=None, bin_dir=None, HHLIB=None,
+                 input_type=QueryType.SEQUENCE, options=None):
+
+        if options is None:
+            options = {}
+        options["database"] = database
+
         super().__init__(
             ("hhblits", tools.hhblits),
-            args, kwargs, bin_dir, HHLIB, input_type)
+            flags, options, bin_dir, HHLIB, input_type)
 
 
     def run(self, data, config=None, pipeline=None):
@@ -226,17 +231,22 @@ class HHSearch(HHSuiteTool):
     """
 
     REQUIRED = []
-    ADDS = []
     REMOVES = []
 
-    def __init__(
-            self, database, *args, bin_dir=None, HHLIB=None,
-            input_type=QueryType.A3M, **kwargs):
+    @property
+    def ADDS(self):
+        return list(self.output_keys())
 
-        kwargs["database"] = database
+    def __init__(
+            self, database, flags=None, bin_dir=None, HHLIB=None,
+            input_type=QueryType.A3M, options=None):
+
+        if options is None:
+            options = {}
+        options["database"] = database
         super().__init__(
             ("hhsearch", tools.hhsearch),
-            args, kwargs, bin_dir, HHLIB, input_type)
+            flags, options, bin_dir, HHLIB, input_type)
 
     def run(self, data, config=None, pipeline=None):
         """Search a profile database using hhsearch."""
