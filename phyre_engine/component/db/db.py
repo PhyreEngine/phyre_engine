@@ -10,7 +10,6 @@ import Bio.PDB
 import logging
 import collections
 import json
-import xml.etree.ElementTree
 from builtins import FileNotFoundError
 
 class StructureType(Enum):
@@ -36,24 +35,15 @@ class PDBList(Component):
     def __init__(self, file=None):
         self.file = file
 
-    @staticmethod
-    def parse_xml(xml_str):
-        """Parse XML file containing PDB IDs into a list of templates."""
-        templates = []
-        root = xml.etree.ElementTree.fromstring(xml_str)
-        for pdb_elem in root:
-            templates.append({"PDB": pdb_elem.attrib["structureId"]})
-        return templates
-
     def run(self, data, config=None, pipeline=None):
         """Read a list of PDB IDs."""
         if self.file is not None:
             with open(self.file, "r") as file_in:
-                xml_contents = file_in.read()
+                entries = pdb.get_current(file_in.read())
         else:
-            with urllib.request.urlopen(self.PDB_ID_URL) as conn:
-                xml_contents = conn.read()
-        data["templates"] = self.parse_xml(xml_contents)
+            entries = pdb.get_current()
+
+        data["templates"] = [{"PDB": entry} for entry in entries]
         return data
 
 class StructureRetriever(Component):
