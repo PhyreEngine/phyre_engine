@@ -553,7 +553,7 @@ class Template:
         self.mapping = mapping
         self.canonical_seq = canonical_seq
         self.canonical_indices = canonical_indices
-        self.remarks = collections.defaultdict(lambda: [])
+        self.remarks = collections.defaultdict(list)
 
     @classmethod
     def build(cls, pdb_id, chain_id, chain):
