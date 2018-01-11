@@ -80,7 +80,7 @@ class HomologyModeller(Component):
 
         if not Path(model_file).exists():
             self.logger.debug("Creating model file %s", model_file)
-            db_template = self.template_db.get(pdb_id, chain)
+            db_template = self.template_db.get_template(pdb_id, chain)
 
             model_name = "model from {}_{}".format(pdb_id, chain)
             model_structure = Bio.PDB.Structure.Structure(model_name)

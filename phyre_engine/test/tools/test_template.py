@@ -40,7 +40,7 @@ class TestTemplateDatabase(unittest.TestCase):
         (cls.file_root / "2a" / "12as").mkdir(parents=True)
         mmcif_buf = io.StringIO(minimal.MINIMAL_MMCIF)
         mmcif_struc = Bio.PDB.MMCIFParser().get_structure("", mmcif_buf)
-        cls.sample_template = Template.build("1MIN", "A", mmcif_struc[0]["A"])
+        cls.sample_template = Template.build("12as", "A", mmcif_struc[0]["A"])
         with (cls.file_root / "2a" / "12as" / "12as_A.pdb").open("w") as tout:
             cls.sample_template.write(tout)
 
@@ -53,7 +53,7 @@ class TestTemplateDatabase(unittest.TestCase):
         """Add PDB and template to database."""
         template_db = TemplateDatabase(str(self.database), str(self.file_root))
         template_db.add_pdb("12AS", self._METADATA)
-        template_db.add_template("12AS", "A", self.sample_template)
+        template_db.add_template(self.sample_template)
         template_db.commit()
 
         template = template_db.get_template("12AS", "A")

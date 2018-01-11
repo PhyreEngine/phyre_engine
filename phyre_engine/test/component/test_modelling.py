@@ -88,7 +88,7 @@ class TestHomologyModeller(unittest.TestCase):
             "last_update_date": datetime.date(2000, 1, 1),
             "method": "X-RAY CRYSTALLOGRAPHY",
         })
-        template_db.add_template("1xyz", "A", template)
+        template_db.add_template(template)
         template_db.commit()
 
         # Create empty directory for storing models and chdir there.

@@ -394,7 +394,7 @@ class TemplateDatabase:
 
         return Template(pdb_id, chain_id, chain, mapping, canon_seq, canon_idx)
 
-    def add_template(self, pdb_id, chain_id, template):
+    def add_template(self, template):
         """
         Add template to database, including residue mappings.
 
@@ -407,15 +407,15 @@ class TemplateDatabase:
         """
         self.conn.execute(
             self.INSERT_TEMPLATE, {
-                "pdb_id": pdb_id.lower(),
-                "chain_id": chain_id,
+                "pdb_id": template.pdb_id.lower(),
+                "chain_id": template.chain_id,
                 "canonical_sequence": template.canonical_seq})
 
         iterator = zip(template.canonical_seq, template.canonical_indices)
         for i, (aa, seq_idx) in enumerate(iterator):
             fields = {
-                "pdb_id": pdb_id.lower(),
-                "chain_id": chain_id,
+                "pdb_id": template.pdb_id.lower(),
+                "chain_id": template.chain_id,
                 "sequence_index": i,
                 "aa": aa,
                 "residue_id": seq_idx,
@@ -426,8 +426,8 @@ class TemplateDatabase:
             hetero_flag = None if orig_id[0] == " " else orig_id[0]
             icode = None if orig_id[2] == " " else orig_id[2]
             fields = {
-                "pdb_id": pdb_id.lower(),
-                "chain_id": chain_id,
+                "pdb_id": template.pdb_id.lower(),
+                "chain_id": template.chain_id,
                 "sequence_index": i,
                 "hetero_flag": hetero_flag,
                 "insertion_code": icode,
