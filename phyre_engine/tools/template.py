@@ -146,6 +146,11 @@ class TemplateDatabase:
     """
 
     CREATE = """\
+        CREATE TABLE meta (
+            updated          DATE
+        );
+        INSERT INTO meta (updated) VALUES (NULL);
+
         CREATE TABLE pdbs (
             pdb_id           TEXT,
             deposition_date  DATE NOT NULL,
@@ -205,6 +210,14 @@ class TemplateDatabase:
                  ON DELETE CASCADE
         );
         """
+
+    SELECT_DB_META = """
+    SELECT * FROM meta
+    """
+
+    UPDATE_DB_META = """
+    UPDATE meta SET updated = :updated
+    """
 
     SELECT_PDB = """
     SELECT * FROM pdbs WHERE pdb_id = :pdb_id
@@ -296,6 +309,17 @@ class TemplateDatabase:
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA foreign_keys = 1")
         self.file_root = Path(file_root)
+
+    @property
+    def updated(self):
+        """Date of last database update."""
+        return self.conn.execute(self.SELECT_DB_META).fetchone()["updated"]
+
+    @updated.setter
+    def updated(self, updated):
+        """Set date of last update."""
+        self.conn.execute(self.UPDATE_DB_META, {"updated": updated})
+        self.conn.commit()
 
     @classmethod
     def create(cls, database):

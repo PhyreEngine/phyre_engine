@@ -96,6 +96,14 @@ class TestTemplateDatabase(unittest.TestCase):
         with self.assertRaises(TemplateDatabase.TemplateNotFoundException):
             template_db.get_template("1FOO", "A")
 
+    def test_get_set_updated(self):
+        """Test ability to get and set update date."""
+        template_db = TemplateDatabase(str(self.database), str(self.file_root))
+        self.assertIsNone(template_db.updated)
+        dummy_date = datetime.date(1970, 1, 1)
+        template_db.updated = dummy_date
+        self.assertEqual(template_db.updated, dummy_date)
+
 
 class TestTemplate(unittest.TestCase):
     """Test Template class"""
