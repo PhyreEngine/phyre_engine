@@ -224,7 +224,8 @@ class ChainPDBBuilder(Component):
         """Run the component."""
         pdb_id = self.get_vals(data)
 
-        parser = Bio.PDB.FastMMCIFParser()
+        mmcif_parser = Bio.PDB.FastMMCIFParser()
+        pdb_parser = Bio.PDB.PDBParser()
 
         source_file = pdb.find_pdb(pdb_id, base_dir=self.mmcif_dir)
         if source_file is None:
@@ -239,7 +240,7 @@ class ChainPDBBuilder(Component):
             pdb_id, source_file)
 
         with pdb.open_pdb(source_file) as pdb_in:
-            structure = parser.get_structure(pdb_id, pdb_in)
+            structure = mmcif_parser.get_structure(pdb_id, pdb_in)
             self.logger.debug(
                 "Found %d chains in %s",
                 len(list(structure.get_chains())), pdb_id)
@@ -274,8 +275,13 @@ class ChainPDBBuilder(Component):
                     with pdb_file.open("w") as pdb_out:
                         template.write(pdb_out)
                 else:
+                    chain = pdb_parser.get_structure(
+                        "", result["structure"])[0]["A"]
+                    template = Template.build(pdb_id, result["chain"], chain)
+                    result["template_obj"] = template
+
                     self.logger.debug(
-                        "Skipping chain %s of PDB %s: it already exists at %s",
+                        "Loaded existing chain %s of PDB %s from %s",
                         chain.id, pdb_id, pdb_file)
                 results.append(result)
         return results
