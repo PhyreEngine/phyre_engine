@@ -146,3 +146,144 @@ class TestA3MSSParser(unittest.TestCase):
                     "ss_pred": "CCCCHH",
                     "ss_conf": "888889"
                 })
+
+
+class HHToolTest(unittest.TestCase):
+    """
+    Test subclasses of HHSuiteTool.
+
+    This class contains some fields to use for testing, as well as a `tool`
+    method to create an instance of a tool using those fields, and a
+    `verify_common` method to verify those fields.
+    """
+
+    BIN_DIR = "hh/bin"
+    FLAGS = ["x", "y", "z"]
+    HHLIB = "hhlib"
+    OPTIONS = {"foo": "bar", "qux": "baz"}
+    DATABASE = "test_db"
+
+    def tool(self, tool_cls, *args, options={}, **kwargs):
+        """
+        Create an instance of `tool_cls` using some default flags and options.
+        The `options` hash will be merged into `self.OPTIONS`.
+        """
+        tool_options = self.OPTIONS.copy()
+        tool_options.update(options)
+
+        tool_instance = tool_cls(
+            *args,
+            flags=self.FLAGS,
+            bin_dir=self.BIN_DIR,
+            HHLIB=self.HHLIB,
+            options=tool_options,
+            **kwargs)
+        tool_instance.tool = unittest.mock.MagicMock()
+        return tool_instance
+
+    def verify_common(self, tool_name, tool_instance):
+        """
+        Verify that the arguments `tool_args` (passed to a mocked
+        `phyre_engine.tools.external.ExternalTool.__call__` method) match the
+        expected testing data.
+        """
+        pos_args, kw_args = tool_instance.tool.call_args
+        self.assertEqual(pos_args[0], (self.BIN_DIR, tool_name))
+        self.assertEqual(kw_args["flags"], self.FLAGS)
+
+        # Existing options were retained
+        for flag, expected in self.OPTIONS.items():
+            self.assertEqual(kw_args["options"][flag], expected)
+
+
+@unittest.mock.patch("subprocess.run")
+class TestHHBlits(HHToolTest):
+    """Test HHBlits component."""
+
+    DATABASE = "test_db"
+    SEQ_NAME = "seq_name"
+    SEQUENCE = "AAA"
+    IN_HHM_FILE = "in.hhm"
+    IN_A3M_FILE = "in.a3m"
+    OUT_A3M_FILE = "out.a3m"
+    OUT_REPORT = "report.hhr"
+
+    def verify_common(self, tool_name, tool_instance):
+        """Verify database and output files."""
+        super().verify_common(tool_name, tool_instance)
+        pos_args, kw_args = tool_instance.tool.call_args
+
+        self.assertEqual(kw_args["options"]["oa3m"], self.OUT_A3M_FILE)
+        self.assertEqual(kw_args["options"]["output"], self.OUT_REPORT)
+        self.assertEqual(kw_args["options"]["database"], self.DATABASE)
+
+    def tool(self, *args, **kwargs):
+        """
+        Add database to constructor, and 'oa3m' and 'output' keys to options
+        and call superclass.
+        """
+        options = {"oa3m": self.OUT_A3M_FILE, "output": self.OUT_REPORT}
+        return super().tool(hhsuite.HHBlits, self.DATABASE, *args,
+                            options=options, **kwargs)
+
+    def test_input_type_seq(self, _run_mock):
+        """Check command line built by HHBlits when given a sequence."""
+        hhblits = self.tool(input_type=hhsuite.QueryType.SEQUENCE)
+        self.assertEqual(set(hhblits.REQUIRED), set(["name", "sequence"]))
+        hhblits.run({"sequence": self.SEQUENCE, "name": self.SEQ_NAME})
+        self.verify_common("hhblits", hhblits)
+
+        _, kw_args = hhblits.tool.call_args
+        self.assertIn("input", kw_args["options"])
+
+    def test_input_type_a3m(self, _run_mock):
+        """Check command line built by HHBlits when given an a3m file."""
+        hhblits = self.tool(input_type=hhsuite.QueryType.A3M)
+        self.assertEqual(hhblits.REQUIRED, ["a3m"])
+        hhblits.run({"a3m": self.IN_A3M_FILE})
+        self.verify_common("hhblits", hhblits)
+        _, kw_args = hhblits.tool.call_args
+        self.assertEqual(kw_args["options"]["input"], self.IN_A3M_FILE)
+
+    def test_input_type_hhm(self, _run_mock):
+        """Check command line built by HHBlits when given an hhm file."""
+        hhblits = self.tool(input_type=hhsuite.QueryType.HMM)
+        self.assertEqual(hhblits.REQUIRED, ["hhm"])
+        hhblits.run({"hhm": self.IN_HHM_FILE})
+        self.verify_common("hhblits", hhblits)
+        _, kw_args = hhblits.tool.call_args
+        self.assertEqual(kw_args["options"]["input"], self.IN_HHM_FILE)
+
+
+@unittest.mock.patch("subprocess.run")
+class TestHHMake(HHToolTest):
+    """Test HHMake component."""
+    IN_A3M_FILE = "in.a3m"
+    OUT_HHM_FILE = "out.hhm"
+
+    def test_run(self, _run_mock):
+        """Test arguments given to HHMake tool."""
+        hhmake = self.tool(hhsuite.HHMake,
+                           options={"output": self.OUT_HHM_FILE})
+        hhmake.run({"a3m": self.IN_A3M_FILE})
+        self.verify_common("hhmake", hhmake)
+
+        _, kw_args = hhmake.tool.call_args
+        self.assertEqual(kw_args["options"]["input"], self.IN_A3M_FILE)
+
+
+@unittest.mock.patch("subprocess.run")
+class TestCSTranslate(HHToolTest):
+    """Test CSTranslate component."""
+    IN_A3M_FILE = "in.a3m"
+    OUT_CS219_FILE = "out.cs219"
+
+    def test_run(self, _run_mock):
+        """Test arguments given to CSTranslate tool."""
+        cstranslate = self.tool(hhsuite.CSTranslate,
+                           options={"outfile": self.OUT_CS219_FILE})
+        cstranslate.run({"a3m": self.IN_A3M_FILE})
+        self.verify_common("cstranslate", cstranslate)
+
+        _, kw_args = cstranslate.tool.call_args
+        self.assertEqual(kw_args["options"]["infile"], self.IN_A3M_FILE)
