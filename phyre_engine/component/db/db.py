@@ -102,6 +102,10 @@ class ChainPDBBuilder(Component):
     ``structure``
         The file path of the new PDB file.
 
+    ``sequence``
+        The canonical sequence of the template, as determined by
+        :py:class:`phyre_engine.tools.template.Template`.
+
     ``template_obj``
         :py:class:`phyre_engine.tools.template.Template` object. This object
         contains a :py:class:`Bio.PDB.Chain.Chain` object, as well as
@@ -186,7 +190,7 @@ class ChainPDBBuilder(Component):
     """
 
     REQUIRED = ["PDB"]
-    ADDS = ["structure", "name", "chain", "template_obj"]
+    ADDS = ["structure", "name", "chain", "template_obj", "sequence"]
     REMOVES  = []
 
     class MissingSourceError(RuntimeError):
@@ -283,6 +287,7 @@ class ChainPDBBuilder(Component):
                     self.logger.debug(
                         "Loaded existing chain %s of PDB %s from %s",
                         chain.id, pdb_id, pdb_file)
+                result["sequence"] = result["template_obj"].canonical_seq
                 results.append(result)
         return results
 
