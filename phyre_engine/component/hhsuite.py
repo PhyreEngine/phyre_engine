@@ -45,7 +45,7 @@ class QueryType(Enum):
     A3M = "a3m"
 
     #: Use the HMM pointed in the file named by the ``hmm`` key as input.
-    HMM = "hmm"
+    HMM = "hhm"
 
 class HHSuiteTool(Component):  #pylint: disable=abstract-method
     """
