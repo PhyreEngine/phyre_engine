@@ -216,7 +216,8 @@ class HHBlits(HHSuiteTool):
         return list(self.output_keys())
 
     def __init__(self, database, flags=None, bin_dir=None, HHLIB=None,
-                 input_type=QueryType.SEQUENCE, options=None):
+                 input_type=QueryType.SEQUENCE, options=None,
+                 cache_dir="."):
 
         if options is None:
             options = {}
@@ -224,7 +225,7 @@ class HHBlits(HHSuiteTool):
 
         super().__init__(
             ("hhblits", tools.hhblits),
-            flags, options, bin_dir, HHLIB, input_type)
+            flags, options, bin_dir, HHLIB, input_type, cache_dir)
 
 
     def run(self, data, config=None, pipeline=None):
@@ -253,14 +254,15 @@ class HHSearch(HHSuiteTool):
 
     def __init__(
             self, database, flags=None, bin_dir=None, HHLIB=None,
-            input_type=QueryType.A3M, options=None):
+            input_type=QueryType.A3M, options=None,
+            cache_dir="."):
 
         if options is None:
             options = {}
         options["database"] = database
         super().__init__(
             ("hhsearch", tools.hhsearch),
-            flags, options, bin_dir, HHLIB, input_type)
+            flags, options, bin_dir, HHLIB, input_type, cache_dir)
 
     def run(self, data, config=None, pipeline=None):
         """Search a profile database using hhsearch."""
