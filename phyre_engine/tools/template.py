@@ -139,6 +139,9 @@ class TemplateDatabase:
     :param str file_root: Root of the directory structure containing the
         template files.
 
+    :param bool exclusive: If `True`, immediately begin an ``EXCLUSIVE``
+        transaction, preventing any access to the database.
+
     :param callable trace: Callback used for printing SQL traces.
 
     .. warning::
@@ -314,7 +317,7 @@ class TemplateDatabase:
             super().__init__(self.ERR_MSG.format(pdb_id))
 
 
-    def __init__(self, database, file_root, trace=None):
+    def __init__(self, database, file_root, exclusive=False, trace=None):
         self.database = database
         self.conn = sqlite3.connect(
             self.database,
@@ -325,6 +328,8 @@ class TemplateDatabase:
             self.conn.set_trace_callback(trace)
 
         self.conn.execute("PRAGMA foreign_keys = 1")
+        if exclusive:
+            self.conn.execute("BEGIN EXCLUSIVE TRANSACTION")
         self.file_root = Path(file_root)
 
     @property
