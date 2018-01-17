@@ -97,7 +97,13 @@ class Component(metaclass=ComponentMeta):
                 and cls.CONFIG_SECTION in pipeline_config):
             config = copy.deepcopy(pipeline_config[cls.CONFIG_SECTION])
             if params is not None:
-                deep_merge(params, config)
+                try:
+                    deep_merge(params, config)
+                except Exception as err:
+                    log_name = ".".join((cls.__module__, cls.__qualname__))
+                    logging.getLogger(log_name).error(
+                        "Error merging parameters %s and config %s", params, config)
+                    raise err
             return config
         # If no pipeline config can be extracted, the supplied params must
         # suffice.
