@@ -318,7 +318,10 @@ class MMCIFMetadata(Component):
             pdb_id, suffix_list=(".cif", ".cif.gz"),
             base_dir=self.mmcif_dir)
         data.setdefault("metadata", {})
-
+        if mmcif_file is None:
+            raise FileNotFoundError(
+                "Could not find mmCIF file {} in {}".format(
+                    pdb_id, self.mmcif_dir))
 
         with phyre_engine.tools.pdb.open_pdb(mmcif_file) as mmcif_in:
             if self.prefilter:
