@@ -245,6 +245,17 @@ class TemplateDatabase:
      ORDER BY sequence_index ASC
     """
 
+    # Select IDs of all sequence representatives.
+    SELECT_REPS_ALL = """
+    SELECT chains.pdb_id AS pdb_id,
+           chains.chain_id AS chain_id,
+           MIN(pdbs.resolution)
+      FROM chains
+     INNER JOIN pdbs
+           ON chains.pdb_id = pdbs.pdb_id
+     GROUP BY chains.canonical_sequence;
+    """
+
     INSERT_PDB = """
     INSERT INTO pdbs (
            pdb_id, deposition_date, last_update_date, release_date,
@@ -348,6 +359,14 @@ class TemplateDatabase:
             (r["hetero_flag"], r["orig_residue_id"], r["insertion_code"])
             for r in original_residues]
         return mapping
+
+    def sequence_reps(self):
+        """
+        Return a list of sequence representatives as `(pdb_id, chain_id)`
+        tuples.
+        """
+        rows = self.conn.execute(self.SELECT_REPS_ALL).fetchall()
+        return [(row["pdb_id"], row["chain_id"]) for row in rows]
 
     def get_pdb(self, pdb_id):
         """
