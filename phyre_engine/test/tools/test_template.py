@@ -1,9 +1,109 @@
 """Test the :py:mod:`phyre_engine.tools.template` module."""
+import datetime
 import io
+from pathlib import Path
+import shutil
+import tempfile
 import unittest
 import Bio.PDB
 import phyre_engine.test.data.minimal_template as minimal
-from phyre_engine.tools.template import Template
+from phyre_engine.tools.template import Template, TemplateDatabase
+
+class TestTemplateDatabase(unittest.TestCase):
+    """Test TemplateDatabase class."""
+
+    _METADATA = {
+        "deposition_date": datetime.date(1997, 12, 2),
+        "release_date": datetime.date(1998, 12, 30),
+        "last_update_date": datetime.date(2011, 7, 13),
+        "method": "X-RAY DIFFRACTION",
+        "resolution": 2.2,
+        "organism_name": "Escherichia coli",
+        "organism_id": 562,
+        "title": (
+            "ASPARAGINE SYNTHETASE MUTANT C51A, C315A COMPLEXED "
+            "WITH L-ASPARAGINE AND AMP"),
+        "descriptor": (
+            "ASPARAGINE SYNTHETASE, L-ASPARAGINE, "
+            "ADENOSINE MONOPHOSPHATE"),
+    }
+
+    @classmethod
+    def setUpClass(cls):
+        """
+        Create an empty temporary database, load and write a template.
+        """
+        cls.file_root = Path(tempfile.mkdtemp("-templatedb", "phyreengine-"))
+        cls.database = cls.file_root / "test.db"
+        TemplateDatabase.create(str(cls.database))
+
+        (cls.file_root / "2a" / "12as").mkdir(parents=True)
+        mmcif_buf = io.StringIO(minimal.MINIMAL_MMCIF)
+        mmcif_struc = Bio.PDB.MMCIFParser().get_structure("", mmcif_buf)
+        cls.sample_template = Template.build("12as", "A", mmcif_struc[0]["A"])
+        with (cls.file_root / "2a" / "12as" / "12as_A.pdb").open("w") as tout:
+            cls.sample_template.write(tout)
+
+    @classmethod
+    def tearDownClass(cls):
+        """Remove temporary database."""
+        shutil.rmtree(str(cls.file_root))
+
+    def test_add_retrieve_del_template(self):
+        """Add PDB and template to database."""
+        template_db = TemplateDatabase(str(self.database), str(self.file_root))
+        template_db.add_pdb("12AS", self._METADATA)
+        template_db.add_template(self.sample_template)
+        template_db.commit()
+
+        template = template_db.get_template("12AS", "A")
+        self.assertEqual(
+            template.canonical_seq,
+            self.sample_template.canonical_seq)
+        self.assertEqual(
+            template.canonical_indices,
+            self.sample_template.canonical_indices)
+        self.assertEqual(
+            template.mapping,
+            self.sample_template.mapping)
+
+        template_db.del_template("12as", "A")
+        template_db.commit()
+        with self.assertRaises(template_db.TemplateNotFoundException):
+            template_db.get_template("12as", "A")
+
+    def test_retrieve_pdb(self):
+        """Retrieve PDB metadata from database."""
+        template_db = TemplateDatabase(str(self.database), str(self.file_root))
+        self.assertEqual(template_db.get_pdb("12as"), self._METADATA)
+
+    def test_add_del_pdb(self):
+        """Add and delete a PDB entry."""
+        template_db = TemplateDatabase(str(self.database), str(self.file_root))
+        template_db.add_pdb("1del", self._METADATA)
+        template_db.commit()
+        self.assertEqual(template_db.get_pdb("1del"), self._METADATA)
+        template_db.del_pdb("1del")
+        template_db.commit()
+        with self.assertRaises(template_db.PdbNotFoundException):
+            template_db.get_pdb("1del")
+
+    def test_get_nonexist(self):
+        """
+        TemplateNotFoundException raised when looking up nonexistent template.
+        """
+        template_db = TemplateDatabase(str(self.database), str(self.file_root))
+        with self.assertRaises(TemplateDatabase.TemplateNotFoundException):
+            template_db.get_template("1FOO", "A")
+
+    def test_get_set_updated(self):
+        """Test ability to get and set update date."""
+        template_db = TemplateDatabase(str(self.database), str(self.file_root))
+        self.assertIsNone(template_db.updated)
+        dummy_date = datetime.date(1970, 1, 1)
+        template_db.updated = dummy_date
+        self.assertEqual(template_db.updated, dummy_date)
+
 
 class TestTemplate(unittest.TestCase):
     """Test Template class"""
@@ -13,14 +113,6 @@ class TestTemplate(unittest.TestCase):
         mmcif_buf = io.StringIO(minimal.MINIMAL_MMCIF)
         mmcif_struc = Bio.PDB.MMCIFParser().get_structure("", mmcif_buf)
         self.raw_chain = mmcif_struc[0]["A"]
-
-    def _load(self):
-        """Write and then load a Template."""
-        template = Template.build(self.raw_chain)
-        buffer = io.StringIO()
-        template.write(buffer)
-        buffer.seek(0)
-        return Template.load(buffer)
 
     def _validate(self, template):
         """Validate 'template' against known data."""
@@ -36,8 +128,4 @@ class TestTemplate(unittest.TestCase):
 
     def test_build(self):
         """Ensure that a mapping of renumbered -> original AAs was written."""
-        self._validate(Template.build(self.raw_chain))
-
-    def test_load(self):
-        """Test that we can write and load a template."""
-        self._validate(self._load())
+        self._validate(Template.build(None, None, self.raw_chain))

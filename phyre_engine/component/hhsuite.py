@@ -1,19 +1,24 @@
 """Components for running parts of hh-suite."""
+import Bio.SeqUtils
+import jmespath
+
 from phyre_engine.component import Component
 import phyre_engine.tools.hhsuite.tool as tools
 import phyre_engine.tools.hhsuite.parser as parser
 from phyre_engine.tools.external import ExternalTool
+from phyre_engine.tools.jmespath import JMESExtensions
 
 from enum import Enum
 import os
 import subprocess
 import contextlib
+import fileinput
 import tempfile
 import textwrap
 import re
 from phyre_engine.tools.template import Template
 import math
-from pathlib import Path
+from pathlib import Path, PurePath
 import shutil
 
 class QueryType(Enum):
@@ -40,7 +45,7 @@ class QueryType(Enum):
     A3M = "a3m"
 
     #: Use the HMM pointed in the file named by the ``hmm`` key as input.
-    HMM = "hmm"
+    HMM = "hhm"
 
 class HHSuiteTool(Component):  #pylint: disable=abstract-method
     """
@@ -193,16 +198,26 @@ class HHBlits(HHSuiteTool):
         before calling hhblits.
     :param QueryType input_type: Input type.
     """
-
-    REQUIRED = []
     REMOVES = []
+
+    @property
+    def REQUIRED(self):
+        if self.input_type == QueryType.SEQUENCE:
+            return ["name", "sequence"]
+        elif self.input_type == QueryType.A3M:
+            return ["a3m"]
+        elif self.input_type == QueryType.HMM:
+            # sic: hhsuite uses "hhm" files for HMMs, so the "hhm" key in the
+            # pipeline state points to the file containing the HMM.
+            return ["hhm"]
 
     @property
     def ADDS(self):
         return list(self.output_keys())
 
     def __init__(self, database, flags=None, bin_dir=None, HHLIB=None,
-                 input_type=QueryType.SEQUENCE, options=None):
+                 input_type=QueryType.SEQUENCE, options=None,
+                 cache_dir="."):
 
         if options is None:
             options = {}
@@ -210,7 +225,7 @@ class HHBlits(HHSuiteTool):
 
         super().__init__(
             ("hhblits", tools.hhblits),
-            flags, options, bin_dir, HHLIB, input_type)
+            flags, options, bin_dir, HHLIB, input_type, cache_dir)
 
 
     def run(self, data, config=None, pipeline=None):
@@ -239,20 +254,192 @@ class HHSearch(HHSuiteTool):
 
     def __init__(
             self, database, flags=None, bin_dir=None, HHLIB=None,
-            input_type=QueryType.A3M, options=None):
+            input_type=QueryType.A3M, options=None,
+            cache_dir="."):
 
         if options is None:
             options = {}
         options["database"] = database
         super().__init__(
             ("hhsearch", tools.hhsearch),
-            flags, options, bin_dir, HHLIB, input_type)
+            flags, options, bin_dir, HHLIB, input_type, cache_dir)
 
     def run(self, data, config=None, pipeline=None):
         """Search a profile database using hhsearch."""
         super().execute(data)
         data.update(self.output_keys())
         return data
+
+class HHMake(HHSuiteTool):
+    """
+    Run hhmake to convert an ``a3m`` file into an ``hhm`` file.
+
+    .. seealso::
+
+        `~.HHBlits`
+            For parameters.
+    """
+
+    REQUIRED = ["a3m"]
+    REMOVES = []
+    ADDS = ["hhm"]
+
+    def __init__(self, flags=None, bin_dir=None, HHLIB=None, options=None,
+                 cache_dir="."):
+        super().__init__(
+            ("hhmake", tools.hhmake),
+            flags, options, bin_dir, HHLIB, QueryType.A3M, cache_dir)
+
+
+    def run(self, data, config=None, pipeline=None):
+        """Build an hhm file from an a3m file."""
+        super().execute(data)
+        hhm_file = self._find_option(r"^(?:-?o|output)$")
+        data["hhm"] = hhm_file
+        return data
+
+class CSTranslate(HHSuiteTool):
+    """
+    Run cstranslate to build column state sequences (cs219) for an a3m file.
+
+    .. seealso::
+
+        `~.HHBlits`
+            For parameters.
+    """
+
+    REQUIRED = ["a3m"]
+    REMOVES = []
+    ADDS = ["cs219"]
+
+    def __init__(self, flags=None, bin_dir=None, HHLIB=None, options=None,
+                 cache_dir="."):
+        super().__init__(
+            ("cstranslate", tools.cstranslate),
+            flags, options, bin_dir, HHLIB, QueryType.A3M, cache_dir)
+
+    @contextlib.contextmanager
+    def set_input(self, data):
+        """Sets --infile param for cstranslate."""
+        options = {"infile": data["a3m"]}
+        options.update(self.options)
+        yield options
+
+    def output_keys(self):
+        """Output keys, extracted from outfile parameter."""
+        cs219_file = self._find_option(r"^(?:-?o|outfile)$")
+        return {"cs219": cs219_file}
+
+    def run(self, data, config=None, pipeline=None):
+        """Build 219-state sequence representing sequence profile."""
+        super().execute(data)
+        data.update(self.output_keys())
+        return data
+
+
+class AddPsipred(Component):
+    """
+    Add predicted secondary structure to MSAs.
+
+    This component is not very smart, and simply calls the ``addss.pl`` script
+    included in hh-suite. This means that paths to PSIPRED and legacy BLAST must
+    be set up in ``HHPaths.pm``.
+    """
+
+    REQUIRED = ["a3m"]
+    ADDS = []
+    REMOVES = []
+    CONFIG_SECTION = "hhsuite"
+
+    def __init__(self, HHLIB=None, **_kwargs):
+        # We need to have _kwargs because we define CONFIG_SECTION and so might
+        # be given extra parameters.
+
+        if HHLIB is None and "HHLIB" not in os.environ:
+            raise ValueError(
+                "HHLIB not set as parameter or environment variable.")
+        self.HHLIB = HHLIB
+
+        hhlib = HHLIB if HHLIB is not None else os.environ["HHLIB"]
+        self.addss = str(Path(hhlib, "scripts/addss.pl"))
+
+    def run(self, data, config=None, pipeline=None):
+        a3m = self.get_vals(data)
+        # Skip if an ss_pred line is already present
+        with open(a3m, "r") as a3m_in:
+            for line in a3m_in:
+                if line.startswith(">ss_pred"):
+                    return data
+
+        cmd_line = [self.addss, "-i", a3m]
+        self.logger.debug("Running %s", cmd_line)
+        tools.run(cmd_line, check=True, HHLIB=self.HHLIB)
+        return data
+
+
+class AddDssp(Component):
+    """
+    Add secondary structure information to MSAs produced by hhblits using
+    `DSSP <http://swift.cmbi.ru.nl/gv/dssp/>`_.
+
+    This sets the ``>ss_dssp`` and ``>aa_dssp`` fields in the MSA pointed to by
+    the ``a3m`` key. If those lines are already present in the MSA nothing is
+    done.
+
+    This component requires the ``secondary_structure`` key of the pipeline
+    state as the source of secondary structure data. It also requires the
+    ``template_obj`` field to point to a
+    :py:class:`phyre_engine.tools.template.Template` object so that the
+    secondary structure can be matched to the canonical sequence.
+    """
+
+    REQUIRED = ["a3m", "secondary_structure", "template_obj"]
+    ADDS = []
+    REMOVES = []
+
+    def run(self, data, config=None, pipeline=None):
+        """Add ``>ss_dssp`` and ``>aa_dssp`` fields."""
+        a3m, sec_struc, template = self.get_vals(data)
+        sec_struc = sec_struc["dssp"]
+
+        # Index secondary structure states by residue ID
+        ss_struc_dict = {ss["res_id"]: ss for ss in sec_struc}
+
+        # Default everything to a gap, so we have sequences of the correct
+        # length even if DSSP is missing an assignment.
+        ss_dssp = ["-"] * len(template.canonical_indices)
+        aa_dssp = ["-"] * len(template.canonical_indices)
+
+        # For each residue in the canonical sequence (which is what should be in
+        # the a3m file), get the SS state and set the corresponding char in the
+        # sequences.
+        for i, canonical_id in enumerate(template.canonical_indices):
+            if canonical_id in ss_struc_dict:
+                ss_state = ss_struc_dict[canonical_id]["assigned"]
+                residue = template.chain[canonical_id]
+                ss_dssp[i] = ss_state
+                aa_dssp[i] = Bio.SeqUtils.seq1(residue.get_resname())
+
+        aa_dssp = "".join(aa_dssp)
+        ss_dssp = "".join(ss_dssp)
+        self.update_a3m(a3m, ss_dssp, aa_dssp)
+        return data
+
+    def update_a3m(self, a3m, ss_dssp, aa_dssp):
+        """
+        If `a3m` does not contain ``ss_dssp`` or ``aa_dssp`` lines, add them.
+        """
+        # First, check if the "ss_dssp" or "aa_dssp" lines are present
+        with open(a3m, "r") as a3m_in:
+            a3m_lines = a3m_in.readlines()
+
+        with open(a3m, "w") as a3m_out:
+            if not any(ln.startswith(">aa_dssp") for ln in a3m_lines):
+                a3m_out.write(">aa_dssp\n{}\n".format(aa_dssp))
+            if not any(ln.startswith(">ss_dssp") for ln in a3m_lines):
+                a3m_out.write(">ss_dssp\n{}\n".format(ss_dssp))
+            a3m_out.writelines(a3m_lines)
+
 
 class ReportParser(Component):
     """
@@ -493,6 +680,7 @@ class AlignmentToFasta(Component):
     :param str t_name: The template name will be taken from this field. By
         default, the template name is "Template".
     """
+    # TODO: This should operate on a single hit
     REQUIRED = ["sequence"]
     ADDS = []
     REMOVES = []
@@ -740,3 +928,121 @@ class PSSM(Component):
                 elif record_flag:
                     query.append(line.strip())
         return "".join(query)
+
+
+class BuildDatabase(Component):
+    """
+    Build ffindex/ffdata files for an hhsuite database.
+
+    This component will iterate over each template in the list specified by the
+    JMESPath expression `select_expr` (by default, the ``templates`` list).
+    Each template must have the keys ``sequence``, ``a3m`` (from e.g.
+    :py:class:`~.HHBlits`), ``hhm`` (from e.g. :py:class:`~.HHMake`) and
+    ``cs219`` (from e.g. :py:class:`~.CSTranslate`) defined.
+
+    The procedure used to build the database is essentially the same as given
+    in section 3.5 of the `hh-suite user manual
+    <https://github.com/soedinglab/hh-suite/raw/master/hhsuite-userguide.pdf>`_.
+    This component assumes that the relevant data files have already been
+    generated by, for example, :py:class:`.HHBlits`, :py:class:`.HHMake`, and
+    :py:class:`.CSTranslate`. It will then call ``ffindex_build`` to build the
+    ``ffindex`` and ``ffdata`` files required by hhsuite. Files are sorted by
+    sequence length as indicated in the user manual, and the file names given
+    in the ``ffindex`` files are cleaned up to remove the file suffixes for the
+    sake of consistency.
+
+    :param str db_prefix: Prefix for database. The databases used by hhblits
+        consist of multiple files, named like
+        ``<prefix>_{a3m,hhm,cs219}.ff{index,data}``. This may be supplied as
+        an absolute or relative path. Relative paths are evaulatued relative
+        to the current working directory.
+
+    :param str bin_dir: Optional directory containing the ``ffindex_build``
+        executable.
+
+    :param bool overwrite: If ``True``, delete existing database files.
+        Otherwise, ``ffindex_build`` may be called on existing files.
+
+    :param str select_expr: JMESPath expression giving the list of templates
+        in the pipeline state.
+    """
+
+    REQUIRED = []
+    REMOVES = []
+    ADDS = ["database"]
+
+    def __init__(self, db_prefix, bin_dir=None, overwrite=False,
+                 select_expr="templates"):
+        self.db_prefix = db_prefix
+        self.bin_dir = bin_dir
+        self.overwrite = overwrite
+        self.select_expr = select_expr
+
+    def run(self, data, config=None, pipeline=None):
+        """Collect and index the files that form an hhsuite database."""
+        jmes_opts = jmespath.Options(custom_functions=JMESExtensions(data))
+        templates = jmespath.search(self.select_expr, data, jmes_opts)
+
+        # First, sort templates by sequence length.
+        templates.sort(key=lambda t: len(t["sequence"]))
+
+        # Make database directory if it doesn't exist.
+        Path(self.db_prefix).parent.mkdir(parents=True, exist_ok=True)
+
+        # Collect a3m/hhm/cs219 files into ffindex/ffdata databases
+        to_collect = ["a3m", "hhm", "cs219"]
+        ff_dbs = {}
+        db_prefix = Path(self.db_prefix)
+
+        for file_type in to_collect:
+            db_name = Path("{}_{}".format(str(db_prefix), file_type))
+            ffindex = Path("{}.ffindex".format(str(db_name)))
+            ffdata = Path("{}.ffdata".format(str(db_name)))
+
+            if self.overwrite:
+                if ffindex.exists():
+                    ffindex.unlink()
+                if ffdata.exists():
+                    ffdata.unlink()
+
+            with tempfile.NamedTemporaryFile("w") as index:
+                # Write all files of file_type `file_type` to a temp file
+                for template in templates:
+                    print(template[file_type], file=index)
+                index.flush()
+
+                # Run ffindex_build using the the temp file as the list of files
+                # to include in the DB.
+                cmd_line = tools.ffindex_build(
+                    (self.bin_dir, "ffindex_build"),
+                    positional=[ffdata, ffindex],
+                    flags=["sort"],
+                    options={"file_list": index.name})
+                self.logger.debug("Running command %s", cmd_line)
+                tools.run(cmd_line, check=True)
+                ff_dbs[file_type] = db_name
+
+        # Cut useless information from the indices of each file.
+        for ff_db in ff_dbs.values():
+            self._trim_index_names(ff_db)
+
+        data["database"] = str(db_prefix)
+        return data
+
+
+    def _trim_index_names(self, db):
+        """Replace names of components in an ffindex with their stem.
+
+        When we generate an index using ``ffindex_build``, the names of each
+        element in that database are simply taken from the filenames used as
+        input. Since we are trying to build a valid database for hhblits and
+        hhsearch, each name in the index must be consistent across database. To
+        do that, we use the name of each template as the identifier.
+        """
+
+        index = "{}.ffindex".format(db)
+        with fileinput.input(index, inplace=True) as fh:
+            for line in fh:
+                fields = line.split("\t")
+                fields[0] = PurePath(fields[0]).stem
+                print("\t".join(fields), end="")

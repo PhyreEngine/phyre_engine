@@ -2,6 +2,11 @@
 This module contains a minimal mmCIF file and the corresponding metadata
 required to convert the mmCIF file into a template.
 """
+import io
+
+from phyre_engine.tools.template import Template
+
+import Bio.PDB
 
 #: Minimal mmCIF data.
 MINIMAL_MMCIF = """\
@@ -75,3 +80,16 @@ CANONICAL_SEQ = "AYIAKQ"
 
 #: Renumbered indices of residues in canonical sequence.
 CANONICAL_SEQ_INDICES = [1, 2, 3, 4, 5, 6]
+
+
+#: :py:class:`Bio.PDB.Chain.Chain` object corresponding to the minimal
+#: templates given here.
+MINIMAL_CHAIN = Bio.PDB.PDBParser(
+    QUIET=True).get_structure(
+    "", io.StringIO(MINIMAL_PDB))[0]["A"]
+
+#: :py:class:`phyre_engine.tools.template.Template` object corresponding to
+#: the minimal templates given here.
+MINIMAL_TEMPLATE = Template(
+    "1MIN", "A", MINIMAL_CHAIN,
+    ORIG_MAPPING, CANONICAL_SEQ, CANONICAL_SEQ_INDICES)

@@ -9,7 +9,7 @@ import Bio.PDB.PDBIO
 import Bio.PDB.Residue
 from phyre_engine.component import Component
 import phyre_engine.tools.pdb as pdb
-from phyre_engine.tools.template import Template
+from phyre_engine.tools.template import Template, TemplateDatabase
 import numpy as np
 from phyre_engine.tools.external import ExternalTool
 import operator
@@ -65,7 +65,9 @@ class HomologyModeller(Component):
     ADDS = ["model"]
     REMOVES = []
 
-    def __init__(self, chain_dir, model_name="{rank:02d}-{PDB}_{chain}.pdb"):
+    def __init__(self, template_db, chain_dir,
+                 model_name="{rank:02d}-{PDB}_{chain}.pdb"):
+        self.template_db = TemplateDatabase(template_db, chain_dir)
         self.chain_dir = chain_dir
         self.model_name = model_name
 
@@ -78,10 +80,7 @@ class HomologyModeller(Component):
 
         if not Path(model_file).exists():
             self.logger.debug("Creating model file %s", model_file)
-
-            template_file = pdb.pdb_path(
-                pdb_id, ".pdb", chain, self.chain_dir)
-            db_template = Template.load(template_file)
+            db_template = self.template_db.get_template(pdb_id, chain)
 
             model_name = "model from {}_{}".format(pdb_id, chain)
             model_structure = Bio.PDB.Structure.Structure(model_name)

@@ -11,9 +11,13 @@ from Bio.PDB.Chain import Chain
 from Bio.PDB.Residue import Residue
 import json
 import re
+import xml.etree.ElementTree
 
 # Used when searching for a PDB file of arbitrary type
 _STRUCTURE_SUFFIXES = (".pdb", ".pdb.gz", ".cif", ".cif.gz")
+
+# XML file containing all current PDB entries.
+_PDB_ID_URL = "https://www.rcsb.org/pdb/rest/getCurrent"
 
 @contextlib.contextmanager
 def open_pdb(path):
@@ -173,3 +177,25 @@ def read_remark(stream, remark_num):
         if match is not None:
             remark_lines.append(match.group(1))
     return remark_lines
+
+def get_current(xml_contents=None):
+    """
+    Get a list of all current PDB entries.
+
+    This list will be downloaded from the RCSB if `xml_contents` is not
+    supplied.
+
+    :param str xml_contents: Contents of XML file to parse. If this is not
+        provided, the current list of PDBs will be downloaded.
+
+    :returns: List of (uppercase) PDB entries.
+    """
+    if xml_contents is None:
+        with urllib.request.urlopen(_PDB_ID_URL) as conn:
+            xml_contents = conn.read()
+
+    entries = []
+    root = xml.etree.ElementTree.fromstring(xml_contents)
+    for pdb_elem in root:
+        entries.append(pdb_elem.attrib["structureId"])
+    return entries

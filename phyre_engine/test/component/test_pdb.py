@@ -81,7 +81,7 @@ class TestConvertToMonomer(unittest.TestCase):
         with self.assertRaises(exception_class):
             results = conv.run({"structure_obj": structure})
 
-class TestConvertToTemplate(unittest.TestCase):
+class TestSanitise(unittest.TestCase):
     """Test ConvertToTemplate component."""
 
     @staticmethod
@@ -94,7 +94,7 @@ class TestConvertToTemplate(unittest.TestCase):
     def test_converter(self):
         """Convert minimal PDB to template."""
         # pylint: disable=protected-access
-        conv = phyre_engine.component.pdb.ConvertToTemplate()
+        conv = phyre_engine.component.pdb.Sanitise()
         fh_mock = MagicMock()
         conv._open_structure = MagicMock(return_value=(fh_mock, sentinel.name))
 
@@ -116,13 +116,10 @@ class TestTemplateMapping(unittest.TestCase):
         template_in = io.StringIO(minimal.MINIMAL_PDB)
         pdb_parser = Bio.PDB.PDBParser(QUIET=True)
         template_struc = pdb_parser.get_structure("", template_in)[0]["A"]
-        template_buf = io.StringIO()
-        template = phyre_engine.tools.template.Template.build(template_struc)
-        template.write(template_buf)
-        template_buf.seek(0)
-
+        template = phyre_engine.tools.template.Template.build("1MIN", "A",
+                                                              template_struc)
         mapper = phyre_engine.component.pdb.TemplateMapping()
-        results = mapper.run({"structure": template_buf})
+        results = mapper.run({"template_obj": template})
         self.assertEqual(results["residue_mapping"], template.mapping)
 
 class TestFastResolutionLookup(unittest.TestCase):
