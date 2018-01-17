@@ -198,9 +198,18 @@ class HHBlits(HHSuiteTool):
         before calling hhblits.
     :param QueryType input_type: Input type.
     """
-
-    REQUIRED = []
     REMOVES = []
+
+    @property
+    def REQUIRED(self):
+        if self.input_type == QueryType.SEQUENCE:
+            return ["name", "sequence"]
+        elif self.input_type == QueryType.A3M:
+            return ["a3m"]
+        elif self.input_type == QueryType.HMM:
+            # sic: hhsuite uses "hhm" files for HMMs, so the "hhm" key in the
+            # pipeline state points to the file containing the HMM.
+            return ["hhm"]
 
     @property
     def ADDS(self):
