@@ -252,7 +252,7 @@ class TemplateDatabase:
            organism_name, organism_id,
            title, descriptor)
     VALUES (
-           :pdb_id, :deposition_date, :last_update_date, :release_date,
+           LOWER(:pdb_id), :deposition_date, :last_update_date, :release_date,
            :method, :resolution,
            :organism_name, :organism_id,
            :title, :descriptor)
@@ -260,13 +260,13 @@ class TemplateDatabase:
 
     INSERT_TEMPLATE = """
     INSERT INTO chains (pdb_id, chain_id, canonical_sequence)
-    VALUES (:pdb_id, :chain_id, :canonical_sequence)
+    VALUES (LOWER(:pdb_id), :chain_id, :canonical_sequence)
     """
 
     INSERT_CANONICAL = """
     INSERT INTO canonical (
            pdb_id, chain_id, sequence_index, aa, residue_id)
-    VALUES (:pdb_id, :chain_id, :sequence_index, :aa, :residue_id)
+    VALUES (LOWER(:pdb_id), :chain_id, :sequence_index, :aa, :residue_id)
     """
 
     INSERT_MAPPING = """
@@ -274,7 +274,7 @@ class TemplateDatabase:
            pdb_id, chain_id, sequence_index,
            hetero_flag, orig_residue_id, insertion_code)
     VALUES (
-           :pdb_id, :chain_id, :sequence_index,
+           LOWER(:pdb_id), :chain_id, :sequence_index,
            :hetero_flag, :orig_residue_id, :insertion_code)
     """
 
