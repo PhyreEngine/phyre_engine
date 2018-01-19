@@ -334,3 +334,29 @@ class TestMMCIFMetadata(unittest.TestCase):
             fields=self.METADATA_FIELDS,
             prefilter=True)
         self.verify_metadata(meta.run({"PDB": "12AS"}))
+
+
+class TestFoldLibMetadata(unittest.TestCase):
+    """Test fold library metadata is correctly assgined to templates."""
+    TEMPLATES = [{"PDB": "1abc"}, {"PDB": "1xyz"}]
+    METADATA = {
+        "1abc": sentinel.meta_1abc,
+        "1xyz": sentinel.meta_1xyz,
+    }
+
+    def test_metadata(self):
+        """Apply metadata to a list of templates."""
+        patch_method = "phyre_engine.tools.template.TemplateDatabase"
+        mock_method = MagicMock(side_effect=lambda pdb: self.METADATA[pdb])
+        mock_instance = MagicMock(get_pdb=mock_method)
+        with unittest.mock.patch(patch_method,
+                                 return_value=mock_instance) as patch_obj:
+            comp = phyre_engine.component.pdb.FoldLibMetadata(
+                None, "templates")
+            results = comp.run({"templates": self.TEMPLATES.copy()})
+            self.assertEqual(
+                results["templates"][0]["metadata"],
+                self.METADATA["1abc"])
+            self.assertEqual(
+                results["templates"][1]["metadata"],
+                self.METADATA["1xyz"])
