@@ -252,11 +252,16 @@ class UncompressTemplate(Component):
         metadata["pdb_id"] = pdb_id
         metadata["chain_id"] = chain_id
 
-        pdb_parser = Bio.PDB.PDBParser(QUIET=True)
-        pdb_file = phyre_engine.tools.pdb.find_pdb(pdb_id, chain_id,
-                                                   self.chain_dir)
-        with phyre_engine.tools.pdb.open_pdb(pdb_file) as pdb_in:
-            metadata["chain"] = pdb_parser.get_structure("", pdb_in)[0]["A"]
+        if self.chain_dir is not None:
+            pdb_parser = Bio.PDB.PDBParser(QUIET=True)
+            pdb_file = phyre_engine.tools.pdb.find_pdb(pdb_id, chain_id,
+                                                       self.chain_dir)
+            with phyre_engine.tools.pdb.open_pdb(pdb_file) as pdb_in:
+                structure = pdb_parser.get_structure("", pdb_in)
+                metadata["chain"] = structure[0]["A"]
+        else:
+            metadata["chain"] = None
+
         data["template_obj"] = Template(**metadata)
         del data["template_metadata"]
         return data
