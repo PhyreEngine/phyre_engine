@@ -71,6 +71,12 @@ class HomologyModeller(Component):
         self.chain_dir = chain_dir
         self.model_name = model_name
 
+    @classmethod
+    def config_section(cls, config):
+        return cls.slice_conf(
+            config.get("foldlib", {}),
+            ("template_db", "chain_dir"))
+
     def run(self, data, config=None, pipeline=None):
         """Build a model."""
         pdb_id, chain, query_seq, alignment = self.get_vals(data)
@@ -302,6 +308,8 @@ class LoopModel(Component):
         "out_dir": "d",
         "model_list": "l",
     }, long_prefix="-")
+
+    CONFIG_SECTION = "sbg_loop"
 
     def __init__(self, bin_dir, config, executable="assembler.loop"):
         self.bin_dir = bin_dir

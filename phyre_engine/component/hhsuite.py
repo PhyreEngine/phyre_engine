@@ -351,10 +351,17 @@ class AddPsipred(Component):
     REMOVES = []
     CONFIG_SECTION = "hhsuite"
 
-    def __init__(self, HHLIB=None, **_kwargs):
-        # We need to have _kwargs because we define CONFIG_SECTION and so might
-        # be given extra parameters.
+    @classmethod
+    def config(cls, params, pipeline_config):
+        if "HHLIB" in params:
+            return params
 
+        if "hhsuite" in pipeline_config:
+            if "HHLIB" in pipeline_config["hhsuite"]:
+                params["HHLIB"] = pipeline_config["hhsuite"]["HHLIB"]
+        return params
+
+    def __init__(self, HHLIB=None):
         if HHLIB is None and "HHLIB" not in os.environ:
             raise ValueError(
                 "HHLIB not set as parameter or environment variable.")
@@ -977,6 +984,16 @@ class BuildDatabase(Component):
         self.bin_dir = bin_dir
         self.overwrite = overwrite
         self.select_expr = select_expr
+
+    @classmethod
+    def config_section(cls, config):
+        new_config = {}
+        foldlib = config.get("foldlib", {})
+        hhsuite = config.get("hhsuite", {})
+
+        new_config.update(cls.slice_conf(foldlib, ("db_prefix", "overwrite")))
+        new_config.update(cls.slice_conf(hhsuite, ("bin_dir",)))
+        return new_config
 
     def run(self, data, config=None, pipeline=None):
         """Collect and index the files that form an hhsuite database."""

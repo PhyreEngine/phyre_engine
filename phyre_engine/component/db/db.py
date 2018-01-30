@@ -203,18 +203,18 @@ class ChainPDBBuilder(Component):
             self.pdb_id = pdb_id
 
 
-    def __init__(self, mmcif_dir, pdb_dir, conf_sel=None, overwrite=False):
+    def __init__(self, mmcif_dir, chain_dir, conf_sel=None, overwrite=False):
         """Initialise new component.
 
         :param str mmcif_dir: Base directory of the MMCIF archive.
-        :param str pdb_dir: Base directory in which to store PDB files.
+        :param str chain_dir: Base directory in which to store PDB files.
         :param list[phyre_engine.tools.conformation.ConformationSelector] conf_sel:
             List of selectors applied in order to each chain to remove pick a
             single conformation.
         :param bool overwrite: If ``True``, overwrite existing PDB files.
         """
         self.mmcif_dir = pathlib.Path(mmcif_dir)
-        self.pdb_dir = pathlib.Path(pdb_dir)
+        self.chain_dir = pathlib.Path(chain_dir)
         self.overwrite = overwrite
         if conf_sel is not None:
             self.conf_sel = conf_sel
@@ -223,6 +223,11 @@ class ChainPDBBuilder(Component):
                 phyre_engine.tools.conformation.PopulationMutationSelector(),
                 phyre_engine.tools.conformation.PopulationMicroHetSelector()
             ]
+
+    @classmethod
+    def config_section(cls, config):
+        return cls.slice_conf(config.get("foldlib", {}),
+                              ("chain_dir", "mmcif_dir"))
 
     def run(self, data, config=None, pipeline=None):
         """Run the component."""
@@ -250,7 +255,8 @@ class ChainPDBBuilder(Component):
                 len(list(structure.get_chains())), pdb_id)
 
             for chain in structure[0]:
-                pdb_file = pdb.pdb_path(pdb_id, ".pdb", chain.id, self.pdb_dir)
+                pdb_file = pdb.pdb_path(
+                    pdb_id, ".pdb", chain.id, self.chain_dir)
                 pdb_file.parent.mkdir(parents=True, exist_ok=True)
 
                 result = data.copy()
