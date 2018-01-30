@@ -85,110 +85,21 @@ class Component(metaclass=ComponentMeta):
 
         :param dict[str, any] params: Keyword parameters for the component
             constructor.
-        :param dict[str, any] pipeline_config: Global pipeline configuration.
+
+        :param phyre_engine.pipeline.PipelineConfig pipeline_config:
+            Global pipeline configuration.
 
         .. note::
 
             Components that require more complex combinations of the
             configurations should override this method.
         """
-        if pipeline_config is None:
-            pipeline_config= {}
         if params is None:
             params = {}
-
-        config = cls.config_section(pipeline_config)
-        if config is not None:
-            return cls.merge_config(params, config)
-        # If no pipeline config can be extracted, the supplied params must
-        # suffice.
-        return params
-
-    @classmethod
-    def config_section(cls, config):
-        section = cls.CONFIG_SECTION
-        if (config is not None and section is not None and section in config):
-            return config[section]
-
-    @staticmethod
-    def merge_config(params, config):
-        """
-        Merge the component parameters `params` into the pipeline configuration
-        `config`, extracted via the :py:meth:`.config` method.
-
-        This method implements the merging behaviour described in
-        :py:meth:`.config`.
-
-        :param dict params: Component parameters.
-        :param dict config: Pipeline configuration.
-        """
-        config = copy.deepcopy(config)
-        if params is not None:
-            try:
-                deep_merge(params, config)
-            except Exception as err:
-                log_name = ".".join((cls.__module__, cls.__qualname__))
-                logging.getLogger(log_name).error(
-                    "Error merging parameters %s and config %s", params, config)
-                raise err
-        return config
-
-
-    @staticmethod
-    def copy_conf_key(src, src_key, dst, dst_key=None):
-        """
-        Utility method to copy a key from the pipeline config into the dict of
-        new component parameters.
-
-        This method will copy a key from a source dictionary (the pipeline
-        configuration) into a destination dictionary (the new component
-        parameters) if the key does not exist in the destination directory.
-
-        :param dict src: Dict from which to copy parameters, i.e. part of the
-            pipeline configuration.
-
-        :param str src_key: Source key to copy.
-
-        :param dict dst: The destination into which the parameter will be
-            copied.
-
-        :param str dst_key: Set this to rename the the name of the key in
-            the destination dict should be different to the name in the
-            source dict.
-        """
-        if dst_key is None:
-            dst_key = src_key
-        if dst_key in dst:
-            return
-        if src_key in src:
-            dst[dst_key] = src[src_key]
-
-    @staticmethod
-    def slice_conf(config, keys):
-        """
-        Return a dict containing all keys in the list `keys`, with values taken
-        from the dict `config`. If a key is not present in `config`, it is not
-        included in the returned dictionary.
-
-        If a dictionary of `keys` is passed instead of a list, the keys of the
-        dictionary are used to look up elements from `config`, and the keys in
-        the returned dictionary are named according to the corresponding
-        values.
-
-        :param dict config: Configuration dictionary to copy.
-        :param keys: List of keys to extract from `config`. Alternatively,
-            a dictionary containing the original name of the key and the new
-            name.
-        """
-        new_config = {}
-        for key in keys:
-            if key in config:
-                if isinstance(keys, dict):
-                    new_key = keys[key]
-                else:
-                    new_key = key
-                new_config[new_key] = config[key]
-        return new_config
+        if cls.CONFIG_SECTION is None:
+            return params
+        config_section = pipeline_config.section(cls.CONFIG_SECTION)
+        return config_section.merge_params(params)
 
     @property
     def logger(self):

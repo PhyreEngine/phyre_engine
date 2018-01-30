@@ -72,10 +72,10 @@ class HomologyModeller(Component):
         self.model_name = model_name
 
     @classmethod
-    def config_section(cls, config):
-        return cls.slice_conf(
-            config.get("foldlib", {}),
-            ("template_db", "chain_dir"))
+    def config(cls, params, config):
+        return config.extract({
+            "foldlib": ["template_db", "chain_dir"]
+        }).merge_params(params)
 
     def run(self, data, config=None, pipeline=None):
         """Build a model."""

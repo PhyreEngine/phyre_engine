@@ -986,14 +986,11 @@ class BuildDatabase(Component):
         self.select_expr = select_expr
 
     @classmethod
-    def config_section(cls, config):
-        new_config = {}
-        foldlib = config.get("foldlib", {})
-        hhsuite = config.get("hhsuite", {})
-
-        new_config.update(cls.slice_conf(foldlib, ("db_prefix", "overwrite")))
-        new_config.update(cls.slice_conf(hhsuite, ("bin_dir",)))
-        return new_config
+    def config(cls, params, config):
+        return config.extract({
+            "foldlib": ["db_prefix", "overwrite"],
+            "hhsuite": ["bin_dir"],
+        }).merge_params(params)
 
     def run(self, data, config=None, pipeline=None):
         """Collect and index the files that form an hhsuite database."""

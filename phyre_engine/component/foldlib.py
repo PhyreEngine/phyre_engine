@@ -43,10 +43,10 @@ class Open(Component):
     REQUIRED = []
 
     @classmethod
-    def config_section(cls, config):
-        return cls.slice_conf(
-            config.get("foldlib", {}),
-            ("template_db", "chain_dir"))
+    def config(cls, params, config):
+        return config.extract(
+            {"foldlib": ["template_db", "chain_dir"]}
+        ).merge_params(params)
 
     def __init__(self, template_db, chain_dir, write=False, trace=False):
         self.template_db = template_db
@@ -251,8 +251,8 @@ class UncompressTemplate(Component):
         self.chain_dir = chain_dir
 
     @classmethod
-    def config_section(cls, config):
-        return cls.slice_conf(config.get("foldlib", {}), ("chain_dir",))
+    def config(cls, params, config):
+        return config.extract({"foldlib": ["chain_dir"]}).merge_params(params)
 
     def run(self, data, config=None, pipeline=None):
         """Uncompress template object."""
@@ -300,8 +300,8 @@ class FoldLibMetadata(phyre_engine.component.pdb.MMCIFMetadata):
     }
 
     @classmethod
-    def config_section(cls, config):
-        return cls.slice_conf(config.get("foldlib", {}), ("mmcif_dir",))
+    def config(cls, params, config):
+        return config.extract({"foldlib": ["mmcif_dir"]}).merge_params(params)
 
     def __init__(self, mmcif_dir):
         super().__init__(mmcif_dir, self.FIELDS)
@@ -461,22 +461,17 @@ class BuildProfiles(Component):
         self.overwrite = overwrite
 
     @classmethod
-    def config_section(cls, config):
-        new_config = {}
-        sections = {
-            "foldlib": ("profile_dir", "overwrite"),
-            "hhsuite": {
-                "bin_dir": "hh_bin_dir",
-                "HHLIB": "HHLIB",
-                "options": "hh_options",
-                "database": "blits_db",
-            },
-            "dssp": {"bin_dir": "dssp_bin_dir"},
-        }
-        for section, keys in sections.items():
-            new_conf = cls.slice_conf(config.get(section, {}), keys)
-            new_config.update(new_conf)
-        return new_config
+    def config(cls, params, config):
+        return config.extract({
+            "foldlib": ["profile_dir", "overwrite"],
+            "hhsuite": [
+                ("bin_dir", "hh_bin_dir"),
+                "HHLIB",
+                ("options", "hh_options"),
+                ("database", "blits_db"),
+            ],
+            "dssp": [("bin_dir", "dssp_bin_dir")],
+        }).merge_params(params)
 
     def write_fasta(self, filename, template):
         """Write a FASTA file containing the template sequence."""

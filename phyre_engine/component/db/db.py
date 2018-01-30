@@ -225,9 +225,10 @@ class ChainPDBBuilder(Component):
             ]
 
     @classmethod
-    def config_section(cls, config):
-        return cls.slice_conf(config.get("foldlib", {}),
-                              ("chain_dir", "mmcif_dir"))
+    def config(cls, params, config):
+        return config.extract(
+            {"foldlib": ["chain_dir", "mmcif_dir"]}
+        ).merge_params(params)
 
     def run(self, data, config=None, pipeline=None):
         """Run the component."""
