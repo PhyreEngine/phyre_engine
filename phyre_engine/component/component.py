@@ -85,29 +85,21 @@ class Component(metaclass=ComponentMeta):
 
         :param dict[str, any] params: Keyword parameters for the component
             constructor.
-        :param dict[str, any] pipeline_config: Global pipeline configuration.
+
+        :param phyre_engine.pipeline.PipelineConfig pipeline_config:
+            Global pipeline configuration.
 
         .. note::
 
             Components that require more complex combinations of the
             configurations should override this method.
         """
-        if (pipeline_config is not None
-                and cls.CONFIG_SECTION is not None
-                and cls.CONFIG_SECTION in pipeline_config):
-            config = copy.deepcopy(pipeline_config[cls.CONFIG_SECTION])
-            if params is not None:
-                try:
-                    deep_merge(params, config)
-                except Exception as err:
-                    log_name = ".".join((cls.__module__, cls.__qualname__))
-                    logging.getLogger(log_name).error(
-                        "Error merging parameters %s and config %s", params, config)
-                    raise err
-            return config
-        # If no pipeline config can be extracted, the supplied params must
-        # suffice.
-        return params
+        if params is None:
+            params = {}
+        if cls.CONFIG_SECTION is None:
+            return params
+        config_section = pipeline_config.section(cls.CONFIG_SECTION)
+        return config_section.merge_params(params)
 
     @property
     def logger(self):
@@ -345,7 +337,9 @@ class Map(PipelineComponent):
 
         pipeline = self.pipeline(config)
         pipe_output = []
-        for item in data[self.field]:
+        for i, item in enumerate(data[self.field]):
+            self.logger.debug("Runing pipeline %d / %d",
+                              i, len(data[self.field]))
             pipeline.start = item
             pipeline_results = pipeline.run()
             if pipeline_results is not None and not self.discard:

@@ -351,10 +351,17 @@ class AddPsipred(Component):
     REMOVES = []
     CONFIG_SECTION = "hhsuite"
 
-    def __init__(self, HHLIB=None, **_kwargs):
-        # We need to have _kwargs because we define CONFIG_SECTION and so might
-        # be given extra parameters.
+    @classmethod
+    def config(cls, params, pipeline_config):
+        if "HHLIB" in params:
+            return params
 
+        if "hhsuite" in pipeline_config:
+            if "HHLIB" in pipeline_config["hhsuite"]:
+                params["HHLIB"] = pipeline_config["hhsuite"]["HHLIB"]
+        return params
+
+    def __init__(self, HHLIB=None):
         if HHLIB is None and "HHLIB" not in os.environ:
             raise ValueError(
                 "HHLIB not set as parameter or environment variable.")
@@ -400,6 +407,9 @@ class AddDssp(Component):
     def run(self, data, config=None, pipeline=None):
         """Add ``>ss_dssp`` and ``>aa_dssp`` fields."""
         a3m, sec_struc, template = self.get_vals(data)
+        if self.contains_dssp(a3m):
+            return data
+
         sec_struc = sec_struc["dssp"]
 
         # Index secondary structure states by residue ID
@@ -424,6 +434,26 @@ class AddDssp(Component):
         ss_dssp = "".join(ss_dssp)
         self.update_a3m(a3m, ss_dssp, aa_dssp)
         return data
+
+    @staticmethod
+    def contains_dssp(a3m):
+        """
+        A `True` if both the ``ss_dssp`` and ``aa_dssp`` lines are present in
+        the `a3m` file.
+        """
+        ss_dssp = False
+        aa_dssp = False
+        with open(a3m, "r") as a3m_in:
+            for line in a3m_in:
+                if line.startswith(">ss_dssp"):
+                    ss_dssp = True
+                elif line.startswith(">aa_dssp"):
+                    aa_dssp = True
+
+                if aa_dssp and ss_dssp:
+                    return True
+
+        return ss_dssp and aa_dssp
 
     def update_a3m(self, a3m, ss_dssp, aa_dssp):
         """
@@ -977,6 +1007,13 @@ class BuildDatabase(Component):
         self.bin_dir = bin_dir
         self.overwrite = overwrite
         self.select_expr = select_expr
+
+    @classmethod
+    def config(cls, params, config):
+        return config.extract({
+            "foldlib": ["db_prefix", "overwrite"],
+            "hhsuite": ["bin_dir"],
+        }).merge_params(params)
 
     def run(self, data, config=None, pipeline=None):
         """Collect and index the files that form an hhsuite database."""

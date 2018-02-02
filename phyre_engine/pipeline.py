@@ -10,6 +10,11 @@ import pathlib
 import time
 import logging
 
+import jmespath
+
+import phyre_engine.tools.jmespath
+import phyre_engine.tools.util
+
 #: Allows the state of the pipeline to be saved.
 #: :param int current_component: Index of the currently-running component. This
 #:     component will be started if the pipeline is resumed fromn this
@@ -438,7 +443,7 @@ class Pipeline:
             pipeline.
 
         """
-        config = pipeline_dict.get("config", {})
+        config = PipelineConfig(pipeline_dict.get("config", {}))
         namespace = pipeline_dict.pop("namespace", DEFAULT_NAMESPACE)
         component_descriptions = pipeline_dict.pop("components", [])
         components = []
@@ -479,3 +484,123 @@ class Pipeline:
             self.component = component
             self.missing = missing
             self.data = data if data else {}
+
+
+class PipelineConfig(dict):
+    """
+    Pipeline configuration, along with helpful methods to extract sections
+    of configuration and merge them with per-component parameters.
+
+    The pipeline configuration is -- in general -- specified once, when the
+    pipeline is defined. When the pipeline is loaded, parameters from the
+    pipeline configuration are passed to the constructors of components. The
+    :py:meth:`.Component.config` method is called with the parameters
+    specifically supplied to that component, as well as the pipeline
+    configuration. The returned values are passed to the constructor of that
+    component.
+
+    This class is a subclass of :py:class:`dict` that provides some utility
+    methods for selecting fields from a nested dictionary, as well as some
+    methods for merging the configuration with the component parameters.
+    """
+
+    def extract(self, fields):
+        """
+        Extract fields from the configuration corresponding to a series of
+        JMESPath expressions.
+
+        The elements to be extracted from the configuration are given by
+        `fields`, which is a dictionary indexed by JMESPath expressions. Each
+        key in `fields` is evaluated against `self`, and must return a
+        `section` of the pipeline configuration. Consider a pipeline
+        configuration that looks like this (in YAML):
+
+        .. code-block:: yaml
+
+            foo:
+                x: 123
+                y: 456
+            bar:
+                a: 987
+                b: 654
+
+        The keys of `fields` should refer to the sections ``foo`` and ``bar``
+        in the configuration, *not* the fields ``foo.x``, etc.
+
+        The value of each key in `fields` should be a key that is looked up in
+        the chosen section. If the name of the field in the resulting
+        dictionary should be renamed, supply a 2-tuple of strings, the first
+        being the original name and the second being the new name.
+
+        >>> from phyre_engine.pipeline import PipelineConfig
+        >>> conf = PipelineConfig({
+        ...   "foo": {"x": 123, "y": 456},
+        ...   "bar": {"a": 987, "b": 654},
+        ... })
+        >>> conf.extract({"foo": ["x", ("y", "y2")]})
+        {"x": 123, "y2": 456}
+
+        :param dict fields: Specifiers for the values to be extracted from the
+            configuration.
+
+        :returns: Dictionary of extracted fields.
+        :rtype: :py:class:`.PipelineConfig`
+        """
+        extracted_config = type(self)()
+
+        jmes_ext = phyre_engine.tools.jmespath.JMESExtensions(self)
+        jmes_opts = jmespath.Options(custom_functions=jmes_ext)
+
+        for section_expr, keys in fields.items():
+            section = jmespath.search(section_expr, self, jmes_opts)
+            if section is None:
+                continue
+            for key in keys:
+                if isinstance(key, str):
+                    new_key = key
+                    old_key = key
+                else:
+                    old_key, new_key = key
+
+                if old_key in section:
+                    extracted_config[new_key] = section[old_key]
+        return extracted_config
+
+    def merge_params(self, params):
+        """
+        Merge component parameters `params` with this section of the pipeline
+        configuration.
+
+        Merging is done using :py:func:`phyre_engine.tools.util.deep_merge`.
+
+        :param dict params: Parameters passed to the component. These will
+            override elements in the pipeline configuration.
+        """
+        config = copy.deepcopy(self)
+        if params is not None:
+            try:
+                phyre_engine.tools.util.deep_merge(params, config)
+            except Exception as err:
+                log_name = ".".join((cls.__module__, cls.__qualname__))
+                logging.getLogger(log_name).error(
+                    "Error merging parameters %s and config %s", params, config)
+                raise err
+        return config
+
+    def section(self, section_expr):
+        """
+        Retrieve a section of the pipeline state by evaluating the JMESPath
+        expression `section_expr`.
+
+        :param str section_expr: JMESPath expression returning a section of the
+            pipeline configuration.
+
+        :returns: Section of the pipeline configuration.
+        :rtype: :py:class:`.PipelineConfig`
+        """
+        jmes_ext = phyre_engine.tools.jmespath.JMESExtensions(self)
+        jmes_opts = jmespath.Options(custom_functions=jmes_ext)
+        section = jmespath.search(section_expr, self, jmes_opts)
+        if section is None:
+            return type(self)()
+        return type(self)(section)

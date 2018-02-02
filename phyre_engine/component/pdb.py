@@ -229,6 +229,40 @@ class TemplateMapping(Component):
         data["residue_mapping"] = template.mapping
         return data
 
+
+class FoldLibMetadata(Component):
+    """
+    Read template metadata the template database.
+
+    It is inefficient to repeatedly open and close a database connection, so
+    this component operates on a list of templates chosen by the JMESPath
+    expression `select_expr`.
+
+    :param str template_db: Path to the SQLite template database.
+
+    :param str select_expr: JMESPath expression giving a list of templates
+        for which the metadata will be extracted.
+    """
+    REQUIRED = []
+    ADDS = []
+    REMOVES = []
+
+    def __init__(self, template_db, select_expr):
+        self.template_db = template_db
+        self.select_expr = select_expr
+
+    def run(self, data, config=None, pipeline=None):
+        """Extract template metadata from template database."""
+        template_db = phyre_engine.tools.template.TemplateDatabase(
+            self.template_db, None)
+
+        jmes_opts = jmespath.Options(custom_functions=JMESExtensions(data))
+        templates = jmespath.search(self.select_expr, data, jmes_opts)
+        for template in templates:
+            template["metadata"] = template_db.get_pdb(template["PDB"])
+        return data
+
+
 class MMCIFMetadata(Component):
     """
     Parse metadata from an mmCIF file.

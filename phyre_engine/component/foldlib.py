@@ -42,7 +42,11 @@ class Open(Component):
     REMOVES = []
     REQUIRED = []
 
-    CONFIG_SECTION = "foldlib"
+    @classmethod
+    def config(cls, params, config):
+        return config.extract(
+            {"foldlib": ["template_db", "chain_dir"]}
+        ).merge_params(params)
 
     def __init__(self, template_db, chain_dir, write=False, trace=False):
         self.template_db = template_db
@@ -246,17 +250,26 @@ class UncompressTemplate(Component):
     def __init__(self, chain_dir):
         self.chain_dir = chain_dir
 
+    @classmethod
+    def config(cls, params, config):
+        return config.extract({"foldlib": ["chain_dir"]}).merge_params(params)
+
     def run(self, data, config=None, pipeline=None):
         """Uncompress template object."""
         metadata, pdb_id, chain_id = self.get_vals(data)
         metadata["pdb_id"] = pdb_id
         metadata["chain_id"] = chain_id
 
-        pdb_parser = Bio.PDB.PDBParser(QUIET=True)
-        pdb_file = phyre_engine.tools.pdb.find_pdb(pdb_id, chain_id,
-                                                   self.chain_dir)
-        with phyre_engine.tools.pdb.open_pdb(pdb_file) as pdb_in:
-            metadata["chain"] = pdb_parser.get_structure("", pdb_in)[0]["A"]
+        if self.chain_dir is not None:
+            pdb_parser = Bio.PDB.PDBParser(QUIET=True)
+            pdb_file = phyre_engine.tools.pdb.find_pdb(pdb_id, chain_id,
+                                                       self.chain_dir)
+            with phyre_engine.tools.pdb.open_pdb(pdb_file) as pdb_in:
+                structure = pdb_parser.get_structure("", pdb_in)
+                metadata["chain"] = structure[0]["A"]
+        else:
+            metadata["chain"] = None
+
         data["template_obj"] = Template(**metadata)
         del data["template_metadata"]
         return data
@@ -285,6 +298,10 @@ class FoldLibMetadata(phyre_engine.component.pdb.MMCIFMetadata):
         "title": '''"_struct.title"''',
         "descriptor": '''"_struct.pdbx_descriptor"''',
     }
+
+    @classmethod
+    def config(cls, params, config):
+        return config.extract({"foldlib": ["mmcif_dir"]}).merge_params(params)
 
     def __init__(self, mmcif_dir):
         super().__init__(mmcif_dir, self.FIELDS)
@@ -428,23 +445,33 @@ class BuildProfiles(Component):
 
     EXTENSIONS = ("a3m", "hhm", "cs219", "fasta")
 
-    def __init__(self, base_dir,
+    def __init__(self, profile_dir,
                  blits_db, hh_bin_dir=None, HHLIB=None,
                  dssp_bin_dir=None,
-                 cpu=1, iterations=2, verbose=1,
+                 hh_options=None,
                  overwrite=True):
-        self.base_dir = base_dir
+        self.profile_dir = profile_dir
         self.blits_db = blits_db
         self.hh_bin_dir = hh_bin_dir
         self.HHLIB = HHLIB
+        self.hh_options = hh_options
 
         self.dssp_bin_dir = dssp_bin_dir
 
-        self.cpu = cpu
-        self.iterations = iterations
-        self.verbose = verbose
-
         self.overwrite = overwrite
+
+    @classmethod
+    def config(cls, params, config):
+        return config.extract({
+            "foldlib": ["profile_dir", "overwrite"],
+            "hhsuite": [
+                ("bin_dir", "hh_bin_dir"),
+                "HHLIB",
+                ("options", "hh_options"),
+                ("database", "blits_db"),
+            ],
+            "dssp": [("bin_dir", "dssp_bin_dir")],
+        }).merge_params(params)
 
     def write_fasta(self, filename, template):
         """Write a FASTA file containing the template sequence."""
@@ -458,7 +485,7 @@ class BuildProfiles(Component):
         files = {}
         for ext in self.EXTENSIONS:
             basename = "{}_{}.{}".format(pdb_id, chain_id, ext)
-            file_path = Path(self.base_dir, ext, pdb_id[1:3], basename)
+            file_path = Path(self.profile_dir, ext, pdb_id[1:3], basename)
             files[ext] = file_path
         return files
 
@@ -510,17 +537,15 @@ class BuildProfiles(Component):
         hhsuite = phyre_engine.component.hhsuite
 
         # Define individual components
+        hhblits_opts = self.hh_options if self.hh_options is not None else {}
+        hhblits_opts["oa3m"] = output_files["a3m"]
+        hhblits_opts["input"] = output_files["fasta"]
+
         hhblits = hhsuite.HHBlits(
             database=self.blits_db,
             bin_dir=self.hh_bin_dir,
             HHLIB=self.HHLIB,
-            options={
-                "oa3m": output_files["a3m"],
-                "iterations": self.iterations,
-                "verbose": self.verbose,
-                "cpu": self.cpu,
-                "input": output_files["fasta"],
-            },
+            options=hhblits_opts,
             cache_dir=output_files["a3m"].parent)
         add_psipred = hhsuite.AddPsipred(HHLIB=self.HHLIB)
         dssp = phyre_engine.component.secstruc.DSSP(bin_dir=self.dssp_bin_dir)
@@ -530,7 +555,6 @@ class BuildProfiles(Component):
             HHLIB=self.HHLIB,
             options={
                 "output": output_files["hhm"],
-                "verbose": self.verbose,
             },
             cache_dir=output_files["hhm"].parent)
         cstranslate = hhsuite.CSTranslate(

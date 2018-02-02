@@ -67,6 +67,8 @@ class DSSP(Component):
     :param str bin_dir: Directory containing the ``mkdssp`` executable, if it is
         not in the system ``$PATH``.
     """
+    CONFIG_SECTION = "dssp"
+
     REQUIRED = ["structure"]
     ADDS = [SECONDARY_STRUCTURE_KEY]
     REMOVES = []
