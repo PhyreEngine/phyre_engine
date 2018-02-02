@@ -117,3 +117,53 @@ class TestJury(MaxclusterTest):
         results = maxcluster.run(copy.deepcopy(self.PIPELINE))
         self.assertEqual(results["templates"][0]["jury_pairs"], 12)
         self.assertEqual(results["templates"][1]["jury_pairs"], 12)
+
+
+class TestPairwise(MaxclusterTest):
+    """Test :py:class:`phyre_engine.component.cluster.PairWise`."""
+
+    SAMPLE_OUTPUT = textwrap.dedent("""\
+    foo vs. bar
+    Iter 1: Pairs=  11, RMSD= 1.024, MAXSUB=0.019. Len=  45. gRMSD= 1.024, TM=0.051
+    foo vs. qux
+    baz vs. qux
+    Iter 1: Pairs=  12, RMSD= 0.000, MAXSUB=0.000. Len=  10. gRMSD= 0.000, TM=0.000
+    """)
+
+    def test_parse(self):
+        """Parse sample output."""
+        foo_bar = {
+            "pairs": 11, "RMSD": 1.024, "maxsub": 0.019, "length": 45,
+            "gRMSD": 1.024, "TM": 0.051,
+        }
+        baz_qux = {
+            "pairs": 12, "RMSD": 0.000, "maxsub": 0.000, "length": 10,
+            "gRMSD": 0.000, "TM": 0.00,
+        }
+        self.assertEqual(
+            cluster.Pairwise.parse_maxcluster_output(self.SAMPLE_OUTPUT), {
+                ("foo", "bar"): foo_bar, ("bar", "foo"): foo_bar,
+                ("foo", "qux"): None, ("qux", "foo"): None,
+                ("baz", "qux"): baz_qux, ("qux", "baz"): baz_qux,
+            })
+
+    @phyre_engine.test.requireFields(["bin_dir"], ["tools", "maxcluster"])
+    def test_run(self):
+        """Run MaxCluster to calculate number of aligned residue pairs."""
+        config = phyre_engine.test.config["tools"]["maxcluster"]
+        bin_dir = config["bin_dir"]
+        maxcluster = cluster.Pairwise(
+            bin_dir=bin_dir,
+            cache=None)
+        results = maxcluster.run(copy.deepcopy(self.PIPELINE))
+
+        model_a = self.PIPELINE["templates"][0]["model"]
+        model_b = self.PIPELINE["templates"][1]["model"]
+        expected = {
+            'pairs': 6, 'RMSD': 0.00, 'maxsub': 1.0,
+            'length': 6, 'gRMSD': 0.00, 'TM': 1.0
+        }
+        self.assertEqual(results["pairwise_similarity"], {
+            (model_a, model_b): expected,
+            (model_b, model_a): expected,
+        })

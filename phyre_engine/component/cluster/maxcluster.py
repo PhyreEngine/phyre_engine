@@ -177,3 +177,109 @@ class Jury(MaxclusterComponent):
         for model, pairs in results.items():
             models[model]["jury_pairs"] = pairs
         return data
+
+
+class Pairwise(MaxclusterComponent):
+    """
+    Use `MaxCluster <http://www.sbg.bio.ic.ac.uk/maxcluster/index.html>`_ to
+    calculate pairwise similarity between all models in the ``templates``
+    list.
+
+    This component will add the field ``pairwise_similarity`` to the pipeline
+    state. This field will be a dictionary indexed by tuples of model names.
+    Each pair of structures will be inserted twice, so that pairs may be looked
+    up in either order.
+
+    Each element in the ``pairwise_similarity`` dictionary will either be
+    `None`, indicating that the two structures could not be superimposed, or a
+    dictionary with the following elements:
+
+    ``RMSD``
+        Root Mean Square Deviation of the structures, in Å.
+
+    ``pairs``
+        Number of aligned residue pairs in the MaxSub.
+
+    `length``
+        Number of residue pairs in the alignment.
+
+    ``maxsub``
+        MaxSub score.
+
+    ``gRMSD``
+        Global RMSD using the MaxSub superposition.
+
+    ``TM``
+        TM (Template Modelling) score between the two models.
+
+    .. seealso::
+
+        :py:class:`.MaxclusterComponent`
+            For constructor parameters.
+
+        :py:class:`.Jury`
+            For details of caching.
+    """
+    REQUIRED = ["templates"]
+    ADDS = ["pairwise_similarity"]
+    REMOVES = []
+
+    FIELD_TYPES = {
+        "RMSD": float,
+        "pairs": int,
+        "maxsub": float,
+        "length": int,
+        "gRMSD": float,
+        "TM": float,
+    }
+
+    RECORD_REGEX = (
+        r"Iter \d+: Pairs=\s*(?P<pairs>\d+), "
+        r"RMSD=\s*(?P<RMSD>\d*\.\d+), "
+        r"MAXSUB=(?P<maxsub>\d*\.\d+)\. "
+        r"Len=\s*(?P<length>\d+)\. "
+        r"gRMSD=\s*(?P<gRMSD>\d*\.\d+), "
+        r"TM=\s*(?P<TM>\d*\.\d+)$"
+    )
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("cache", "maxcluster.pairwise")
+        super().__init__(*args, **kwargs)
+
+    @classmethod
+    def parse_maxcluster_output(cls, text):
+        """
+        Parse output of maxcluster. This parses the detailed information given
+        by log level 3, because we want to read the TM-score.
+        """
+        alignments = {}
+        for line in text.split("\n"):
+            if " vs. " in line and not line.startswith("INFO "):
+                pdb1, pdb2 = line.split(" vs. ")
+                alignments[(pdb1, pdb2)] = None
+                alignments[(pdb2, pdb1)] = None
+            elif line.startswith("Iter "):
+                match = re.search(cls.RECORD_REGEX, line)
+                if match:
+                    fields = {k: cls.FIELD_TYPES[k](v)
+                              for k, v in match.groupdict().items()}
+                    alignments[(pdb1, pdb2)] = fields
+                    alignments[(pdb2, pdb1)] = fields
+        return alignments
+
+    def run(self, data, config=None, pipeline=None):
+        """Generate pairwise alignments using maxcluster."""
+        maxcluster_out = self.read_cache()
+        if maxcluster_out is None:
+            with tempfile.NamedTemporaryFile("w") as model_list:
+                self.write_model_list(model_list, data["templates"])
+                proc = self.run_maxcluster(options={
+                    "list": model_list.name,
+                    "loglevel": 3,
+                })
+                maxcluster_out = proc.stdout
+                self.write_cache(maxcluster_out)
+
+        results = self.parse_maxcluster_output(maxcluster_out)
+        data["pairwise_similarity"] = results
+        return data
