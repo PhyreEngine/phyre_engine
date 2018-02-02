@@ -215,7 +215,7 @@ class EM4GMM(Component):
         }
         for opt in self.GMMCLASS.flag_map:
             if opt in kwargs:
-                self.gmmclass[opt] = kwargs[opt]
+                self.gmmclass_opts[opt] = kwargs[opt]
 
     def run(self, data, config=None, pipeline=None):
         """Run em4gmm for automatic clustering."""

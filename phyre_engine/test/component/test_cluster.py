@@ -1,9 +1,6 @@
 """Test components in the :py:mod:`phyre_engine.component.cluster` module."""
-import copy
 from pathlib import Path
-import shutil
 import tempfile
-import textwrap
 import unittest
 
 import phyre_engine.component.cluster as cluster
