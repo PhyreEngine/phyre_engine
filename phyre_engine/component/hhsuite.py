@@ -407,6 +407,9 @@ class AddDssp(Component):
     def run(self, data, config=None, pipeline=None):
         """Add ``>ss_dssp`` and ``>aa_dssp`` fields."""
         a3m, sec_struc, template = self.get_vals(data)
+        if self.contains_dssp(a3m):
+            return data
+
         sec_struc = sec_struc["dssp"]
 
         # Index secondary structure states by residue ID
@@ -431,6 +434,26 @@ class AddDssp(Component):
         ss_dssp = "".join(ss_dssp)
         self.update_a3m(a3m, ss_dssp, aa_dssp)
         return data
+
+    @staticmethod
+    def contains_dssp(a3m):
+        """
+        A `True` if both the ``ss_dssp`` and ``aa_dssp`` lines are present in
+        the `a3m` file.
+        """
+        ss_dssp = False
+        aa_dssp = False
+        with open(a3m, "r") as a3m_in:
+            for line in a3m_in:
+                if line.startswith(">ss_dssp"):
+                    ss_dssp = True
+                elif line.startswith(">aa_dssp"):
+                    aa_dssp = True
+
+                if aa_dssp and ss_dssp:
+                    return True
+
+        return ss_dssp and aa_dssp
 
     def update_a3m(self, a3m, ss_dssp, aa_dssp):
         """
