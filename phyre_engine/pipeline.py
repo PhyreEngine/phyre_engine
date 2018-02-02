@@ -601,4 +601,6 @@ class PipelineConfig(dict):
         jmes_ext = phyre_engine.tools.jmespath.JMESExtensions(self)
         jmes_opts = jmespath.Options(custom_functions=jmes_ext)
         section = jmespath.search(section_expr, self, jmes_opts)
+        if section is None:
+            return type(self)()
         return type(self)(section)
