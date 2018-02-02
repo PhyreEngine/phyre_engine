@@ -337,7 +337,9 @@ class Map(PipelineComponent):
 
         pipeline = self.pipeline(config)
         pipe_output = []
-        for item in data[self.field]:
+        for i, item in enumerate(data[self.field]):
+            self.logger.debug("Runing pipeline %d / %d",
+                              i, len(data[self.field]))
             pipeline.start = item
             pipeline_results = pipeline.run()
             if pipeline_results is not None and not self.discard:
