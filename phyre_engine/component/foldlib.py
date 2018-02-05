@@ -109,6 +109,26 @@ class UpdateMetadata(Component):
         template_db.updated = datetime.date.today()
 
 
+class Metadata(Component):
+    """
+    Look up template metadata in the template library based on the ``PDB``
+    field, and set the ``metadata`` field.
+
+    The items in the ``metadata`` dictionary are described in
+    :py:meth:`phyre_engine.tools.template.TemplateDatabase.add_pdb`.
+    """
+
+    REQUIRED = ["template_db", "PDB"]
+    ADDS = ["metadata"]
+    REMOVES = []
+
+    def run(self, data, config=None, pipeline=None):
+        """Retrieve metadata from the fold library."""
+        template_db, pdb_id = self.get_vals(data)
+        data["metadata"] = template_db.get_pdb(pdb_id)
+        return data
+
+
 class Map(phyre_engine.component.component.Map):
     """
     Subclass of :py:class:`phyre_engine.component.component.Map` that
