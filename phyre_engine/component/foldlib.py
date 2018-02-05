@@ -291,7 +291,7 @@ class FoldLibMetadata(phyre_engine.component.pdb.MMCIFMetadata):
         "deposition_date": '''date("_pdbx_database_status.recvd_initial_deposition_date", '%Y-%m-%d')''',
         "last_update_date": '''date(to_array("_pdbx_audit_revision_history.revision_date")[-1], '%Y-%m-%d')''',
         "release_date": '''date(to_array("_pdbx_audit_revision_history.revision_date")[0], '%Y-%m-%d')''',
-        "method": '''"_exptl.method"''',
+        "method": '''to_array("_exptl.method")[0]''',
         "resolution": '''to_number("_reflns.d_resolution_high")''',
         "organism_name": '''to_array("_entity_src_gen.pdbx_host_org_scientific_name" || "_pdbx_entity_src_syn.organism_scientific")[0]''',
         "organism_id": '''to_number(to_array("_entity_src_gen.pdbx_host_org_ncbi_taxonomy_id" || "_pdbx_entity_src_syn.ncbi_taxonomy_id")[0])''',
@@ -309,9 +309,6 @@ class FoldLibMetadata(phyre_engine.component.pdb.MMCIFMetadata):
     def run(self, data, config=None, pipeline=None):
         """Retrieve structure metadata required by the fold library."""
         data = super().run(data, config, pipeline)
-
-        if isinstance(data["metadata"]["method"], collections.abc.Sequence):
-            data["metadata"]["method"] = data["metadata"]["method"][0]
         return data
 
 
