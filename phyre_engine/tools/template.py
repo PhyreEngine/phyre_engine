@@ -609,6 +609,16 @@ class TemplateDatabase:
                                  placeholders).fetchall()
         return [(row["pdb_id"], row["chain_id"]) for row in rows]
 
+    def begin(self, exclusive=False):
+        """
+        Begin a new transaction. If `exclusive` is `True`, the database is
+        fully locked.
+        """
+        if exclusive:
+            self.conn.execute("BEGIN EXCLUSIVE TRANSACTION")
+        else:
+            self.conn.execute("BEGIN TRANSACTION")
+
     def commit(self):
         """Commit changes to the database."""
         self.conn.commit()
