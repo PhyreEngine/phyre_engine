@@ -107,6 +107,7 @@ class UpdateMetadata(Component):
         """Set update date of template library."""
         template_db = self.get_vals(data)
         template_db.updated = datetime.date.today()
+        return data
 
 
 class Map(phyre_engine.component.component.Map):
