@@ -19,6 +19,7 @@ from phyre_engine.component import Component
 import phyre_engine.component.hhsuite
 import phyre_engine.component.pdb
 import phyre_engine.component.secstruc
+import phyre_engine.pipeline
 from phyre_engine.tools.template import Template, TemplateDatabase
 import phyre_engine.tools.pdb
 
@@ -616,7 +617,7 @@ class BuildProfiles(Component):
             "outfile": cs219_file,
         }
 
-    def components(self, output_files):
+    def components(self, output_files, pipe_config):
         """
         List of components to be called.
 
@@ -647,6 +648,15 @@ class BuildProfiles(Component):
         # Module alias for RSI reasons
         hhsuite = phyre_engine.component.hhsuite
 
+        # Easy function for defining a TryCatch component.
+        def trycatch(components):
+            child_pipe = phyre_engine.Pipeline(
+                config=pipe_config,
+                components=components)
+            return phyre_engine.component.component.TryCatch(
+                pipeline=child_pipe,
+                pass_through=True)
+
         # Define individual components
         hhblits_opts = self.hh_options if self.hh_options is not None else {}
         hhblits_opts["oa3m"] = output_files["a3m"]
@@ -675,7 +685,13 @@ class BuildProfiles(Component):
             options=self.cstranslate_opts(
                 output_files["a3m"], output_files["cs219"]),
             cache_dir=output_files["cs219"].parent)
-        return [hhblits, add_psipred, dssp, add_dssp, hhmake, cstranslate]
+        return [
+            hhblits,
+            trycatch([add_psipred]),
+            trycatch([dssp, add_dssp]),
+            hhmake,
+            cstranslate
+        ]
 
     def run(self, data, config=None, pipeline=None):
         """Build fold library profile files for template."""
@@ -691,7 +707,13 @@ class BuildProfiles(Component):
         if not output_files["fasta"].exists():
             self.write_fasta(output_files["fasta"], template)
 
-        for component in self.components(output_files):
+        for component in self.components(output_files, config):
             data["sequence"] = template.canonical_seq
             data = component.run(data, config, pipeline)
+
+        # Remove this to keep state self contained and avoid bulking it out too
+        # much.
+        if "secondary_structure" in data:
+            del data["secondary_structure"]
+
         return data
