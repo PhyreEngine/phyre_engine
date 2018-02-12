@@ -5,6 +5,7 @@ building the fold library.
 """
 import collections
 import collections.abc
+import copy
 import datetime
 from pathlib import Path
 import urllib.parse
@@ -421,6 +422,51 @@ class SequenceRepresentatives(Component):
 
         data["templates"] = templates
         return data
+
+
+class ExpandSequenceRepresentatives(Component):
+    """
+
+    Return a list of templates with the same canonical sequence as the current
+    template.
+
+    This component will look up all chains with identical sequences to the chain
+    given by the ``PDB`` and ``chain`` fields in the pipeline state. If the
+    `duplicate_extra` parameter is `True`, then all fields in the current state
+    are copied into the new objects. Otherwise, the objects will just contain
+    the ``PDB`` and ``chain`` fields.
+
+    :param bool duplicate_extra: If `True`, copy all fields from the
+        current pipeline state into each of the new chains.
+
+    .. warning::
+
+        This component returns a *list* of templates, so it should only be used
+        when wrapped in a :py:class:`phyre_engine.component.component.Map`
+        component, or some other component that can handle a pipeline state of
+        type `list`.
+    """
+
+    ADDS = []
+    REMOVES = []
+    REQUIRED = ["template_db", "PDB", "chain"]
+
+    def __init__(self, duplicate_extra=True):
+        self.duplicate_extra = duplicate_extra
+
+    def run(self, data, config=None, pipeline=None):
+        """Expand sequence cluster."""
+        template_db, pdb_id, chain_id = self.get_vals(data)
+        clus_ids = template_db.expand_seq_reps(pdb_id, chain_id)
+        new_state = [data]
+        for new_pdb_id, new_chain_id in clus_ids:
+            new_member = copy.copy(data) if self.duplicate_extra else {}
+            new_member["PDB"] = new_pdb_id
+            new_member["chain_id"] = new_chain_id
+            new_state.append(new_member)
+        self.logger.info("%s_%s expanded to %d members",
+                         pdb_id, chain_id, len(new_state))
+        return new_state
 
 
 class BuildProfiles(Component):

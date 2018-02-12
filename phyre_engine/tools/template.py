@@ -583,6 +583,22 @@ class TemplateDatabase:
             }
             self.conn.execute(self.INSERT_SEQ_REP, rep_data)
 
+    def expand_seq_reps(self, pdb_id, chain_id):
+        """
+        Return a list of all chains with canonical sequence matching the given
+        chain.
+
+        :param str pdb_id: PDB ID of a cluster member.
+        :param str chain_id: Chain ID of cluster member.
+        :returns: List of 2-tuples containing the PDB IDs and chain IDs of the
+            members of this cluster, *excluding* the original member.
+        :rtype: list[tuple(str, str)]
+        """
+        placeholders = {"pdb_id": pdb_id, "chain_id": chain_id}
+        rows = self.conn.execute(self.SELECT_SEQUENCE_CLUSTER,
+                                 placeholders).fetchall()
+        return [(row["pdb_id"], row["chain_id"]) for row in rows]
+
     def commit(self):
         """Commit changes to the database."""
         self.conn.commit()
