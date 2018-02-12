@@ -179,6 +179,16 @@ class TemplateDatabase:
                  ON DELETE CASCADE
         );
 
+        CREATE TABLE sequence_reps (
+            pdb_id             TEXT,
+            chain_id           TEXT,
+            canonical_sequence TEXT,
+            PRIMARY KEY (pdb_id, chain_id, canonical_sequence),
+            FOREIGN KEY (pdb_id) REFERENCES pdbs(pdb_id),
+            FOREIGN KEY (pdb_id, chain_id) REFERENCES chains(pdb_id, chain_id)
+                 ON DELETE CASCADE
+        );
+
         CREATE TABLE canonical (
             pdb_id           TEXT,
             chain_id         TEXT,
@@ -250,15 +260,40 @@ class TemplateDatabase:
      ORDER BY sequence_index ASC
     """
 
-    # Select IDs of all sequence representatives.
-    SELECT_REPS_ALL = """
-    SELECT chains.pdb_id AS pdb_id,
-           chains.chain_id AS chain_id,
-           MIN(pdbs.resolution)
-      FROM chains
-     INNER JOIN pdbs
-           ON chains.pdb_id = pdbs.pdb_id
-     GROUP BY chains.canonical_sequence;
+    SELECT_ALL_REP_SEQS = """
+    SELECT canonical_sequence FROM chains GROUP BY canonical_sequence
+    """
+
+    SELECT_ALL_REPS = """
+    SELECT pdb_id, chain_id FROM sequence_reps
+    """
+
+    SELECT_FIND_REP = """
+    SELECT p.pdb_id, c.chain_id
+      FROM chains c
+     INNER JOIN pdbs p
+        ON c.pdb_id = p.pdb_id
+     WHERE c.canonical_sequence = :canonical_sequence
+     ORDER BY p.resolution IS NULL, p.resolution, c.chain_id
+     LIMIT 1
+    """
+
+    SELECT_SEQUENCE_CLUSTER = """
+    SELECT c2.pdb_id, c2.chain_id
+      FROM chains c1
+     INNER JOIN chains c2
+        ON c2.canonical_sequence = c1.canonical_sequence
+     WHERE (c1.pdb_id = LOWER(:pdb_id) AND c1.chain_id = :chain_id)
+       AND NOT (c2.pdb_id = LOWER(:pdb_id) AND c2.chain_id = :chain_id)
+    """
+
+    DELETE_SEQ_REPS = """
+    DELETE FROM sequence_reps
+    """
+
+    INSERT_SEQ_REP = """
+    INSERT INTO sequence_reps (pdb_id, chain_id, canonical_sequence)
+    VALUES (:pdb_id, :chain_id, :canonical_sequence)
     """
 
     INSERT_PDB = """
@@ -376,7 +411,7 @@ class TemplateDatabase:
         Return a list of sequence representatives as `(pdb_id, chain_id)`
         tuples.
         """
-        rows = self.conn.execute(self.SELECT_REPS_ALL).fetchall()
+        rows = self.conn.execute(self.SELECT_ALL_REPS).fetchall()
         return [(row["pdb_id"], row["chain_id"]) for row in rows]
 
     def get_pdb(self, pdb_id):
@@ -525,6 +560,28 @@ class TemplateDatabase:
         self.conn.execute(
             self.DELETE_TEMPLATE,
             {"pdb_id": pdb_id.lower(), "chain_id": chain_id})
+
+    def update_seq_reps(self):
+        """
+        Update all sequence representatives.
+
+        This will first clear all sequence representatives from the
+        ``sequence_reps`` table. It will then find all unique sequences
+        from the ``chains`` table, and loop over them to find the PDB
+        and chain IDs of template with that sequence with the lowest
+        resolution. Ties are broken by sorting on PDB ID, then chain ID.
+        """
+        self.conn.execute(self.DELETE_SEQ_REPS)
+        seq_rows = self.conn.execute(self.SELECT_ALL_REP_SEQS).fetchall()
+        for seq_row in seq_rows:
+            metadata_row = self.conn.execute(
+                self.SELECT_FIND_REP, seq_row).fetchone()
+            rep_data = {
+                "pdb_id": metadata_row["pdb_id"],
+                "chain_id": metadata_row["chain_id"],
+                "canonical_sequence": seq_row["canonical_sequence"],
+            }
+            self.conn.execute(self.INSERT_SEQ_REP, rep_data)
 
     def commit(self):
         """Commit changes to the database."""
