@@ -276,6 +276,35 @@ class UncompressTemplate(Component):
         del data["template_metadata"]
         return data
 
+
+class DropIndices(Component):
+    """
+    Drop all indices in the fold library SQL database, in preparation for bulk
+    inserts.
+    """
+    ADDS = []
+    REMOVES = []
+    REQUIRED = ["template_db"]
+
+    def run(self, data, config=None, pipeline=None):
+        """Drop fold library indices."""
+        data["template_db"].drop_indices()
+
+
+class CreateIndices(Component):
+    """
+    Create all indices in the fold library SQL database, in preparation for
+    fast searching.
+    """
+    ADDS = []
+    REMOVES = []
+    REQUIRED = ["template_db"]
+
+    def run(self, data, config=None, pipeline=None):
+        """Create fold library indices."""
+        data["template_db"].create_indices()
+
+
 class FoldLibMetadata(phyre_engine.component.pdb.MMCIFMetadata):
     """
     Convenience sub-class of

@@ -224,7 +224,17 @@ class TemplateDatabase:
             FOREIGN KEY (pdb_id, chain_id) REFERENCES chains(pdb_id, chain_id)
                  ON DELETE CASCADE
         );
+
+        CREATE INDEX seq_index chains(canonical_sequence);
         """
+
+    CREATE_INDICES = """
+    CREATE INDEX seq_index chains(canonical_sequence);
+    """
+
+    DROP_INDICES = """
+    DROP INDEX seq_index;
+    """
 
     SELECT_DB_META = """
     SELECT * FROM meta
@@ -606,6 +616,14 @@ class TemplateDatabase:
     def rollback(self):
         """Roll back changes made in this transaction."""
         self.conn.rollback()
+
+    def drop_indices(self):
+        """Drop all indices."""
+        self.conn.executescript(self.DROP_INDICES)
+
+    def create_indices(self):
+        """Create all indices."""
+        self.conn.executescript(self.CREATE_INDICES)
 
 
 class Template:
