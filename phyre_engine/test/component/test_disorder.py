@@ -1,8 +1,12 @@
 """Test components in the :py:mod:`phyre_engine.component.disorder` module."""
+import io
+import pathlib
 import textwrap
 import unittest
 import phyre_engine.test
 import phyre_engine.component.disorder as disorder
+
+DATA_DIR = pathlib.Path(phyre_engine.test.__file__).parent / "data"
 
 class TestMobiDBLite(unittest.TestCase):
     """Test MobiDBLite component."""
@@ -68,3 +72,54 @@ class TestMobiDBLite(unittest.TestCase):
                 {"assigned": "D", "confidence": {"D": 1.0, "S": 0.0}},
                 {"assigned": "D", "confidence": {"D": 0.88, "S": 0.12}},
                 {"assigned": "D", "confidence": {"D": 1.0, "S": 0.0}}])
+
+
+class TestDisopred(unittest.TestCase):
+    """Test Disopred component."""
+
+    SAMPLE_OUTPUT = textwrap.dedent("""\
+    #         ----- DISOPRED version 3.1 -----
+    # Disordered residues are marked with asterisks (*)
+    #    Ordered residues are marked with dots (.)
+        1 M * 0.78
+        2 K * 0.62
+        3 T . 0.45
+        4 A . 0.37
+        5 Y . 0.20
+    """)
+
+    EXPECTED_OUTPUT = [
+        {"assigned": "D", "confidence": {"S": 0.22, "D": 0.78}},
+        {"assigned": "D", "confidence": {"S": 0.38, "D": 0.62}},
+        {"assigned": "S", "confidence": {"S": 0.55, "D": 0.45}},
+        {"assigned": "S", "confidence": {"S": 0.63, "D": 0.37}},
+        {"assigned": "S", "confidence": {"S": 0.80, "D": 0.20}},
+    ]
+
+    def test_parser(self):
+        """Test disopred output parser."""
+        with io.StringIO(self.SAMPLE_OUTPUT) as result_stream:
+            got_output = disorder.Disopred.parse_results(result_stream)
+            for i, (expected, got) in enumerate(zip(self.EXPECTED_OUTPUT,
+                                                    got_output)):
+                with self.subTest("Residue {}".format(i+1)):
+                    self.assertEqual(expected["assigned"], got["assigned"])
+                    self.assertAlmostEqual(
+                        expected["confidence"]["S"],
+                        got["confidence"]["S"],
+                        places=2)
+                    self.assertAlmostEqual(
+                        expected["confidence"]["D"],
+                        got["confidence"]["D"],
+                        places=2)
+
+    @phyre_engine.test.requireFields("disopred", ["tools"])
+    def test_disopred(self):
+        """Run disopred on a prebuilt MTX file."""
+
+        args = phyre_engine.test.config["tools"]["disopred"]
+        mtx_file = str(DATA_DIR / "pssm" / "12as_A.mtx")
+        disopred = disorder.Disopred(**args)
+        results = disopred.run({"pssm": {"mtx": mtx_file}})
+        self.assertGreater(len(results["disorder"]["disopred"]), 0)
+
