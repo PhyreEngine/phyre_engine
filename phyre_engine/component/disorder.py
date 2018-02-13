@@ -142,6 +142,8 @@ class Disopred(Component):
     ADDS = ["disorder"]
     REMOVES = []
 
+    CONFIG_SECTION = "disopred"
+
     #: Adjustable DISOPRED2 false positive rate, from 1-10.
     DISOPRED2_FPR = 5
 
