@@ -199,19 +199,19 @@ class Init(Component):
 
 class Run(Component):
     """
-    Run a command using an existing Pymol server.
+    Run commands using an existing Pymol server.
 
     Each field in the pipeline state is made available using Python's string
     formatting. See :py:mod:`phyre_engine.component.pymol` for details.
 
-    :param str command: Pymol command to run.
+    :param list[str] command: Pymol commands to run.
     """
     ADDS = []
     REMOVES = []
     REQUIRED = ["pymol"]
 
-    def __init__(self, command):
-        self.command = command
+    def __init__(self, commands):
+        self.commands = commands
 
     def run(self, data, config=None, pipeline=None):
         """Run Pymol command."""
@@ -219,7 +219,8 @@ class Run(Component):
 
         rpc_addr = pymol_rpc_addr(pymol_details["port"])
         rpc_proxy = xmlrpc.client.ServerProxy(rpc_addr)
-        rpc_proxy.do(self.command.format(**data))
+        for cmd in self.commands:
+            rpc_proxy.do(cmd.format(**data))
         return data
 
 class Quit(Component):
