@@ -20,8 +20,8 @@ afterwards might look like this:
         "sequence": "AG...", # Required for disorder predictors
         "disorder": {
             "foo": [
-                {"assigned": "D", "confidence": {"O": 0.1, "D": 0.9}},
-                {"assigned": "D", "confidence": {"O": 0.2, "D": 0.8}},
+                {"assigned": "D", "confidence": {"S": 0.1, "D": 0.9}},
+                {"assigned": "D", "confidence": {"S": 0.2, "D": 0.8}},
                 # ...
             ]
         }
