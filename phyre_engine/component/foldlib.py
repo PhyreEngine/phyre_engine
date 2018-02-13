@@ -5,6 +5,7 @@ building the fold library.
 """
 import collections
 import collections.abc
+import copy
 import datetime
 from pathlib import Path
 import urllib.parse
@@ -18,6 +19,7 @@ from phyre_engine.component import Component
 import phyre_engine.component.hhsuite
 import phyre_engine.component.pdb
 import phyre_engine.component.secstruc
+import phyre_engine.pipeline
 from phyre_engine.tools.template import Template, TemplateDatabase
 import phyre_engine.tools.pdb
 
@@ -107,6 +109,28 @@ class UpdateMetadata(Component):
         """Set update date of template library."""
         template_db = self.get_vals(data)
         template_db.updated = datetime.date.today()
+        return data
+
+
+class Metadata(Component):
+    """
+    Retrieve metadata for the current template.
+
+    Templates are looked up by the ``PDB`` field. Metadata is assigned to the
+    ``metadata`` field. See
+    :py:meth:`phyre_engine.tools.template.TemplateDatabase.add_pdb` for
+    the metadata fields.
+    """
+
+    ADDS = ["metadata"]
+    REMOVES = []
+    REQUIRED = ["template_db", "PDB"]
+
+    def run(self, data, config=None, pipeline=None):
+        """Retrieve metadata from fold library."""
+        template_db, pdb_id = self.get_vals(data)
+        data["metadata"] = template_db.get_pdb(pdb_id)
+        return data
 
 
 class Metadata(Component):
@@ -294,6 +318,35 @@ class UncompressTemplate(Component):
         del data["template_metadata"]
         return data
 
+
+class DropIndices(Component):
+    """
+    Drop all indices in the fold library SQL database, in preparation for bulk
+    inserts.
+    """
+    ADDS = []
+    REMOVES = []
+    REQUIRED = ["template_db"]
+
+    def run(self, data, config=None, pipeline=None):
+        """Drop fold library indices."""
+        data["template_db"].drop_indices()
+
+
+class CreateIndices(Component):
+    """
+    Create all indices in the fold library SQL database, in preparation for
+    fast searching.
+    """
+    ADDS = []
+    REMOVES = []
+    REQUIRED = ["template_db"]
+
+    def run(self, data, config=None, pipeline=None):
+        """Create fold library indices."""
+        data["template_db"].create_indices()
+
+
 class FoldLibMetadata(phyre_engine.component.pdb.MMCIFMetadata):
     """
     Convenience sub-class of
@@ -311,7 +364,7 @@ class FoldLibMetadata(phyre_engine.component.pdb.MMCIFMetadata):
         "deposition_date": '''date("_pdbx_database_status.recvd_initial_deposition_date", '%Y-%m-%d')''',
         "last_update_date": '''date(to_array("_pdbx_audit_revision_history.revision_date")[-1], '%Y-%m-%d')''',
         "release_date": '''date(to_array("_pdbx_audit_revision_history.revision_date")[0], '%Y-%m-%d')''',
-        "method": '''"_exptl.method"''',
+        "method": '''to_array("_exptl.method")[0]''',
         "resolution": '''to_number("_reflns.d_resolution_high")''',
         "organism_name": '''to_array("_entity_src_gen.pdbx_host_org_scientific_name" || "_pdbx_entity_src_syn.organism_scientific")[0]''',
         "organism_id": '''to_number(to_array("_entity_src_gen.pdbx_host_org_ncbi_taxonomy_id" || "_pdbx_entity_src_syn.ncbi_taxonomy_id")[0])''',
@@ -329,9 +382,6 @@ class FoldLibMetadata(phyre_engine.component.pdb.MMCIFMetadata):
     def run(self, data, config=None, pipeline=None):
         """Retrieve structure metadata required by the fold library."""
         data = super().run(data, config, pipeline)
-
-        if isinstance(data["metadata"]["method"], collections.abc.Sequence):
-            data["metadata"]["method"] = data["metadata"]["method"][0]
         return data
 
 
@@ -390,6 +440,23 @@ class AddTemplate(Component):
         return data
 
 
+class UpdateSequenceRepresentatives(Component):
+    """
+    Update list of sequence representatives in the fold library.
+    """
+
+    ADDS = []
+    REMOVES = []
+    REQUIRED = ["template_db"]
+
+
+    def run(self, data, config=None, pipeline=None):
+        """Update sequence representatives."""
+        template_db = self.get_vals(data)
+        template_db.update_seq_reps()
+        return data
+
+
 class SequenceRepresentatives(Component):
     """
     Retain only those entries in the ``templates`` list that are sequence
@@ -426,6 +493,51 @@ class SequenceRepresentatives(Component):
 
         data["templates"] = templates
         return data
+
+
+class ExpandSequenceRepresentatives(Component):
+    """
+
+    Return a list of templates with the same canonical sequence as the current
+    template.
+
+    This component will look up all chains with identical sequences to the chain
+    given by the ``PDB`` and ``chain`` fields in the pipeline state. If the
+    `duplicate_extra` parameter is `True`, then all fields in the current state
+    are copied into the new objects. Otherwise, the objects will just contain
+    the ``PDB`` and ``chain`` fields.
+
+    :param bool duplicate_extra: If `True`, copy all fields from the
+        current pipeline state into each of the new chains.
+
+    .. warning::
+
+        This component returns a *list* of templates, so it should only be used
+        when wrapped in a :py:class:`phyre_engine.component.component.Map`
+        component, or some other component that can handle a pipeline state of
+        type `list`.
+    """
+
+    ADDS = []
+    REMOVES = []
+    REQUIRED = ["template_db", "PDB", "chain"]
+
+    def __init__(self, duplicate_extra=True):
+        self.duplicate_extra = duplicate_extra
+
+    def run(self, data, config=None, pipeline=None):
+        """Expand sequence cluster."""
+        template_db, pdb_id, chain_id = self.get_vals(data)
+        clus_ids = template_db.expand_seq_reps(pdb_id, chain_id)
+        new_state = [data]
+        for new_pdb_id, new_chain_id in clus_ids:
+            new_member = copy.copy(data) if self.duplicate_extra else {}
+            new_member["PDB"] = new_pdb_id
+            new_member["chain_id"] = new_chain_id
+            new_state.append(new_member)
+        self.logger.info("%s_%s expanded to %d members",
+                         pdb_id, chain_id, len(new_state))
+        return new_state
 
 
 class BuildProfiles(Component):
@@ -525,7 +637,7 @@ class BuildProfiles(Component):
             "outfile": cs219_file,
         }
 
-    def components(self, output_files):
+    def components(self, output_files, pipe_config):
         """
         List of components to be called.
 
@@ -556,6 +668,15 @@ class BuildProfiles(Component):
         # Module alias for RSI reasons
         hhsuite = phyre_engine.component.hhsuite
 
+        # Easy function for defining a TryCatch component.
+        def trycatch(components):
+            child_pipe = phyre_engine.Pipeline(
+                config=pipe_config,
+                components=components)
+            return phyre_engine.component.component.TryCatch(
+                pipeline=child_pipe,
+                pass_through=True)
+
         # Define individual components
         hhblits_opts = self.hh_options if self.hh_options is not None else {}
         hhblits_opts["oa3m"] = output_files["a3m"]
@@ -584,7 +705,13 @@ class BuildProfiles(Component):
             options=self.cstranslate_opts(
                 output_files["a3m"], output_files["cs219"]),
             cache_dir=output_files["cs219"].parent)
-        return [hhblits, add_psipred, dssp, add_dssp, hhmake, cstranslate]
+        return [
+            hhblits,
+            trycatch([add_psipred]),
+            trycatch([dssp, add_dssp]),
+            hhmake,
+            cstranslate
+        ]
 
     def run(self, data, config=None, pipeline=None):
         """Build fold library profile files for template."""
@@ -600,7 +727,13 @@ class BuildProfiles(Component):
         if not output_files["fasta"].exists():
             self.write_fasta(output_files["fasta"], template)
 
-        for component in self.components(output_files):
+        for component in self.components(output_files, config):
             data["sequence"] = template.canonical_seq
             data = component.run(data, config, pipeline)
+
+        # Remove this to keep state self contained and avoid bulking it out too
+        # much.
+        if "secondary_structure" in data:
+            del data["secondary_structure"]
+
         return data
