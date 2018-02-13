@@ -73,6 +73,8 @@ class Init(Component):
     :param int max_retries: When using a random port, the maximum number of
         retries before raising a :py:exc:`.PymolCreationError`.
 
+    :param bool quiet: If `True`, pass the ``-Q`` flag to pymol.
+
     :ivar server: RPC proxy to the Pymol instance, instantiated when
         :py:meth:`.run` is called.
     :vartype server: :py:class:`xmlrpc.client.ServerProxy`
@@ -94,17 +96,19 @@ class Init(Component):
         "if not pymol.rpc.serv: cmd.quit(1);")
 
     PYMOL_ARGS = [
-        "-Q", # Quiet
         "-c", # Command-line only
         "-K", # Keep alive, required because of "-c"
     ]
 
-    def __init__(self, command, pymol="pymol", port=None, max_retries=5):
+    def __init__(self, command, pymol="pymol", port=None, max_retries=5,
+                 quiet=True):
         self.command = command
         self.pymol = pymol
         self.port = port
         self.max_retries = max_retries
         self.server = None
+        if quiet:
+            self.PYMOL_ARGS.append("-Q")
 
     @staticmethod
     def _free_port():
