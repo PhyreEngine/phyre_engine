@@ -854,6 +854,8 @@ class PSSM(Component):
             tmp_a3m = Path(tmpdir, "msa.a3m")
             tmp_seq = Path(tmpdir, "seq.fasta")
             tmp_psi = Path(tmpdir, "msa.psi")
+            env = os.environ.copy()
+            env["HHLIB"] = self.HHLIB
 
             if "-" in query_seq:
                 # Generate consensus sequence
@@ -863,7 +865,7 @@ class PSSM(Component):
                         "input": a3m,
                         "seqfile": tmp_seq,
                         "oa3m": tmp_a3m})
-                subprocess.run(command_line, check=True)
+                subprocess.run(command_line, check=True, env=env)
             else:
                 # If there are no gaps, just copy the query a3m and write the
                 # query sequence.
@@ -879,16 +881,14 @@ class PSSM(Component):
                     "neff": 7,
                     "input": tmp_a3m,
                     "oa3m": tmp_a3m})
-            subprocess.run(command_line, check=True)
+            subprocess.run(command_line, check=True, env=env)
 
             # Reformat to PSI-BLAST format
             command_line = reformat(
                 (str(Path(self.HHLIB, "scripts")), "reformat.pl"),
                 positional=["a3m", "psi", tmp_a3m, tmp_psi],
                 flags=["no_lower", "noss"])
-            reformat_environ = os.environ.copy()
-            reformat_environ["HHLIB"] = self.HHLIB
-            subprocess.run(command_line, check=True, env=reformat_environ)
+            subprocess.run(command_line, check=True, env=env)
 
             # Generate PSSM using blastpgp
             chk_file = "profile.chk"
