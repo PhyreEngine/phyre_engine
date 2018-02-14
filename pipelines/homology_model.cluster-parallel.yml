@@ -195,6 +195,39 @@ pipeline:
             field: templates
             keys: [{key: 'sum_probs', reverse: True}]
 
+        # Generate images of each model using pymol
+        - .pymol.Init:
+            # Load python functions we want to use
+            command: 'run /bmm/phyreengine/share/pymol/phyre_engine.py'
+            quiet: False
+        - .pymol.Run:
+            # Load colour scheme
+            commands: 
+            - '@/bmm/phyreengine/share/pymol/setup_magma.pml'
+        # Copy "pymol" tag into each template element.
+        - .jmespath.Update:
+            select_expr: 'templates'
+            value_expr: '{pymol: root().pymol}'
+        # Render each model
+        - .component.Map:
+            field: templates
+            components:
+            - .component.Conditional:
+                field: model
+                components:
+                - .pymol.Run:
+                    commands:
+                    - 'load {model}'
+                    - '@/bmm/phyreengine/share/pymol/render_magma.pml'
+                    - 'png {rank:03d}-{PDB}_{chain}.png'
+                    - 'delete all'
+                - .alter.Set:
+                    field: image
+                    value: '{rank:03d}-{PDB}_{chain}.png'
+                    reformat: True
+            - .alter.Remove:
+                field: pymol
+
         # Save state so we can deserialise it and use it later for finishing models.
         - .dump.Pickle:
             output: state.pickle
