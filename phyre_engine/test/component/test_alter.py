@@ -76,3 +76,9 @@ class TestSet(TestAlteration):
         set_cpt = alter.Set("xyz", "123")
         result = set_cpt.run(self.pipe_state)
         self.assertEqual(result["xyz"], "123")
+
+    def test_format(self):
+        """Format a value with Set."""
+        set_cpt = alter.Set("xyz", "{foo}", reformat=True)
+        result = set_cpt.run(self.pipe_state)
+        self.assertEqual(result["xyz"], "bar")

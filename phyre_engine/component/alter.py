@@ -94,16 +94,22 @@ class Set(_AlterationComponent):
 
     :param str field: Name of the field to set.
     :param str value: Value to set
+    :param bool reformat: If `True`, apply Python string formatting to `value`
+        with all the fields in the pipeline state available.
     """
     @property
     def ADDS(self):
         return [self.field]
 
-    def __init__(self, field, value):
+    def __init__(self, field, value, reformat=False):
         self.field = field
         self.value = value
+        self.reformat = reformat
 
     def run(self, data, config=None, pipeline=None):
         """Set field in pipeline state."""
-        data[self.field] = self.value
+        value = self.value
+        if self.reformat:
+            value = value.format(**data)
+        data[self.field] = value
         return data
