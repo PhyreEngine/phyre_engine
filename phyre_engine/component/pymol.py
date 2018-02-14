@@ -135,7 +135,7 @@ class Init(Component):
         while exit_code is None:
             try:
                 conn = xmlrpc.client.ServerProxy(pymol_rpc_addr(port))
-                conn.do("print STARTED")
+                conn.do("1 + 1")
                 self.logger.debug("Connected to port %d", port)
                 return True
             except ConnectionRefusedError as err:
