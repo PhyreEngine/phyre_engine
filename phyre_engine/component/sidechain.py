@@ -43,7 +43,7 @@ class Scwrl4(Component):
         outfile = Path(model).with_suffix(".scwrl4.pdb")
 
         command_line = self.SCWRL4(
-            (self.bin_dir, "scwrl4"),
+            (self.bin_dir, "Scwrl4"),
             options={"input": model, "output": outfile})
         program = subprocess.run(
             command_line, check=True, universal_newlines=True,
