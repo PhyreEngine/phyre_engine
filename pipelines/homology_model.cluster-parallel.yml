@@ -195,15 +195,6 @@ pipeline:
             field: templates
             keys: [{key: 'sum_probs', reverse: True}]
 
-        # Clean up fields that were used internally, but are of no interest to the
-        # outside world.
-        - .jmespath.Replace:
-            select_expr: '@'
-            value_expr: |
-              delete(@, `[
-                  "reduction"
-              ]`)
-
         # Save state so we can deserialise it and use it later for finishing models.
         - .dump.Pickle:
             output: state.pickle
