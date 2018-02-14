@@ -1,0 +1,228 @@
+# Columns included in CSV files.
+csv_format: &csv_format >
+  templates[].{
+    length: length(root().sequence),
+    model: model,
+    template: name,
+    sum_probs: sum_probs,
+    prob: prob,
+    evalue: evalue,
+    qrange_start: start(query_range),
+    qrange_stop: stop(query_range),
+    score: score,
+    similarity: similarity,
+    TM: TM
+  }
+
+# Log configuration. Write everything to standard error.
+logging: &log_conf
+  formatters:
+    simple:
+      format: '{levelname} : {asctime} : {name} : {message}'
+      style: '{'
+  handlers:
+    console:
+      class: logging.StreamHandler
+      formatter: simple
+      level: DEBUG
+      stream: ext://sys.stderr
+  root:
+    handlers:
+    - console
+    level: DEBUG
+  version: 1
+
+
+pipeline:
+  config:
+    logging: *log_conf
+    hhsuite:
+      HHLIB: /data/phyreenginedev/conda/envs/phyreengine/share/hhsuite/
+      bin_dir: /data/phyreenginedev/conda/envs/phyreengine/bin
+      options:
+        verbose: 2
+        cpu: 16
+    qsub:
+      # Cranked this up to 16 for quicker turnaround while testing
+      # Also upped the cpu flag for hhblits below
+      qsub_args: ["-q", "long", "-l", "nodes=1:ppn=16"]
+    foldlib:
+      template_db: /bmm/phyreengine/foldlib_mk2/foldlib.db
+      chain_dir: /bmm/phyreengine/foldlib_mk2/chains
+      mmcif_dir: /bmm/phyreengine/foldlib/rcsb/mmcif
+      profile_dir: /bmm/phyreengine/foldlib_mk2/profiles
+      db_prefix: /bmm/phyreengine/foldlib_mk2/foldlib
+
+  components:
+  # Change to job directory, read query sequence, parse sequence metadata
+  # and validate it.
+  - .util.ChangeDir
+  - .input.FastaInput
+  - .input.ConvertSeqRecord
+  - .alter.Remove:
+      field: seq_record
+  - .validate.SeqValidator
+
+  - .pbs.qsub.Detach:
+      name: HomologyModel
+      pipeline:
+        statusfile: statfile.json
+        components:
+        - .phyre.StartedJobInfo
+
+        # Generate HMM and search against the fold library.
+        - .hhsuite.HHBlits:
+            database: /data/phyre3dev/data/hhsuite/uniclust30_2017_04/uniclust30_2017_04
+            input_type: sequence
+            options:
+              output: hhblits_build.hhr
+              iterations: 2
+              oa3m: query.a3m
+              alt: 1
+        - .hhsuite.AddPsipred
+        - .hhsuite.HHSearch:
+            database: /bmm/phyreengine/foldlib_mk2/foldlib
+            input_type: a3m
+            options:
+              output: hhsearch_search.hhr
+              atab: hhsearch_search.atab
+              alt: 1
+              z: 100
+              b: 100
+              Z: 50000
+              B: 50000
+              E: 10
+              Ofas: alignments.fasta
+        - .hhsuite.A3MSSParser
+
+        # Parse results of hhsearch.
+        - .hhsuite.ReportParser
+        - .hhsuite.TabularParser
+        - .hhsuite.FastaParser:
+            ignore: ["Consensus"]
+
+        # Generate position-specific scoring matrix from query MSA.
+        - .hhsuite.PSSM:
+            hhsuite_dir: /data/phyreenginedev/conda/envs/phyreengine/bin
+            HHLIB: /data/phyreenginedev/conda/envs/phyreengine/share/hhsuite/
+            blast_dir: /data/phyreenginedev/conda/envs/phyreengine/bin
+
+        # Predict disorder using disopred
+        - .disorder.Disopred
+
+        # Sort by "sum_probs" field. Sum_probs / query length is a good estimator of
+        # the model TM-score.
+        - .sort.Sort:
+            field: templates
+            keys: [{key: 'sum_probs', reverse: True}]
+
+        # Bookkeeping stuff: copy the query sequence into each template, along with
+        # the PSSM field. These are required by the modelling components.
+        - .jmespath.Update:
+            select_expr: templates
+            value_expr: |
+              {
+                query_sequence: root().sequence,
+                pssm: root().pssm
+              }
+
+        # Parse template PDB and chain IDs from their names.
+        - .foldlib.Open
+        - .foldlib.Map:
+            components:
+            - .db.metadata.ParseField:
+                field: name
+                regex: '^(?P<PDB>\w{4})_(?P<chain>\S+)$'
+
+        # Expand list of templates based on identical sequences.
+        - .foldlib.Open
+        - .foldlib.Map:
+            components:
+            - .foldlib.ExpandSequenceRepresentatives
+
+        # Read metadata for each template.
+        - .foldlib.Map:
+            components:
+            - .foldlib.Metadata
+        - .foldlib.Rollback
+
+        # If the "native" field was supplied on the command line, use TMscore to add
+        # a "TM" field for each template.
+        - .component.Conditional:
+            field: native
+            components:
+            - .jmespath.Update:
+                select_expr: templates
+                value_expr: '{native: root().native}'
+            - .component.Map:
+                field: templates
+                components:
+                - .strucaln.TMScore:
+                    executable: /data/phyreenginedev/conda/envs/phyreengine/bin/TMscore
+
+        # Cluster models accordinging to start/stop position
+        - .cluster.EM4GMM:
+            select_expr: templates
+            dimensions_expr: '[start(query_range), stop(query_range)]'
+            num_components: 5
+            merge: 0.01
+            bin_dir: /data/phyreenginedev/conda/envs/phyreengine/bin
+
+        # Choose the first template in each class. This is done by converting the
+        # "templates" list to a set. We just use a Union with a single list here.
+        - .set.Union:
+            sets: [templates]
+            key: class
+            destination: cluster_reps
+        # Model each cluster representative in full.
+        - .component.Map:
+            field: cluster_reps
+            components:
+            - .modelling.HomologyModeller:
+                chain_dir: /bmm/phyreengine/foldlib/chains/
+            - .modelling.LoopModel:
+                bin_dir: /data/phyreenginedev/conda/envs/phyreengine/bin
+                config: /bmm/phyreengine/home/phyre3dev/loop.config
+                executable: nova
+            - .sidechain.Scwrl4:
+                bin_dir: /data/phyreenginedev/conda/envs/phyreengine/bin
+        # Merge the cluster representatives back into the main list of templates.
+        - .set.Union:
+            sets: [cluster_reps, templates]
+            key: '[PDB, chain, rank]'
+            destination: templates
+        - .sort.Sort:
+            field: templates
+            keys: [{key: 'sum_probs', reverse: True}]
+
+        # Clean up fields that were used internally, but are of no interest to the
+        # outside world.
+        - .jmespath.Replace:
+            select_expr: '@'
+            value_expr: |
+              delete(@, `[
+                  "reduction"
+              ]`)
+
+        # Save state so we can deserialise it and use it later for finishing models.
+        - .dump.Pickle:
+            output: state.pickle
+
+        # Clean up clutter from models. These are written to the pickle, but not to
+        # the JSON file, because they are mainly used interallly.
+        - .jmespath.Replace:
+            select_expr: 'templates'
+            value_expr: |
+              [*].delete(@, `[
+                "alignment", "pssm", "query_sequence", "sequence"
+              ]`)
+
+        # Write results to a CSV file and a JSON file.
+        - .dump.Csv:
+            jmespath_expr: *csv_format
+            file: models.csv
+        - .dump.Json:
+            output: models.json
+
+        - .phyre.EndedJobInfo
+  - .phyre.StartingJobInfo
