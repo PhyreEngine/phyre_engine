@@ -33,6 +33,7 @@ class Scwrl4(Component):
         "disable_terminal_capping": "t",
     })
 
+    CONFIG_SECTION = "scwrl4"
 
     def __init__(self, bin_dir=None):
         self.bin_dir = bin_dir
