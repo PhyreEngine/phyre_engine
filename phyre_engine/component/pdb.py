@@ -157,7 +157,7 @@ class Sanitise(Component):
         if self.file_name is None:
             file_des, file_name = tempfile.mkstemp(
                 suffix="-template.pdb", dir=os.getcwd(), text=True)
-            file_handle = os.fdopen(file_des)
+            file_handle = open(file_des, "w")
         else:
             file_name = self.file_name
             file_handle = open(self.file_name, "w")
