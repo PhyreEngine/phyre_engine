@@ -104,6 +104,7 @@ class TestSanitise(unittest.TestCase):
         self.assertEqual(results["structure"], sentinel.name)
         self.assertIsNot(results["structure_obj"], input_structure,
                          "Altered structure object returned")
+        self.assertIn("template_obj", results, "template object added")
 
         # Something was written to the new file.
         fh_mock.write.assert_called()

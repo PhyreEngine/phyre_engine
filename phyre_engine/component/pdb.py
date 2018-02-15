@@ -133,7 +133,9 @@ class Sanitise(Component):
     by essentially converting it into a template using
     :py:meth:`phyre_engine.tools.template.Template.build`. This will write the
     santised structure to a new PDB file, and replace the ``structure`` and
-    ``structure_obj`` keys with the template.
+    ``structure_obj`` keys with the template. The ``template_obj`` key is also
+    set to point to the new "template" object, allowing template-specific
+    components to be used.
 
     This component will place the template file in the current working
     directory. By default, a unique filename is used. This can be overridden by
@@ -143,7 +145,7 @@ class Sanitise(Component):
     :param str file_name: Use this fixed file name instead of a unique name.
     """
 
-    ADDS = ["structure"]
+    ADDS = ["structure", "template_obj"]
     REQUIRED = ["structure_obj"]
     REMOVES = []
 
@@ -174,6 +176,7 @@ class Sanitise(Component):
             template.write(file_handle)
             data["structure"] = file_name
             data["structure_obj"] = template.chain
+            data["template_obj"] = template
         finally:
             file_handle.close()
         return data
