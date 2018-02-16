@@ -1,0 +1,114 @@
+# Columns included in CSV files.
+csv_format: &csv_format >
+  templates[].{
+    length: length(root().sequence),
+    model: model,
+    template: name,
+    sum_probs: sum_probs,
+    prob: prob,
+    evalue: evalue,
+    qrange_start: start(query_range),
+    qrange_stop: stop(query_range),
+    score: score,
+    similarity: similarity,
+    TM: TM
+  }
+
+pipeline:
+  components:
+  - .util.ChangeDir
+  - .pbs.qsub.Detach:
+      name: HomologyModel
+      pipeline:
+        statusfile: statfile.json
+        components:
+        - .phyre.StartedJobInfo
+
+        # Make slice of templates and store it in "template_slice".  The call to
+        # ConfigLoader copies the pipeline state fields `state` into the config value
+        # `load.input_soure`, and `templates` into `jmespath.value_expr`.
+        - .component.ConfigLoader:
+            mapping:
+              templates: 'jmespath.value_expr'
+              state: 'load.input_source'
+            components:
+            - .load.Pickle
+            - .alter.Copy:
+                src: templates
+                dst: template_slice
+            - .jmespath.Replace:
+                select_expr: template_slice
+
+        # Generate images of each model using pymol
+        - .pymol.Init:
+            # Load python functions we want to use
+            pymol: !template '{BIN_PREFIX}/bin/pymol'
+            command: !template 'run {CONFIG_PREFIX}/pymol/phyre_engine.py'
+            quiet: False
+        - .pymol.Run:
+            # Load colour scheme
+            commands: 
+            - !template '@{CONFIG_PREFIX}/pymol/setup_magma.pml'
+        # Copy "pymol" tag into each template element.
+        - .jmespath.Update:
+            select_expr: 'template_slice'
+            value_expr: '{pymol: root().pymol}'
+
+        # Generate models for everything in "template_slice"
+        - .component.Map:
+            field: template_slice
+            components:
+            - .modelling.HomologyModeller
+            - .modelling.LoopModel
+            - .sidechain.Scwrl4
+
+            - .pymol.Run:
+                commands:
+                - 'load {model}'
+                - !template '@{CONFIG_PREFIX}/pymol/render_magma.pml'
+                - 'png {rank:03d}-{PDB}_{chain}.png'
+                - 'delete all'
+            - .alter.Set:
+                field: image
+                value: '{rank:03d}-{PDB}_{chain}.png'
+                reformat: True
+            - .alter.Remove:
+                field: pymol
+        - .pymol.Quit
+
+        # Combine newly-generated models and existing models.
+        - .set.Union:
+            sets: [template_slice, templates]
+            key: '[rank, PDB, chain]'
+            destination: templates
+
+        # Repeat sorting because sets are unordered.
+        - .sort.Sort:
+            field: templates
+            keys: [{key: 'sum_probs', reverse: True}]
+
+        # Save state so we can deserialise it and use it later for finishing models.
+        - .dump.Pickle:
+            output: state.pickle
+
+        # Clean up fields that were used internally, but are of no interest to the
+        # outside world.
+        - .jmespath.Replace:
+            select_expr: '@'
+            value_expr: |
+              delete(@, `["template_slice", "template_at_residue"]`)
+        - .jmespath.Replace:
+            select_expr: 'templates'
+            value_expr: |
+              [*].delete(@, `[
+                "alignment", "pssm", "query_sequence", "sequence"
+              ]`)
+
+        # Write results to a CSV file and a JSON file.
+        - .dump.Csv:
+            jmespath_expr: *csv_format
+            file: models.csv
+        - .dump.Json:
+            output: models.json
+        - .phyre.EndedJobInfo
+  - .phyre.StartingJobInfo

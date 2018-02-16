@@ -1,0 +1,100 @@
+# Run a BackPhyre pipeline, starting from a structure and ending with a JSON
+# dump containing all hits.
+#
+# Sample command line:
+# python -mphyre_engine.run \
+#   ~/code/phyre_engine/configs/backphyre.yml \
+#   --start working_dir:$PWD  \
+#   --start structure:12as_A.pdb \
+#   --config hhsuite.database:/bmm/phyreengine/data/scop40_01Mar17/scop40 \
+#   --config hhsuite.database:/bmm/phyreengine/data/Pfam/hhsuite/pfam
+#
+# Obviously, replace the working directory and structure file with whatever you
+# want. It will quit with an error if a multi-chain structure is given as
+# input.
+#
+# Add or remove databases by adding more "--config hhsuite.database:*" flags.
+pipeline:
+  #checkpoint: backphyre.chk
+  start:
+    name: Backphyre
+  config:
+  components:
+  - .util.ChangeDir
+  - .pbs.qsub.Detach:
+      name: Backphyre
+      pipeline:
+        statusfile: statfile.json
+        components:
+        - .phyre.StartedJobInfo
+        - .pdb.ReadStructure
+        - .pdb.ConvertToMonomer
+        - .pdb.PDBSeq
+        - .validate.SeqValidator
+        - .validate.SeqLenFilter:
+            min_len: 5
+        - .hhsuite.HHBlits:
+            input_type: sequence
+            database: !template '{LOCAL_DATA_PREFIX}/hhsuite/uniclust30_2017_04/uniclust30_2017_04'
+            options:
+              iterations: 2
+              output: uniclust.hhr
+              oa3m: query.a3m
+        - .hhsuite.AddPsipred
+        - .pdb.Sanitise:
+            file_name: query-sanitised.pdb
+        - .pdb.TemplateMapping
+        - .secstruc.DSSP
+        - .hhsuite.AddDssp
+        - .hhsuite.A3MSSParser
+        # Databases are taken from the configuration
+        - .hhsuite.HHSearch:
+            input_type: a3m
+            options:
+              output: backphyre.hhr
+              atab: backphyre.atab
+              Ofas: backphyre.fasta
+              z: 1000
+              Z: 10000
+              b: 1000
+              B: 1000
+        - .hhsuite.ReportParser
+        - .hhsuite.TabularParser
+        - .hhsuite.FastaParser:
+            ignore: ["Consensus"]
+        - .alter.Remove:
+            field: "structure_obj"
+        - .component.Map:
+            field: templates
+            components:
+            - .alter.Remove:
+                field: alignment
+        - .alter.Remove:
+            field: template_obj
+        - .dump.Json:
+            output: out.json
+
+        # With "shell=False", you would need to specify commands as lists of
+        # arguments:
+        # - .system.System:
+        #   - shell: false #Default
+        #     commands:
+        #     - ["echo", "123"]
+        #     - ["cat", "/etc/passwd"]
+
+        # With "shell=True", commands can use shell features and can be given
+        # as a single string.
+        #
+        # Each command has python string formatting applied to it, making each
+        # variable in the pipeline state available by wrapping it in braces.
+        # Note that this means you will need to escape braces by doubling if
+        # you want to use an actual brace: (e.g. 'ls foo{1,2}.txt` becomes
+        # 'ls foo{{1,2}}.txt'.
+        # - .system.System:
+        #     shell: true
+        #     commands:
+        #     - ["echo 'Structure is {structure}' > systest.txt"]
+        #     - ["../../scripts/cleanup.pl"]
+        - .phyre.EndedJobInfo
+  - .phyre.StartingJobInfo
+

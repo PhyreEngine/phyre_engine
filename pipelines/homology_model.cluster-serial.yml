@@ -15,44 +15,7 @@ csv_format: &csv_format >
   }
 
 # Log configuration. Write everything to standard error.
-logging: &log_conf
-  formatters:
-    simple:
-      format: '{levelname} : {asctime} : {name} : {message}'
-      style: '{'
-  handlers:
-    console:
-      class: logging.StreamHandler
-      formatter: simple
-      level: DEBUG
-      stream: ext://sys.stderr
-  root:
-    handlers:
-    - console
-    level: DEBUG
-  version: 1
-
-
 pipeline:
-  config:
-    logging: *log_conf
-    hhsuite:
-      HHLIB: /data/phyreenginedev/conda/envs/phyreengine/share/hhsuite/
-      bin_dir: /data/phyreenginedev/conda/envs/phyreengine/bin
-      options:
-        verbose: 2
-        cpu: 16
-    foldlib:
-      template_db: /bmm/phyreengine/foldlib_mk2/foldlib.db
-      chain_dir: /bmm/phyreengine/foldlib_mk2/chains
-      mmcif_dir: /bmm/phyreengine/foldlib/rcsb/mmcif
-      profile_dir: /bmm/phyreengine/foldlib_mk2/profiles
-      db_prefix: /bmm/phyreengine/foldlib_mk2/foldlib
-    disopred:
-      bin_dir: /data/phyreenginedev/conda/envs/phyreengine/bin/
-      data_dir: /data/phyreenginedev/conda/envs/phyreengine/share/disopred/data
-      dso_lib_dir: /data/phyreenginedev/conda/envs/phyreengine/share/disopred/dso_lib
-
   components:
   # Change to job directory, read query sequence, parse sequence metadata
   # and validate it.
@@ -65,7 +28,7 @@ pipeline:
 
   # Generate HMM and search against the fold library.
   - .hhsuite.HHBlits:
-      database: /data/phyre3dev/data/hhsuite/uniclust30_2017_04/uniclust30_2017_04
+      database: !template '{LOCAL_DATA_PREFIX}/hhsuite/uniclust30_2017_04/uniclust30_2017_04'
       input_type: sequence
       options:
         output: hhblits_build.hhr
@@ -74,7 +37,7 @@ pipeline:
         alt: 1
   - .hhsuite.AddPsipred
   - .hhsuite.HHSearch:
-      database: /bmm/phyreengine/foldlib_mk2/foldlib
+      database: !template '{FOLDLIB_PREFIX}/foldlib'
       input_type: a3m
       options:
         output: hhsearch_search.hhr
@@ -96,9 +59,9 @@ pipeline:
 
   # Generate position-specific scoring matrix from query MSA.
   - .hhsuite.PSSM:
-      hhsuite_dir: /data/phyreenginedev/conda/envs/phyreengine/bin
-      HHLIB: /data/phyreenginedev/conda/envs/phyreengine/share/hhsuite/
-      blast_dir: /data/phyreenginedev/conda/envs/phyreengine/bin
+      hhsuite_dir: !template '{BIN_PREFIX}/bin'
+      HHLIB: !template '{BIN_PREFIX}/share/hhsuite/'
+      blast_dir: !template '{BIN_PREFIX}/bin'
 
   # Predict disorder using disopred
   - .disorder.Disopred
@@ -151,7 +114,7 @@ pipeline:
           field: templates
           components:
           - .strucaln.TMScore:
-              executable: /data/phyreenginedev/conda/envs/phyreengine/bin/TMscore
+              executable: !template '{BIN_PREFIX}/bin/TMscore'
 
   # Cluster models accordinging to start/stop position
   - .cluster.EM4GMM:
@@ -159,7 +122,7 @@ pipeline:
       dimensions_expr: '[start(query_range), stop(query_range)]'
       num_components: 5
       merge: 0.01
-      bin_dir: /data/phyreenginedev/conda/envs/phyreengine/bin
+      bin_dir: !template '{BIN_PREFIX}/bin'
 
   # Choose the first template in each class. This is done by converting the
   # "templates" list to a set. We just use a Union with a single list here.
@@ -171,14 +134,9 @@ pipeline:
   - .component.Map:
       field: cluster_reps
       components:
-      - .modelling.HomologyModeller:
-          chain_dir: /bmm/phyreengine/foldlib/chains/
-      - .modelling.LoopModel:
-          bin_dir: /data/phyreenginedev/conda/envs/phyreengine/bin
-          config: /bmm/phyreengine/home/phyre3dev/loop.config
-          executable: nova
+      - .modelling.HomologyModeller
+      - .modelling.LoopModel
       - .sidechain.Scwrl4:
-          bin_dir: /data/phyreenginedev/conda/envs/phyreengine/bin
   # Merge the cluster representatives back into the main list of templates.
   - .set.Union:
       sets: [cluster_reps, templates]
@@ -191,12 +149,13 @@ pipeline:
   # Generate images of each model using pymol
   - .pymol.Init:
       # Load python functions we want to use
-      command: 'run /bmm/phyreengine/share/pymol/phyre_engine.py'
+      pymol: !template '{BIN_PREFIX}/bin/pymol'
+      command: !template 'run {CONFIG_PREFIX}/pymol/phyre_engine.py'
       quiet: False
   - .pymol.Run:
       # Load colour scheme
       commands: 
-      - '@/bmm/phyreengine/share/pymol/setup_magma.pml'
+      - !template '@{CONFIG_PREFIX}/pymol/setup_magma.pml'
   # Copy "pymol" tag into each template element.
   - .jmespath.Update:
       select_expr: 'templates'
@@ -211,7 +170,7 @@ pipeline:
           - .pymol.Run:
               commands:
               - 'load {model}'
-              - '@/bmm/phyreengine/share/pymol/render_magma.pml'
+              - !template '@{CONFIG_PREFIX}/pymol/render_magma.pml'
               - 'png {rank:03d}-{PDB}_{chain}.png'
               - 'delete all'
           - .alter.Set:
@@ -220,6 +179,7 @@ pipeline:
               reformat: True
       - .alter.Remove:
           field: pymol
+  - .pymol.Quit
 
   # Save state so we can deserialise it and use it later for finishing models.
   - .dump.Pickle:

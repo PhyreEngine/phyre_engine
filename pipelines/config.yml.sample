@@ -1,0 +1,48 @@
+# Locations of binaries, fold library, tool data, and configuration files.
+BIN_PREFIX: !template '/data/{ENV[USER]}/conda/envs/phyreengine'
+FOLDLIB_PREFIX: '/bmm/phyreengine/foldlib_mk2'
+LOCAL_DATA_PREFIX: '/data/phyre3/data'
+CONFIG_PREFIX: '/bmm/phyreengine/share'
+
+qsub:
+  qsub_args: ["-q", "long", "-l", "nodes=1:ppn=16"]
+foldlib:
+  template_db: !template '{FOLDLIB_PREFIX}/foldlib.db'
+  chain_dir: !template '{FOLDLIB_PREFIX}/chains'
+  mmcif_dir: !template '{FOLDLIB_PREFIX}/mmcif'
+  profile_dir: !template '{FOLDLIB_PREFIX}/profiles'
+  db_prefix: !template '{FOLDLIB_PREFIX}/foldlib'
+disopred:
+  bin_dir: !template '{BIN_PREFIX}/bin/'
+  data_dir: !template '{BIN_PREFIX}/share/disopred/data'
+  dso_lib_dir: !template '{BIN_PREFIX}/share/disopred/dso_lib'
+sbg_loop:
+  bin_dir: !template '{BIN_PREFIX}/bin/'
+  config: !template '{CONFIG_PREFIX}/loop/loop.config'
+  executable: nova
+scwrl4:
+  bin_dir: !template '{BIN_PREFIX}/bin'
+hhsuite:
+  HHLIB: !template '{BIN_PREFIX}/share/hhsuite/'
+  bin_dir: !template '{BIN_PREFIX}/bin'
+  options:
+    verbose: 2
+    cpu: 16
+
+# By default, log everything to the console on stderr
+logging:
+  formatters:
+    simple:
+      format: '{levelname} : {asctime} : {name} : {message}'
+      style: '{'
+  handlers:
+    console:
+      class: logging.StreamHandler
+      formatter: simple
+      level: DEBUG
+      stream: ext://sys.stderr
+  root:
+    handlers:
+    - console
+    level: DEBUG
+  version: 1
