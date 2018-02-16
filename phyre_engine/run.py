@@ -278,6 +278,8 @@ def main():  # IGNORE:C0111
 
         # Set default start values"
         pipeline_desc["pipeline"].setdefault("start", {})
+        if args.start is not None:
+            pipeline_desc["pipeline"]["start"].update(args.start)
 
         # Set up logging if a logging section was given in the pipeline
         init_logging(pipeline_desc["pipeline"]["config"])
