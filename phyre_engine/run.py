@@ -9,21 +9,57 @@ PhyreEngine pipeline. Unless you're an expert, this script is probably all that
 you need to run a pipeline.
 '''
 
+DETAILS = """\
+The pipeline configuration is pre-processed with a template engine before the
+pipeline is loaded. Templates use Python string formatting and are specified
+with the "!template" tag. Items in the pipeline configuration are exposed to
+the templates, along with the current environment in "ENV".
+
+For example, user-specific tools may be configured like this:
+
+    pipeline:
+      config:
+        PREFIX !template '/data/{{ENV[USER]}}/conda/env/phyreengine'
+        dssp:
+          bin_dir: !template '{{PREFIX}}/bin'
+      disopred:
+          bin_dir: !template '{{PREFIX}}/bin'
+          data_dir: !template '{{PREFIX}}/share/disopred/data'
+          dso_lib_dir: !template '{{PREFIX}}/share/disopred/dso_lib'
+
+This would set "PREFIX" to "/data/$USER/conda/env/phyreengine", where "$USER"
+is an environment variable. The remaining items then use "PREFIX" to configure
+dssp and disopred.
+
+You can also set a default pipeline configuration in the file
+"{default_config}".
+This is merged with the pipeline config given in the pipeline file, with the
+pipeline file taking precedence. Templates may also be used in the default
+configuration file.
+"""
+
 import logging
 import logging.config
+import os
+import pathlib
 import sys
 
-from argparse import ArgumentParser, Action
-from phyre_engine.pipeline import Pipeline
+import appdirs
+
+import argparse
+import phyre_engine.pipeline
 from phyre_engine.tools.util import apply_dotted_key
 import phyre_engine.tools.yaml as yaml
 
-class DumpAction(Action):
+APP_SHORTAUTHOR = "imperial_college"
+APP_SHORTNAME = "phyreengine"
+
+class DumpAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         yaml.dump(dummy_pipeline(), sys.stdout, default_flow_style=False)
         sys.exit(0)
 
-class StoreStartingValue(Action):
+class StoreStartingValue(argparse.Action):
     """
     Parse a starting value for the pipeline state.
 
@@ -63,7 +99,11 @@ class StoreStartingValue(Action):
 
 def arg_parser():
     # Setup argument parser
-    parser = ArgumentParser(description=__import__('__main__').__doc__)
+    parser = argparse.ArgumentParser(
+        description=__import__('__main__').__doc__,
+        epilog=DETAILS.format(
+            default_config=default_config_file()),
+        formatter_class=argparse.RawDescriptionHelpFormatter)
 
     parser.add_argument(
         "-v", "--verbose", dest="verbose", action="count", default=1,
@@ -123,6 +163,7 @@ def dummy_pipeline():
         }
     }
 
+
 def init_logging(pipeline):
     config = pipeline.get("config", {})
     LOGGING = "logging"
@@ -140,6 +181,68 @@ def init_logging(pipeline):
     pipeline["config"] = config
     logging.config.dictConfig(config[LOGGING])
 
+def resolve_yml(document, getter, *extra_fields):
+    """
+    Process the :py:class:`phyre_engine.tools.yaml.ImplicitDocument` `document`
+    until all templates are resolved.
+
+    The `*extra_fields` arguments must be `dict`s, and will be merged together
+    along the results of the callback `getter`, which is passed the document
+    as an argument.
+    """
+    while isinstance(document, yaml.ImplicitDocument):
+        fields = {}
+        for extra in extra_fields:
+            fields.update(extra)
+        fields.update(getter(document.unresolved))
+        document = document.resolve(fields, allow_unresolved=True)
+    return document
+
+
+def default_config_file():
+    """Path of the default configuration file."""
+    dirs = appdirs.AppDirs(APP_SHORTNAME, APP_SHORTAUTHOR)
+    config_dir = pathlib.Path(dirs.user_config_dir)
+    return config_dir / "config.yml"
+
+
+def load_default_config():
+    """
+    Load default configuration file, if any. This is pre-processed in the
+    same way as the main pipeline configuration.
+    """
+    config_file = default_config_file()
+    if not config_file.exists():
+        return {}
+    else:
+        with config_file.open("r") as conf_in:
+            return yaml.load(conf_in, yaml.ImplicitLoader)
+
+def pipeline_description(pipeline_file):
+    """
+    Load pipeline description file and pre-process the config.
+    """
+
+    pipe_config = phyre_engine.pipeline.PipelineConfig(
+        resolve_yml(
+            load_default_config(),
+            lambda doc: doc,
+            {"ENV": os.environ}))
+
+    # Parse pipeline descriptor from YAML file
+    with open(pipeline_file, "r") as yml_in:
+        pipeline_desc = yaml.load(yml_in, yaml.ImplicitLoader)
+
+    # Merge default configuration with the current unresolved config
+    pipe_config = pipe_config.merge_params(
+        phyre_engine.pipeline.PipelineConfig(
+            pipeline_desc.unresolved["pipeline"].get("config", {})))
+    pipeline_desc.unresolved["pipeline"]["config"] = pipe_config
+
+    pipeline_desc = resolve_yml(
+        pipeline_desc,
+        lambda doc: doc["pipeline"]["config"],
+        {"ENV": os.environ})
 
 def main():  # IGNORE:C0111
     '''Command line options.'''
@@ -152,27 +255,41 @@ def main():  # IGNORE:C0111
         if args.dump:
             return 0
 
+        pipe_config = phyre_engine.pipeline.PipelineConfig(
+            resolve_yml(
+                load_default_config(),
+                lambda doc: doc,
+                {"ENV": os.environ}))
+
         # Parse pipeline descriptor from YAML file
         with open(args.pipeline, "r") as yml_in:
-            config = yaml.load(yml_in)
+            pipeline_desc = yaml.load(yml_in, yaml.ImplicitLoader)
 
-        # Update starting values if any were supplied on the command line
-        if "start" not in config["pipeline"]:
-            config["pipeline"]["start"] = {}
-        if args.start is not None:
-            config["pipeline"]["start"].update(args.start)
+        # Merge default configuration with the current unresolved config
+        pipe_config = pipe_config.merge_params(
+            phyre_engine.pipeline.PipelineConfig(
+                pipeline_desc.unresolved["pipeline"].get("config", {})))
+        pipeline_desc.unresolved["pipeline"]["config"] = pipe_config
+
+        pipeline_desc = resolve_yml(
+            pipeline_desc,
+            lambda doc: doc["pipeline"]["config"],
+            {"ENV": os.environ})
+
+        # Set default start values"
+        pipeline_desc["pipeline"].setdefault("start", {})
 
         # Set up logging if a logging section was given in the pipeline
-        init_logging(config["pipeline"])
+        init_logging(pipeline_desc["pipeline"]["config"])
 
         # Add extra configuration keys to the pipeline config
-        if "config" not in config["pipeline"]:
-            config["pipeline"]["config"] = {}
         for dotted_key, value in args.config.items():
-            apply_dotted_key(config["pipeline"]["config"], dotted_key, value)
+            apply_dotted_key(pipeline_desc["pipeline"]["config"],
+                             dotted_key, value)
 
         # Load a pipeline
-        pipeline = Pipeline.load(config["pipeline"])
+        pipeline = phyre_engine.pipeline.Pipeline.load(
+            pipeline_desc["pipeline"])
         pipeline.run()
 
         return 0
