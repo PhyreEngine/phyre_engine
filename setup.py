@@ -52,7 +52,8 @@ setup(
         "numpy",
         "scipy",
         "PyYAML",
-        "jmespath>=0.9.3"
+        "jmespath>=0.9.3",
+        "appdirs",
     ],
     entry_points={
         "console_scripts": [
