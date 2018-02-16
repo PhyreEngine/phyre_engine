@@ -31,3 +31,36 @@ class TestYaml(unittest.TestCase):
         # Try and dump an object. This should give a RepresenterError.
         with self.assertRaises(yaml.representer.RepresenterError):
             custom_yaml.dump(self)
+
+    def test_implicit_load_simple(self):
+        """Test single-pass implicit loader."""
+        buf = io.StringIO("{a: !template '{b}', b: x}")
+        doc = yaml.load(buf, custom_yaml.ImplicitLoader)
+        self.assertEqual(doc.resolve(doc.unresolved)["a"], "x")
+
+    def test_implicit_load_failure(self):
+        """Unresolved templates raise UnresolvedTemplateError."""
+        buf = io.StringIO("{a: !template '{b}', b: !template '{c}'}")
+        doc = yaml.load(buf, custom_yaml.ImplicitLoader)
+        with self.assertRaises(custom_yaml.UnresolvedTemplateError):
+            doc.resolve(doc.unresolved)
+
+    def test_implicit_load_keyerror(self):
+        """Unknown fields cause a KeyError."""
+        buf = io.StringIO("{a: !template '{b}'}")
+        doc = yaml.load(buf, custom_yaml.ImplicitLoader)
+        with self.assertRaises(KeyError):
+            doc.resolve(doc.unresolved)
+
+    def test_implicit_load_two_pass(self):
+        """Test two-pass implicit loader."""
+        buf = io.StringIO("{a: !template '{b}', b: !template '{c}', c: x}")
+        doc = yaml.load(buf, custom_yaml.ImplicitLoader)
+
+        doc = doc.resolve(doc.unresolved, allow_unresolved=True)
+        self.assertEqual(doc.unresolved["b"], "x")
+        self.assertIsInstance(doc.unresolved["a"], custom_yaml.TemplateString)
+
+        doc = doc.resolve(doc.unresolved, allow_unresolved=True)
+        self.assertIsInstance(doc, dict)
+        self.assertEqual(doc["a"], "x")
