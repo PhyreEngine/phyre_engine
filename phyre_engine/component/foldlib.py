@@ -184,6 +184,9 @@ class RetrieveNewPDBs(Component):
 
     Results are stored in the ``templates`` array as dictionaries with a
     ``PDB`` field.
+
+    :param str override_date: Override the date in the fold library. All PDBs
+        since this date (in ``YY-MM-DD`` format) will be retrieved.
     """
     ADDS = ["templates"]
     REQUIRED = ["template_db"]
@@ -223,6 +226,15 @@ class RetrieveNewPDBs(Component):
     </orgPdbCompositeQuery>
     """
 
+    def __init__(self, override_date=None):
+        self.override_date = date.strftime("%Y-%m-%d")
+
+    @classmethod
+    def config(cls, params, config):
+        return config.extract(
+            {"foldlib": ["override_date"]}
+        ).merge_params(params)
+
     @staticmethod
     def search(date):
         """Search the RCSB for PDB entries released or revised after `date`."""
@@ -235,8 +247,16 @@ class RetrieveNewPDBs(Component):
     def run(self, data, config=None, pipeline=None):
         """Retrieve new or updated PDB IDs from the RCSB."""
         template_db = data["template_db"]
-        update_date = template_db.updated
+        # Use configured date first, then fall back to fold library update
+        # date, and then to the full list of PDBs.
+        if self.override_date is not None:
+            update_date = self.override_date
+        else:
+            update_date = template_db.updated
+
         if update_date is None:
+            self.logger.warning(
+                "Fold library has never been updated: getting all PDBs")
             pdb_ids = phyre_engine.tools.pdb.get_current()
         else:
             pdb_ids = self.search(update_date)
