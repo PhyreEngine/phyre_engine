@@ -164,8 +164,7 @@ def dummy_pipeline():
     }
 
 
-def init_logging(pipeline):
-    config = pipeline.get("config", {})
+def init_logging(config):
     LOGGING = "logging"
     DISABLE_LOGS = "disable_existing_loggers"
 
@@ -178,7 +177,6 @@ def init_logging(pipeline):
         if DISABLE_LOGS not in config[LOGGING]:
             config[LOGGING][DISABLE_LOGS] = False
 
-    pipeline["config"] = config
     logging.config.dictConfig(config[LOGGING])
 
 def resolve_yml(document, getter, *extra_fields):
