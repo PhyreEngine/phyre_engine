@@ -219,7 +219,6 @@ class RetrieveNewPDBs(Component):
     def search(cls, date):
         """Search the RCSB for PDB entries released or revised after `date`."""
         query = cls.XML_SEARCH.format(date=date.strftime("%Y-%m-%d"))
-        print(query)
         result = urllib.request.urlopen(
             cls.SEARCH_URL,
             data=urllib.parse.quote_plus(query).encode("UTF-8"))
@@ -392,9 +391,11 @@ class AddPDB(Component):
     """
     Insert a PDB entry into the template database.
 
-    This component will first delete *all* data for this PDB entry, including
-    all *templates* with this PDB ID. The ``metadata`` field in the pipeline
-    state must contain the fields required by
+    New PDB entries will be added to the database, and old PDB entries will
+    be updated.
+
+    The ``metadata`` field in the pipeline state must contain the fields
+    required by
     :py:meth:`phyre_engine.tools.template.TemplateDatabase.add_pdb`.
 
     .. note::
@@ -410,8 +411,11 @@ class AddPDB(Component):
     def run(self, data, config=None, pipeline=None):
         """Add PDB entry to template database."""
         pdb_id, metadata, template_db = self.get_vals(data)
-        template_db.del_pdb(pdb_id)
-        template_db.add_pdb(pdb_id, metadata)
+        try:
+            template_db.get_pdb(pdb_id)
+            template_db.update_pdb(pdb_id, metadata)
+        except template_db.PdbNotFoundException:
+            template_db.add_pdb(pdb_id, metadata)
         return data
 
 

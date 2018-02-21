@@ -319,6 +319,20 @@ class TemplateDatabase:
            :title, :descriptor)
     """
 
+    UPDATE_PDB = """
+    UPDATE pdbs
+       SET deposition_date  = :deposition_date,
+           last_update_date = :last_update_date,
+           release_date     = :release_date,
+           method           = :method,
+           resolution       = :resolution,
+           organism_name    = :organism_name,
+           organism_id      = :organism_id,
+           title            = :title,
+           descriptor       = :descriptor
+     WHERE pdb_id = LOWER(:pdb_id)
+    """
+
     INSERT_TEMPLATE = """
     INSERT INTO chains (pdb_id, chain_id, canonical_sequence)
     VALUES (LOWER(:pdb_id), :chain_id, :canonical_sequence)
@@ -510,6 +524,19 @@ class TemplateDatabase:
             }
             self.conn.execute(self.INSERT_MAPPING, fields)
 
+    @staticmethod
+    def _format_metadata(pdb_id, metadata):
+        """
+        Format PDB ID and metadata into dict suitable for use filling
+        placeholders in an `execute` statement.
+        """
+        fields = collections.defaultdict(lambda: None)
+        fields["pdb_id"] = pdb_id.lower()
+        fields.update(metadata)
+        for date in ("deposition_date", "last_update_date", "release_date"):
+            fields[date] = fields[date].strftime("%Y-%m-%d")
+        return fields
+
     def add_pdb(self, pdb_id, metadata):
         """
         Insert entry for PDB with ID `pdb_id` into the database.
@@ -543,12 +570,18 @@ class TemplateDatabase:
         :param dict metadata: Dictionary of metadata to be inserted into the
             database.
         """
-        fields = collections.defaultdict(lambda: None)
-        fields["pdb_id"] = pdb_id.lower()
-        fields.update(metadata)
-        for date in ("deposition_date", "last_update_date", "release_date"):
-            fields[date] = fields[date].strftime("%Y-%m-%d")
+        fields = self._format_metadata(pdb_id, metadata)
         self.conn.execute(self.INSERT_PDB, fields)
+
+    def update_pdb(self, pdb_id, metadata):
+        """
+        Update a PDB entry in the fold library database.
+
+        See :py:class:`.add_pdb` for information about the fields expected in
+        `metadata`.
+        """
+        fields = self._format_metadata(pdb_id, metadata)
+        self.conn.execute(self.UPDATE_PDB, fields)
 
     def del_pdb(self, pdb_id):
         """
