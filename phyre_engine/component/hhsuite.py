@@ -1053,7 +1053,7 @@ class BuildDatabase(Component):
                 cmd_line = tools.ffindex_build(
                     (self.bin_dir, "ffindex_build"),
                     positional=[ffdata, ffindex],
-                    flags=["sort"],
+                    flags=["sort", "append"],
                     options={"file_list": index.name})
                 self.logger.debug("Running command %s", cmd_line)
                 tools.run(cmd_line, check=True)
