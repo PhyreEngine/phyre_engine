@@ -460,6 +460,15 @@ class TemplateDatabase:
         del result_dict["pdb_id"]
         return result_dict
 
+    def get_canonical_seq(self, pdb_id, chain_id):
+        """Get the canonical sequence of a chain."""
+        where = {"pdb_id": pdb_id.lower(), "chain_id": chain_id}
+        template_results = self.conn.execute(self.SELECT_TEMPLATE,
+                                             where).fetchone()
+        if template_results is None:
+            raise self.TemplateNotFoundException(pdb_id, chain_id)
+        return template_results["canonical_sequence"]
+
     def get_template(self, pdb_id, chain_id):
         """
         Returns the :py:class:`.Template` with the specified PDB and chain
@@ -468,11 +477,8 @@ class TemplateDatabase:
         :param str pdb_id: PDB identifier for the structure.
         :param str chain_id: Identifier of the chain.
         """
-        where = {"pdb_id": pdb_id.lower(), "chain_id": chain_id}
-        template_results = self.conn.execute(self.SELECT_TEMPLATE,
-                                             where).fetchone()
-        if template_results is None:
-            raise self.TemplateNotFoundException(pdb_id, chain_id)
+        # Raise exception if template does not exist.
+        _ = self.get_canonical_seq(pdb_id, chain_id)
 
         canon_seq, canon_idx = self._canonical(pdb_id, chain_id)
         mapping = self._original(pdb_id, chain_id)

@@ -480,6 +480,31 @@ class UpdateSeqRep(Component):
         return data
 
 
+class DiscardUnchanged(Component):
+    """
+    Discard this template (i.e. return `None` to halt the pipeline) if the
+    canonical sequence of the template matches the sequence already in the
+    database.
+    """
+    ADDS = []
+    REMOVES = []
+    REQUIRED = ["template_db", "template_obj", "PDB", "chain"]
+
+    def run(self, data, config=None, pipeline=None):
+        """Discard unchanged sequences."""
+        template_db, template, pdb_id, chain_id = self.get_vals(data)
+        try:
+            seq = template_db.get_canonical_seq(pdb_id, chain_id)
+            if seq == template.canonical_seq:
+                self.logger.info(
+                    "Template %s_%s is already in the fold library: ignoring.",
+                    pdb_id, chain_id)
+                return None
+        except template_db.TemplateNotFoundException:
+            pass
+        return data
+
+
 class SequenceRepresentatives(Component):
     """
     Retain only those entries in the ``templates`` list that are sequence
