@@ -464,6 +464,22 @@ class UpdateAllSeqReps(Component):
         return data
 
 
+class UpdateSeqRep(Component):
+    """
+    Update sequence representative list for a single template.
+    """
+
+    ADDS = []
+    REMOVES = []
+    REQUIRED = ["template_db", "PDB", "chain"]
+
+    def run(self, data, config=None, pipeline=None):
+        """Update sequence representatives."""
+        template_db, pdb_id, chain_id = self.get_vals(data)
+        template_db.update_seq_rep(pdb_id, chain_id)
+        return data
+
+
 class SequenceRepresentatives(Component):
     """
     Retain only those entries in the ``templates`` list that are sequence

@@ -301,6 +301,11 @@ class TemplateDatabase:
     DELETE FROM sequence_reps
     """
 
+    DELETE_SEQ_REP_BY_SEQ = """
+    DELETE FROM sequence_reps
+     WHERE canonical_sequence = :canonical_sequence
+    """
+
     INSERT_SEQ_REP = """
     INSERT INTO sequence_reps (pdb_id, chain_id, canonical_sequence)
     VALUES (:pdb_id, :chain_id, :canonical_sequence)
@@ -625,6 +630,31 @@ class TemplateDatabase:
                 "canonical_sequence": seq_row["canonical_sequence"],
             }
             self.conn.execute(self.INSERT_SEQ_REP, rep_data)
+
+    def update_seq_rep(self, pdb_id, chain_id):
+        """
+        Update the sequence representative for all templates with the same
+        sequence as the template with PDB ID `pdb_id` and chain ID `chain_id`.
+
+        :param str pdb_id: PDB ID of the template to update.
+        :param str chain_id: Chain ID of the template to update.
+        """
+        where = {"pdb_id": pdb_id.lower(), "chain_id": chain_id}
+        template_row = self.conn.execute(
+            self.SELECT_TEMPLATE,
+            {"pdb_id": pdb_id.lower(), "chain_id": chain_id}
+        ).fetchone()
+        metadata_row = self.conn.execute(
+            self.SELECT_FIND_REP,
+            template_row
+        ).fetchone()
+        rep_data = {
+            "pdb_id": metadata_row["pdb_id"],
+            "chain_id": metadata_row["chain_id"],
+            "canonical_sequence": template_row["canonical_sequence"],
+        }
+        self.conn.execute(self.DELETE_SEQ_REP_BY_SEQ, template_row)
+        self.conn.execute(self.INSERT_SEQ_REP, rep_data)
 
     def expand_seq_reps(self, pdb_id, chain_id):
         """
