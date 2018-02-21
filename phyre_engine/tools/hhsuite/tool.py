@@ -114,6 +114,26 @@ ffindex_build = ExternalTool(
         "sort": "s",
     })
 
+
+#: Wrapper around ``ffindex_modify``.
+#:
+#: :param bool sort: (``-s``) Sort index file.
+#:
+#: :param bool unlink: (``-u``) Unlink entry from index.
+#:
+#: :param bool version: (``-v``) Print version info and exit.
+#:
+#: :param str file_list: (``-f``) File containing a list of names to remove,
+#:     one per line.
+ffindex_modify = ExternalTool(
+    flag_map = {
+        "file_list": "f",
+        "sort": "s",
+        "version": "v",
+        "unlink": "u",
+    })
+
+
 def run(command, *args, HHLIB=None, **kwargs):
     """
     Convenience function to execute a tool from hh-suite.
