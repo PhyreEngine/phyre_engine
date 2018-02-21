@@ -447,7 +447,7 @@ class AddTemplate(Component):
         return data
 
 
-class UpdateSequenceRepresentatives(Component):
+class UpdateAllSeqReps(Component):
     """
     Update list of sequence representatives in the fold library.
     """
@@ -460,7 +460,7 @@ class UpdateSequenceRepresentatives(Component):
     def run(self, data, config=None, pipeline=None):
         """Update sequence representatives."""
         template_db = self.get_vals(data)
-        template_db.update_seq_reps()
+        template_db.update_all_seq_reps()
         return data
 
 

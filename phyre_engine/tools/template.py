@@ -297,7 +297,7 @@ class TemplateDatabase:
        AND NOT (c2.pdb_id = LOWER(:pdb_id) AND c2.chain_id = :chain_id)
     """
 
-    DELETE_SEQ_REPS = """
+    DELETE_ALL_SEQ_REPS = """
     DELETE FROM sequence_reps
     """
 
@@ -604,7 +604,7 @@ class TemplateDatabase:
             self.DELETE_TEMPLATE,
             {"pdb_id": pdb_id.lower(), "chain_id": chain_id})
 
-    def update_seq_reps(self):
+    def update_all_seq_reps(self):
         """
         Update all sequence representatives.
 
@@ -614,7 +614,7 @@ class TemplateDatabase:
         and chain IDs of template with that sequence with the lowest
         resolution. Ties are broken by sorting on PDB ID, then chain ID.
         """
-        self.conn.execute(self.DELETE_SEQ_REPS)
+        self.conn.execute(self.DELETE_ALL_SEQ_REPS)
         seq_rows = self.conn.execute(self.SELECT_ALL_REP_SEQS).fetchall()
         for seq_row in seq_rows:
             metadata_row = self.conn.execute(
