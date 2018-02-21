@@ -206,7 +206,8 @@ class RetrieveNewPDBs(Component):
     """
 
     def __init__(self, override_date=None):
-        self.override_date = date.strftime("%Y-%m-%d")
+        self.override_date = datetime.datetime.strptime(
+            override_date, "%Y-%m-%d").date()
 
     @classmethod
     def config(cls, params, config):
@@ -214,12 +215,13 @@ class RetrieveNewPDBs(Component):
             {"foldlib": ["override_date"]}
         ).merge_params(params)
 
-    @staticmethod
-    def search(date):
+    @classmethod
+    def search(cls, date):
         """Search the RCSB for PDB entries released or revised after `date`."""
-        query = self.XML_SEARCH.format(date.strftime("%Y-%m-%d"))
+        query = cls.XML_SEARCH.format(date=date.strftime("%Y-%m-%d"))
+        print(query)
         result = urllib.request.urlopen(
-            self.SEARCH_URL,
+            cls.SEARCH_URL,
             data=urllib.parse.quote_plus(query).encode("UTF-8"))
         return result.read().decode("ASCII").split()
 
@@ -241,6 +243,8 @@ class RetrieveNewPDBs(Component):
             pdb_ids = self.search(update_date)
 
         data["templates"] = [{"PDB": entry} for entry in pdb_ids]
+        self.logger.info("Retrieved %d PDBs updated since %s",
+                         len(data["templates"]), update_date)
         return data
 
 class CompressTemplate(Component):
