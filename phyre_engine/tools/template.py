@@ -225,11 +225,11 @@ class TemplateDatabase:
                  ON DELETE CASCADE
         );
 
-        CREATE INDEX seq_index chains(canonical_sequence);
+        CREATE INDEX seq_index ON chains(canonical_sequence);
         """
 
     CREATE_INDICES = """
-    CREATE INDEX seq_index chains(canonical_sequence);
+    CREATE INDEX seq_index ON chains(canonical_sequence);
     """
 
     DROP_INDICES = """
