@@ -505,7 +505,7 @@ class DiscardUnchanged(Component):
         return data
 
 
-class SequenceRepresentatives(Component):
+class DiscardNonRepSeqs(Component):
     """
     Retain only those entries in the ``templates`` list that are sequence
     representatives.
