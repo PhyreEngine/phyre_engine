@@ -446,6 +446,10 @@ class Branch(PipelineComponent):
 
     :param list[str] keep: List of fields to keep from the branched pipeline.
 
+    :param bool shallow: Make a shallow copy rather than a deep copy. This can
+        be useful to, for example, remove unpickleable objects before sending
+        the pipeline state to a remote machine.
+
     .. note::
 
         This component only operates on the pipeline state. Side effects are
@@ -456,14 +460,20 @@ class Branch(PipelineComponent):
     REMOVES = []
     REQUIRED = []
 
-    def __init__(self, *args, keep=(), **kwargs):
+    def __init__(self, *args, keep=(), shallow=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.keep = keep
+        self.shallow = shallow
 
     def run(self, data, config=None, pipeline=None):
         """Run a branch of the pipeline state."""
         pipeline = self.pipeline(config)
-        pipeline.start = copy.deepcopy(data)
+
+        if self.shallow:
+            pipeline.start = copy.copy(data)
+        else:
+            pipeline_start = copy.deepcopy(data)
+
         branch_results = pipeline.run()
         for field in self.keep:
             if field in branch_results:
