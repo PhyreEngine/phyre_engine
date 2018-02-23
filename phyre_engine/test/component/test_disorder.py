@@ -1,6 +1,9 @@
 """Test components in the :py:mod:`phyre_engine.component.disorder` module."""
 import io
+import os
 import pathlib
+import shutil
+import tempfile
 import textwrap
 import unittest
 import phyre_engine.test
@@ -95,6 +98,17 @@ class TestDisopred(unittest.TestCase):
         {"assigned": "S", "confidence": {"S": 0.63, "D": 0.37}},
         {"assigned": "S", "confidence": {"S": 0.80, "D": 0.20}},
     ]
+
+    def setUp(self):
+        """Move to a temporary directory."""
+        self.orig_dir = os.getcwd()
+        self.tmpdir = tempfile.mkdtemp()
+        os.chdir(self.tmpdir)
+
+    def tearDown(self):
+        """Move back to original directory and remove tempdir."""
+        os.chdir(self.orig_dir)
+        shutil.rmtree(self.tmpdir)
 
     def test_parser(self):
         """Test disopred output parser."""
