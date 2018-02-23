@@ -103,13 +103,13 @@ class TestMaxCluster(unittest.TestCase):
                 "02-1roe_A.pdb": 645,
             })
 
-    @phyre_engine.test.requireFields(["maxcluster"], ["tools"])
+    @phyre_engine.test.requireFields(["bin_dir"], ["tools", "maxcluster"])
     def test_run(self):
         """Run MaxCluster to calculate number of aligned residue pairs."""
-        executable = phyre_engine.test.config["tools"]["maxcluster"]
+        bin_dir = phyre_engine.test.config["tools"]["maxcluster"]["bin_dir"]
         maxcluster = cluster.MaxCluster(
             options={"jury_pair_threshold": 0},
-            executable=executable)
+            bin_dir=bin_dir)
         results = maxcluster.run(copy.deepcopy(self.PIPELINE))
         self.assertEqual(results["templates"][0]["jury_pairs"], 12)
         self.assertEqual(results["templates"][1]["jury_pairs"], 12)

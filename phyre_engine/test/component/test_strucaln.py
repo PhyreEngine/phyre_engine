@@ -26,17 +26,25 @@ class AlnTester(unittest.TestCase):
         shutil.rmtree(str(self.tmpdir))
 
 
-@phyre_engine.test.requireFields(["tmalign"], ["tools"])
+@phyre_engine.test.requireFields(["bin_dir"], ["tools", "tmalign"])
 class TestTMAlign(AlnTester):
     """Tests for :py:class:`phyre_engine.component.strucaln.TMAlign`."""
     # pylint: disable=unsubscriptable-object
+
+    @classmethod
+    def setUpClass(cls):
+        """Extract config values."""
+        config = phyre_engine.test.config["tools"]["tmalign"]
+        cls.bin_dir = config["bin_dir"]
+        cls.executable = config.get("executable", "TMalign")
 
     def align_minimal(self, superposition=None):
         """Align a minimal PDB file with itself."""
         pipeline = {"model": str(self.query), "native": str(self.query)}
         cmpt = phyre_engine.component.strucaln.TMAlign(
             superposition=superposition,
-            executable=phyre_engine.test.config["tools"]["tmalign"])
+            bin_dir=self.bin_dir,
+            executable=self.executable)
         results = cmpt.run(pipeline)
         return results
 
@@ -62,17 +70,25 @@ class TestTMAlign(AlnTester):
         }
         self.assertEqual(results["superposition"], expected_supers)
 
-@phyre_engine.test.requireFields(["tmscore"], ["tools"])
+@phyre_engine.test.requireFields(["bin_dir"], ["tools", "tmascore"])
 class TestTMScore(AlnTester):
     """Tests for :py:class:`phyre_engine.component.strucaln.TMAlign`."""
     # pylint: disable=unsubscriptable-object
+
+    @classmethod
+    def setUpClass(cls):
+        """Extract config values."""
+        config = phyre_engine.test.config["tools"]["tmscore"]
+        cls.bin_dir = config["bin_dir"]
+        cls.executable = config.get("executable", "TMscore")
 
     def align_minimal(self, superposition=None):
         """Align a minimal PDB file with itself."""
         pipeline = {"model": str(self.query), "native": str(self.query)}
         cmpt = phyre_engine.component.strucaln.TMScore(
             superposition=superposition,
-            executable=phyre_engine.test.config["tools"]["tmscore"])
+            bin_dir=self.bin_dir,
+            executable=self.executable)
         results = cmpt.run(pipeline)
         return results
 
