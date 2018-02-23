@@ -3,6 +3,7 @@ Various tools for working with PDB files.
 """
 import gzip
 import pathlib
+import urllib.request
 import Bio.Seq
 import Bio.PDB
 import Bio.Alphabet.IUPAC
