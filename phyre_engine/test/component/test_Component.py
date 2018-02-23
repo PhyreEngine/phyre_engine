@@ -3,6 +3,7 @@ import io
 import logging
 import unittest
 import unittest.mock
+import phyre_engine.pipeline
 from phyre_engine.component import Component
 from phyre_engine.component.component import (Map, Conditional, TryCatch,
                                               PipelineComponent, Branch,
@@ -46,7 +47,8 @@ class TestComponent(unittest.TestCase):
         self.assertEqual(b, 456)
 
     def test_config(self):
-        pipeline_config = {"conf": {"a": 1, "b": 2, "c": {"x": 1}}}
+        pipeline_config = phyre_engine.pipeline.PipelineConfig(
+            {"conf": {"a": 1, "b": 2, "c": {"x": 1}}})
         component_params = {"a": 2, "c": {"x": 2, "y": 3}}
 
         # CONFIG_SECTION not defined
