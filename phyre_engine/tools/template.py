@@ -225,11 +225,11 @@ class TemplateDatabase:
                  ON DELETE CASCADE
         );
 
-        CREATE INDEX seq_index chains(canonical_sequence);
+        CREATE INDEX seq_index ON chains(canonical_sequence);
         """
 
     CREATE_INDICES = """
-    CREATE INDEX seq_index chains(canonical_sequence);
+    CREATE INDEX seq_index ON chains(canonical_sequence);
     """
 
     DROP_INDICES = """
@@ -297,8 +297,13 @@ class TemplateDatabase:
        AND NOT (c2.pdb_id = LOWER(:pdb_id) AND c2.chain_id = :chain_id)
     """
 
-    DELETE_SEQ_REPS = """
+    DELETE_ALL_SEQ_REPS = """
     DELETE FROM sequence_reps
+    """
+
+    DELETE_SEQ_REP_BY_SEQ = """
+    DELETE FROM sequence_reps
+     WHERE canonical_sequence = :canonical_sequence
     """
 
     INSERT_SEQ_REP = """
@@ -317,6 +322,20 @@ class TemplateDatabase:
            :method, :resolution,
            :organism_name, :organism_id,
            :title, :descriptor)
+    """
+
+    UPDATE_PDB = """
+    UPDATE pdbs
+       SET deposition_date  = :deposition_date,
+           last_update_date = :last_update_date,
+           release_date     = :release_date,
+           method           = :method,
+           resolution       = :resolution,
+           organism_name    = :organism_name,
+           organism_id      = :organism_id,
+           title            = :title,
+           descriptor       = :descriptor
+     WHERE pdb_id = LOWER(:pdb_id)
     """
 
     INSERT_TEMPLATE = """
@@ -441,6 +460,15 @@ class TemplateDatabase:
         del result_dict["pdb_id"]
         return result_dict
 
+    def get_canonical_seq(self, pdb_id, chain_id):
+        """Get the canonical sequence of a chain."""
+        where = {"pdb_id": pdb_id.lower(), "chain_id": chain_id}
+        template_results = self.conn.execute(self.SELECT_TEMPLATE,
+                                             where).fetchone()
+        if template_results is None:
+            raise self.TemplateNotFoundException(pdb_id, chain_id)
+        return template_results["canonical_sequence"]
+
     def get_template(self, pdb_id, chain_id):
         """
         Returns the :py:class:`.Template` with the specified PDB and chain
@@ -449,11 +477,8 @@ class TemplateDatabase:
         :param str pdb_id: PDB identifier for the structure.
         :param str chain_id: Identifier of the chain.
         """
-        where = {"pdb_id": pdb_id.lower(), "chain_id": chain_id}
-        template_results = self.conn.execute(self.SELECT_TEMPLATE,
-                                             where).fetchone()
-        if template_results is None:
-            raise self.TemplateNotFoundException(pdb_id, chain_id)
+        # Raise exception if template does not exist.
+        _ = self.get_canonical_seq(pdb_id, chain_id)
 
         canon_seq, canon_idx = self._canonical(pdb_id, chain_id)
         mapping = self._original(pdb_id, chain_id)
@@ -510,6 +535,19 @@ class TemplateDatabase:
             }
             self.conn.execute(self.INSERT_MAPPING, fields)
 
+    @staticmethod
+    def _format_metadata(pdb_id, metadata):
+        """
+        Format PDB ID and metadata into dict suitable for use filling
+        placeholders in an `execute` statement.
+        """
+        fields = collections.defaultdict(lambda: None)
+        fields["pdb_id"] = pdb_id.lower()
+        fields.update(metadata)
+        for date in ("deposition_date", "last_update_date", "release_date"):
+            fields[date] = fields[date].strftime("%Y-%m-%d")
+        return fields
+
     def add_pdb(self, pdb_id, metadata):
         """
         Insert entry for PDB with ID `pdb_id` into the database.
@@ -543,12 +581,18 @@ class TemplateDatabase:
         :param dict metadata: Dictionary of metadata to be inserted into the
             database.
         """
-        fields = collections.defaultdict(lambda: None)
-        fields["pdb_id"] = pdb_id.lower()
-        fields.update(metadata)
-        for date in ("deposition_date", "last_update_date", "release_date"):
-            fields[date] = fields[date].strftime("%Y-%m-%d")
+        fields = self._format_metadata(pdb_id, metadata)
         self.conn.execute(self.INSERT_PDB, fields)
+
+    def update_pdb(self, pdb_id, metadata):
+        """
+        Update a PDB entry in the fold library database.
+
+        See :py:class:`.add_pdb` for information about the fields expected in
+        `metadata`.
+        """
+        fields = self._format_metadata(pdb_id, metadata)
+        self.conn.execute(self.UPDATE_PDB, fields)
 
     def del_pdb(self, pdb_id):
         """
@@ -571,7 +615,7 @@ class TemplateDatabase:
             self.DELETE_TEMPLATE,
             {"pdb_id": pdb_id.lower(), "chain_id": chain_id})
 
-    def update_seq_reps(self):
+    def update_all_seq_reps(self):
         """
         Update all sequence representatives.
 
@@ -581,7 +625,7 @@ class TemplateDatabase:
         and chain IDs of template with that sequence with the lowest
         resolution. Ties are broken by sorting on PDB ID, then chain ID.
         """
-        self.conn.execute(self.DELETE_SEQ_REPS)
+        self.conn.execute(self.DELETE_ALL_SEQ_REPS)
         seq_rows = self.conn.execute(self.SELECT_ALL_REP_SEQS).fetchall()
         for seq_row in seq_rows:
             metadata_row = self.conn.execute(
@@ -592,6 +636,31 @@ class TemplateDatabase:
                 "canonical_sequence": seq_row["canonical_sequence"],
             }
             self.conn.execute(self.INSERT_SEQ_REP, rep_data)
+
+    def update_seq_rep(self, pdb_id, chain_id):
+        """
+        Update the sequence representative for all templates with the same
+        sequence as the template with PDB ID `pdb_id` and chain ID `chain_id`.
+
+        :param str pdb_id: PDB ID of the template to update.
+        :param str chain_id: Chain ID of the template to update.
+        """
+        where = {"pdb_id": pdb_id.lower(), "chain_id": chain_id}
+        template_row = self.conn.execute(
+            self.SELECT_TEMPLATE,
+            {"pdb_id": pdb_id.lower(), "chain_id": chain_id}
+        ).fetchone()
+        metadata_row = self.conn.execute(
+            self.SELECT_FIND_REP,
+            template_row
+        ).fetchone()
+        rep_data = {
+            "pdb_id": metadata_row["pdb_id"],
+            "chain_id": metadata_row["chain_id"],
+            "canonical_sequence": template_row["canonical_sequence"],
+        }
+        self.conn.execute(self.DELETE_SEQ_REP_BY_SEQ, template_row)
+        self.conn.execute(self.INSERT_SEQ_REP, rep_data)
 
     def expand_seq_reps(self, pdb_id, chain_id):
         """

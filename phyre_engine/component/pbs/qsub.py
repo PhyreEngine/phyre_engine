@@ -590,15 +590,20 @@ class LoadState(Component):
 
     :param bool convert_to_list: Convert ``join_var`` to list. This allows the
         jobs to be joined on scalar variables.
+
+    :param bool update: If `True`, the pipeline state is updated rather than
+        replaced. That is, only fields that were returned from the remote
+        job are actually replaced.
     """
 
     REQUIRED = ["qsub_jobs"]
     REMOVES = ["qsub_jobs"]
     ADDS = []
 
-    def __init__(self, join_var=None, convert_to_list=False):
+    def __init__(self, join_var=None, convert_to_list=False, update=True):
         self.join_var = join_var
         self.convert_to_list = convert_to_list
+        self.update = update
 
     def run(self, data, config=None, pipeline=None):
         if len(data["qsub_jobs"]) > 1 and self.join_var is None:
@@ -620,6 +625,9 @@ class LoadState(Component):
                 full_state[self.join_var].extend(job_slice)
 
         del data["qsub_jobs"]
+        if self.update:
+            data.update(full_state)
+            return data
         return full_state
 
 class Detach(BaseQsub):

@@ -114,27 +114,6 @@ class UpdateMetadata(Component):
 
 class Metadata(Component):
     """
-    Retrieve metadata for the current template.
-
-    Templates are looked up by the ``PDB`` field. Metadata is assigned to the
-    ``metadata`` field. See
-    :py:meth:`phyre_engine.tools.template.TemplateDatabase.add_pdb` for
-    the metadata fields.
-    """
-
-    ADDS = ["metadata"]
-    REMOVES = []
-    REQUIRED = ["template_db", "PDB"]
-
-    def run(self, data, config=None, pipeline=None):
-        """Retrieve metadata from fold library."""
-        template_db, pdb_id = self.get_vals(data)
-        data["metadata"] = template_db.get_pdb(pdb_id)
-        return data
-
-
-class Metadata(Component):
-    """
     Look up template metadata in the template library based on the ``PDB``
     field, and set the ``metadata`` field.
 
@@ -227,7 +206,8 @@ class RetrieveNewPDBs(Component):
     """
 
     def __init__(self, override_date=None):
-        self.override_date = date.strftime("%Y-%m-%d")
+        self.override_date = datetime.datetime.strptime(
+            override_date, "%Y-%m-%d").date()
 
     @classmethod
     def config(cls, params, config):
@@ -235,12 +215,12 @@ class RetrieveNewPDBs(Component):
             {"foldlib": ["override_date"]}
         ).merge_params(params)
 
-    @staticmethod
-    def search(date):
+    @classmethod
+    def search(cls, date):
         """Search the RCSB for PDB entries released or revised after `date`."""
-        query = self.XML_SEARCH.format(date.strftime("%Y-%m-%d"))
+        query = cls.XML_SEARCH.format(date=date.strftime("%Y-%m-%d"))
         result = urllib.request.urlopen(
-            self.SEARCH_URL,
+            cls.SEARCH_URL,
             data=urllib.parse.quote_plus(query).encode("UTF-8"))
         return result.read().decode("ASCII").split()
 
@@ -262,6 +242,8 @@ class RetrieveNewPDBs(Component):
             pdb_ids = self.search(update_date)
 
         data["templates"] = [{"PDB": entry} for entry in pdb_ids]
+        self.logger.info("Retrieved %d PDBs updated since %s",
+                         len(data["templates"]), update_date)
         return data
 
 class CompressTemplate(Component):
@@ -409,9 +391,11 @@ class AddPDB(Component):
     """
     Insert a PDB entry into the template database.
 
-    This component will first delete *all* data for this PDB entry, including
-    all *templates* with this PDB ID. The ``metadata`` field in the pipeline
-    state must contain the fields required by
+    New PDB entries will be added to the database, and old PDB entries will
+    be updated.
+
+    The ``metadata`` field in the pipeline state must contain the fields
+    required by
     :py:meth:`phyre_engine.tools.template.TemplateDatabase.add_pdb`.
 
     .. note::
@@ -427,8 +411,11 @@ class AddPDB(Component):
     def run(self, data, config=None, pipeline=None):
         """Add PDB entry to template database."""
         pdb_id, metadata, template_db = self.get_vals(data)
-        template_db.del_pdb(pdb_id)
-        template_db.add_pdb(pdb_id, metadata)
+        try:
+            template_db.get_pdb(pdb_id)
+            template_db.update_pdb(pdb_id, metadata)
+        except template_db.PdbNotFoundException:
+            template_db.add_pdb(pdb_id, metadata)
         return data
 
 
@@ -460,7 +447,7 @@ class AddTemplate(Component):
         return data
 
 
-class UpdateSequenceRepresentatives(Component):
+class UpdateAllSeqReps(Component):
     """
     Update list of sequence representatives in the fold library.
     """
@@ -473,11 +460,52 @@ class UpdateSequenceRepresentatives(Component):
     def run(self, data, config=None, pipeline=None):
         """Update sequence representatives."""
         template_db = self.get_vals(data)
-        template_db.update_seq_reps()
+        template_db.update_all_seq_reps()
         return data
 
 
-class SequenceRepresentatives(Component):
+class UpdateSeqRep(Component):
+    """
+    Update sequence representative list for a single template.
+    """
+
+    ADDS = []
+    REMOVES = []
+    REQUIRED = ["template_db", "PDB", "chain"]
+
+    def run(self, data, config=None, pipeline=None):
+        """Update sequence representatives."""
+        template_db, pdb_id, chain_id = self.get_vals(data)
+        template_db.update_seq_rep(pdb_id, chain_id)
+        return data
+
+
+class DiscardUnchanged(Component):
+    """
+    Discard this template (i.e. return `None` to halt the pipeline) if the
+    canonical sequence of the template matches the sequence already in the
+    database.
+    """
+    ADDS = []
+    REMOVES = []
+    REQUIRED = ["template_db", "template_obj", "PDB", "chain"]
+
+    def run(self, data, config=None, pipeline=None):
+        """Discard unchanged sequences."""
+        template_db, template, pdb_id, chain_id = self.get_vals(data)
+        try:
+            seq = template_db.get_canonical_seq(pdb_id, chain_id)
+            if seq == template.canonical_seq:
+                self.logger.info(
+                    "Template %s_%s is already in the fold library: ignoring.",
+                    pdb_id, chain_id)
+                return None
+        except template_db.TemplateNotFoundException:
+            pass
+        return data
+
+
+class DiscardNonRepSeqs(Component):
     """
     Retain only those entries in the ``templates`` list that are sequence
     representatives.

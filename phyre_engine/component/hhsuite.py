@@ -960,6 +960,69 @@ class PSSM(Component):
         return "".join(query)
 
 
+class FFDatabaseUnlink(Component):
+    """
+    Unlink (remove from the index) entries from an ffindex database.
+
+    Similar to :py:class:`.BuildDatabase`, this component will loop over each
+    element returned by the JMESPath query `select_expr`. For each element,
+    it remove the item given by the ``name`` field from all ffindex files in
+    the named database.
+
+    :param str db_prefix: Prefix for database. The databases used by hhblits
+        consist of multiple files, named like
+        ``<prefix>_{a3m,hhm,cs219}.ff{index,data}``. This may be supplied as
+        an absolute or relative path. Relative paths are evaulatued relative
+        to the current working directory.
+
+    :param str bin_dir: Optional directory containing the ``ffindex_build``
+        executable.
+
+    :param str select_expr: JMESPath expression giving the list of templates
+        in the pipeline state.
+    """
+    REQUIRED = []
+    REMOVES = []
+    ADDS = []
+
+    @classmethod
+    def config(cls, params, config):
+        return config.extract({
+            "foldlib": ["db_prefix", "overwrite"],
+            "hhsuite": ["bin_dir"],
+        }).merge_params(params)
+
+    def __init__(self, db_prefix, bin_dir=None, select_expr="templates"):
+        self.db_prefix = db_prefix
+        self.bin_dir = bin_dir
+        self.select_expr = select_expr
+
+    def run(self, data, config=None, pipeline=None):
+        """Collect and index the files that form an hhsuite database."""
+        jmes_opts = jmespath.Options(custom_functions=JMESExtensions(data))
+        templates = jmespath.search(self.select_expr, data, jmes_opts)
+
+        with tempfile.NamedTemporaryFile("w") as file_list:
+            # Write IDs to remove to temp file
+            for template in templates:
+                print(template["name"], file=file_list)
+            file_list.flush()
+
+            db_types = ["a3m", "hhm", "cs219"]
+            db_prefix = Path(self.db_prefix)
+
+            for file_type in db_types:
+                ffindex = Path("{}_{}.ffindex".format(db_prefix, file_type))
+                cmd_line = tools.ffindex_modify(
+                    (self.bin_dir, "ffindex_modify"),
+                    options={"file_list": file_list.name},
+                    flags=["sort", "unlink"],
+                    positional=[ffindex])
+                self.logger.debug("Running command %s", cmd_line)
+                tools.run(cmd_line, check=True)
+        return data
+
+
 class BuildDatabase(Component):
     """
     Build ffindex/ffdata files for an hhsuite database.
@@ -1053,7 +1116,7 @@ class BuildDatabase(Component):
                 cmd_line = tools.ffindex_build(
                     (self.bin_dir, "ffindex_build"),
                     positional=[ffdata, ffindex],
-                    flags=["sort"],
+                    flags=["sort", "append"],
                     options={"file_list": index.name})
                 self.logger.debug("Running command %s", cmd_line)
                 tools.run(cmd_line, check=True)

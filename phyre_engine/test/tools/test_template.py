@@ -88,6 +88,19 @@ class TestTemplateDatabase(unittest.TestCase):
         with self.assertRaises(template_db.PdbNotFoundException):
             template_db.get_pdb("1del")
 
+    def test_add_update_pdb(self):
+        """Add and delete a PDB entry."""
+        template_db = TemplateDatabase(str(self.database), str(self.file_root))
+        template_db.add_pdb("1del", self._METADATA)
+        template_db.commit()
+        self.assertEqual(template_db.get_pdb("1del"), self._METADATA)
+
+        altered_meta = self._METADATA.copy()
+        altered_meta["resolution"] = 100
+        template_db.update_pdb("1del", altered_meta)
+        template_db.commit()
+        self.assertEqual(template_db.get_pdb("1del"), altered_meta)
+
     def test_get_nonexist(self):
         """
         TemplateNotFoundException raised when looking up nonexistent template.

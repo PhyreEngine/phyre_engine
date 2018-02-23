@@ -106,16 +106,17 @@ class ChainPDBBuilder(Component):
         The canonical sequence of the template, as determined by
         :py:class:`phyre_engine.tools.template.Template`.
 
-    ``template_obj``
-        :py:class:`phyre_engine.tools.template.Template` object. This object
-        contains a :py:class:`Bio.PDB.Chain.Chain` object, as well as
-        information about the template sequence and mapping of original residue
-        numbers to new residue numbers.
-
     .. note::
 
-        The ``template_obj`` key will contain a Python object, and so can not
-        be serialised to JSON or YAML.
+        It would make sense for this component to return a ``template_obj`` key,
+        as a :py:class:`phyre_engine.tools.template.Template` object is
+        generated internally. However, storing (and pickling) those objects is
+        relatively expensive. Since this component may return a list of
+        template, it must be the final step in a
+        :py:class:`~phyre_engine.component.component.Map` pipeline, which means
+        that large numbers of :py:class:`phyre_engine.tools.template.Template`
+        would pile up. Instead, use :py:class:`.BuildTemplate` to load a
+        template into the ``template_obj`` key.
 
     The chains written by this component are renumbered consecutively starting
     from 1 without any insertion codes. Unless an extra filter is added using
@@ -278,7 +279,6 @@ class ChainPDBBuilder(Component):
                             chain = selector.select(chain)
                         template = Template.build(pdb_id, result["chain"],
                                                   chain)
-                        result["template_obj"] = template
 
                         log_buf.seek(0)
                         template.remarks[999].extend(log_buf.readlines())
@@ -289,14 +289,50 @@ class ChainPDBBuilder(Component):
                     chain = pdb_parser.get_structure(
                         "", result["structure"])[0]["A"]
                     template = Template.build(pdb_id, result["chain"], chain)
-                    result["template_obj"] = template
 
                     self.logger.debug(
                         "Loaded existing chain %s of PDB %s from %s",
                         chain.id, pdb_id, pdb_file)
-                result["sequence"] = result["template_obj"].canonical_seq
+                result["sequence"] = template.canonical_seq
                 results.append(result)
         return results
+
+
+class BuildTemplate(Component):
+    """
+    Build a :py:class:`phyre_engine.tools.template.Template` object from the
+    keys written by :py:class:`.ChainBuilter`.
+
+    A :py:class:`phyre_engine.tools.template.Template` object will be stored in
+    the key ``template_obj`` in the pipeline state.  This object contains a
+    :py:class:`Bio.PDB.Chain.Chain` object, as well as information about the
+    template sequence and mapping of original residue numbers to new residue
+    numbers.
+
+    :param str chain_dir: Root directory containing chains.
+    """
+    ADDS = ["template_obj"]
+    REMOVES = []
+    REQUIRED = ["chain", "PDB", "structure"]
+
+    def __init__(self, chain_dir):
+        self.chain_dir = chain_dir
+
+    @classmethod
+    def config(cls, params, config):
+        return config.extract(
+            {"foldlib": ["chain_dir"]}
+        ).merge_params(params)
+
+    def run(self, data, config=None, pipeline=None):
+        """Build Template object."""
+        chain_id, pdb_id, structure_file = self.get_vals(data)
+        pdb_parser = Bio.PDB.PDBParser()
+        chain = pdb_parser.get_structure("", structure_file)[0]["A"]
+        template = Template.build(pdb_id, chain_id, chain)
+        data["template_obj"] = template
+        return data
+
 
 class PDBSequence(Component):
     """
