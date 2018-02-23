@@ -4,6 +4,7 @@ Contains structural alignment algorithms.
 import re
 import subprocess
 import sys
+import phyre_engine.tools.external as ext
 from phyre_engine.tools.util import NamedTuple
 
 class TMAlign(object):
@@ -123,14 +124,16 @@ class TMAlign(object):
 
 
 
-    def __init__(self, tmalign="TMalign", invert=False):
+    def __init__(self, invert=False, bin_dir=None, executable="TMalign"):
         '''
         Initialise a new TMalign object, ready to align pairs of structures.
 
-        :param str tmalign: Path to TMalign executable.
         :param bool invert: Whether to invert arguments to TMalign.
+        :param str bin_dir: Path to TMalign executable.
+        :param str executable: Name of executable.
         '''
-        self.tmalign = tmalign
+        self.bin_dir = bin_dir
+        self.executable = executable
         self.invert = invert
 
     def align(self, file1, file2, superpos=None):
@@ -147,22 +150,15 @@ class TMAlign(object):
         :rtype: phyre_engine.tools.strucaln.TMAlign.Result
         '''
 
-        cmd_line = [self.tmalign]
-        #Add file to command line
-        if self.invert:
-            cmd_line.extend([file2, file1])
-        else:
-            cmd_line.extend([file1, file2])
-
-        #Generate superposition?
-        if superpos is not None:
-            cmd_line.extend(["-o", superpos])
-
+        cmd_line = ext.ExternalTool()(
+            (self.bin_dir, self.executable),
+            positional=[file2, file1] if self.invert else [file1, file2],
+            options={"o": superpos} if superpos is not None else None)
         tmalign_out = subprocess.run(
-            cmd_line, stdout=subprocess.PIPE, check=True)
-        stdout = tmalign_out.stdout.decode(sys.stdout.encoding)
+            cmd_line, stdout=subprocess.PIPE, check=True,
+            universal_newlines=True)
         return self.Result.parse_str(
-            stdout, self.invert, superpos)
+            tmalign_out.stdout, self.invert, superpos)
 
 class TMScore:
     """
@@ -266,8 +262,9 @@ class TMScore:
                 superpositions=superpositions
             )
 
-    def __init__(self, tmscore="TMscore"):
-        self.tmscore = tmscore
+    def __init__(self, bin_dir=None, executable="TMscore"):
+        self.bin_dir = bin_dir
+        self.executable = executable
 
     def align(self, file1, file2, superpos=None):
         """
@@ -281,12 +278,10 @@ class TMScore:
         :param str superpos: Prefix used for superposition files. If `None`,
             no superposition files are generated.
         """
-
-        cmd_line = [self.tmscore, file1, file2]
-
-        #Generate superposition?
-        if superpos is not None:
-            cmd_line.extend(["-o", superpos])
+        cmd_line = ext.ExternalTool()(
+            (self.bin_dir, self.executable),
+            positional=[file1, file2],
+            options={"o": superpos} if superpos is not None else None)
 
         tmalign_out = subprocess.run(cmd_line, stdout=subprocess.PIPE,
                                      check=True, universal_newlines=True)

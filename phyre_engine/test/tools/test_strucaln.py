@@ -13,13 +13,15 @@ DATA_DIR = os.path.join(os.path.dirname(phyre_engine.test.__file__), 'data')
 class TestTMAlign(unittest.TestCase):
     """Test common methods for TMAlign tools."""
 
-    @phyre_engine.test.requireFields(["tmalign"], ["tools"])
+    @phyre_engine.test.requireFields(["bin_dir"], ["tools", "tmalign"])
     def test_runner(self):
         """Try running TMalign"""
         # pylint: disable=unsubscriptable-object
-        tmalign_exec = phyre_engine.test.config["tools"]["tmalign"]
+        config = phyre_engine.test.config["tools"]["tmalign"]
+        tmalign_dir = config["bin_dir"]
+        tmalign_exec = config.get("executable", "TMalign")
         pdb = str(Path(DATA_DIR, "pdb_chains/2a/12as_A.pdb"))
-        tmalign = sa.TMAlign(tmalign=tmalign_exec)
+        tmalign = sa.TMAlign(bin_dir=tmalign_dir, executable=tmalign_exec)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             result = tmalign.align(pdb, pdb, str(Path(tmpdir, "sup")))
@@ -170,16 +172,18 @@ class TestTMScore(unittest.TestCase):
         self.assertEqual(result.sequences[0], "-ETERAAVAIQSQFRKFQKKKAGS")
         self.assertEqual(result.sequences[1], "PETERAAVAIQSQFRKFQKKKAGS")
 
-    @phyre_engine.test.requireFields(["tmscore"], ["tools"])
+    @phyre_engine.test.requireFields(["bin_dir"], ["tools", "tmscore"])
     def test_alignment(self):
         """Align a PDB file with itself using TM-score."""
 
         # pylint: disable=unsubscriptable-object
-        tmscore_exec = phyre_engine.test.config["tools"]["tmscore"]
+        config = phyre_engine.test.config["tools"]["tmscore"]
+        tmscore_dir = config["bin_dir"]
+        tmscore_exec = config.get("executable", "TMscore")
         pdb = str(Path(DATA_DIR, "pdb_chains/2a/12as_A.pdb"))
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            tmscore = sa.TMScore(tmscore=tmscore_exec)
+            tmscore = sa.TMScore(bin_dir=tmscore_dir, executable=tmscore_exec)
             result = tmscore.align(pdb, pdb, str(Path(tmpdir, "sup")))
             self.assertAlmostEqual(result.tm, 1.0, 4)
             self.assertAlmostEqual(result.maxsub, 1.0, 4)

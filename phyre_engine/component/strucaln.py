@@ -62,19 +62,24 @@ class TMAlign(StructuralAlignment):
     :param str superposition: Prefix to be used when generating superposition
         files. By default, superpositions are not generated.
 
-    :param str executable: Path to the ``TMalign`` executable. By default, it
+    :param str bin_dir: Path to the ``TMalign`` executable. By default, it
         is assumed to be in your ``$PATH``.
+
+    :param str executable: Alternate name for the executable.
     """
     ADDS = ["TM", "rmsd", "seqid", "structural_alignment"]
 
-    def __init__(self, superposition=None, executable="TMalign"):
+    def __init__(self, superposition=None, bin_dir=None, executable="TMalign"):
         self.superposition = superposition
+        self.bin_dir = bin_dir
         self.executable = executable
 
     def run(self, data, config=None, pipeline=None):
         """Run TMalign to align two structures."""
         model, native = self.get_vals(data)
-        aligner = phyre_engine.tools.strucaln.TMAlign(self.executable)
+        aligner = phyre_engine.tools.strucaln.TMAlign(
+            bin_dir=self.bin_dir,
+            executable=self.executable)
         alignment = aligner.align(model, native, superpos=self.superposition)
 
         data["TM"] = alignment.tm
@@ -124,18 +129,24 @@ class TMScore(StructuralAlignment):
         only the keys ``trace`` and ``atm``.
 
     :param str superposition: Prefix to be used when generating superpositions.
-    :param str executable: Path to the executable.
+
+    :param str bin_dir: Path to the TMscore executable.
+
+    :param str executable: Name of the executable.
     """
     ADDS = ["TM", "maxsub", "GDT_TS", "GDT_HA", "sequence_alignment"]
 
-    def __init__(self, superposition=None, executable="TMscore"):
+    def __init__(self, superposition=None, bin_dir=None, executable="TMscore"):
         self.superposition = superposition
+        self.bin_dir = bin_dir
         self.executable = executable
 
     def run(self, data, config=None, pipeline=None):
         """Run TMscore to calculate structural similarity."""
         model, native = self.get_vals(data)
-        aligner = phyre_engine.tools.strucaln.TMScore(self.executable)
+        aligner = phyre_engine.tools.strucaln.TMScore(
+            bin_dir=self.bin_dir,
+            executable=self.executable)
         alignment = aligner.align(model, native, superpos=self.superposition)
 
         data["TM"] = alignment.tm
