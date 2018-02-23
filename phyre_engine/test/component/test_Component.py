@@ -3,6 +3,7 @@ import io
 import logging
 import unittest
 import unittest.mock
+import phyre_engine.pipeline
 from phyre_engine.component import Component
 from phyre_engine.component.component import (Map, Conditional, TryCatch,
                                               PipelineComponent, Branch,
@@ -46,7 +47,8 @@ class TestComponent(unittest.TestCase):
         self.assertEqual(b, 456)
 
     def test_config(self):
-        pipeline_config = {"conf": {"a": 1, "b": 2, "c": {"x": 1}}}
+        pipeline_config = phyre_engine.pipeline.PipelineConfig(
+            {"conf": {"a": 1, "b": 2, "c": {"x": 1}}})
         component_params = {"a": 2, "c": {"x": 2, "y": 3}}
 
         # CONFIG_SECTION not defined
@@ -328,13 +330,22 @@ class TestBranch(unittest.TestCase):
             data["foo"]["bar"] = "baz"
             return data
 
-    def test_branch_copy(self):
+    def test_branch_deep_copy(self):
         """Branched pipeline does not alter data in main branch."""
         pipe = phyre_engine.pipeline.Pipeline([self._AlteringComponent()])
-        branch = Branch(pipe)
+        branch = Branch(pipe, shallow=False)
         start_pipe = {"foo": {"bar": "qux"}}
         results = branch.run(start_pipe)
         self.assertEqual(results, {"foo": {"bar": "qux"}})
+        self.assertIs(results, start_pipe)
+
+    def test_branch_shallow_copy(self):
+        """Shallow copy does allow component to alter deep state."""
+        pipe = phyre_engine.pipeline.Pipeline([self._AlteringComponent()])
+        branch = Branch(pipe, shallow=True)
+        start_pipe = {"foo": {"bar": "qux"}}
+        results = branch.run(start_pipe)
+        self.assertEqual(results, {"foo": {"bar": "baz"}})
         self.assertIs(results, start_pipe)
 
     def test_branch_run(self):

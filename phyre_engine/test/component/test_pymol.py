@@ -66,7 +66,7 @@ class TestRun(PymolTestBase):
         pymol_init = self.init("")
         pipeline_state = pymol_init.run({})
         with tempfile.NamedTemporaryFile("r") as tmp:
-            pymol_run = pymol.Run(TOUCH.format(tmp.name))
+            pymol_run = pymol.Run([TOUCH.format(tmp.name)])
             pipeline_state = pymol_run.run(pipeline_state)
             self.assertEqual(tmp.read(), "1\n")
             self.quit(pymol_init.server)

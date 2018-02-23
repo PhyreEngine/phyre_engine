@@ -106,24 +106,35 @@ class ChainPDBBuilder(Component):
         The canonical sequence of the template, as determined by
         :py:class:`phyre_engine.tools.template.Template`.
 
+    ``original_residues``
+        The original residue IDs (as BioPython-style tuples of hetero-flag,
+        residue number and insertion code) of the residues in the canonical
+        sequence.
+
+    ``canonical_indices``
+        Residue IDs (indexed from 1) of the renumbered residues chosen for the
+        canonical sequence. Joining ``canonical_indices`` and
+        ``original_residues`` will give a mapping between the new residue IDs
+        and old residues IDs for all residues in the canonical sequence.
+
     .. note::
 
         It would make sense for this component to return a ``template_obj`` key,
         as a :py:class:`phyre_engine.tools.template.Template` object is
         generated internally. However, storing (and pickling) those objects is
         relatively expensive. Since this component may return a list of
-        template, it must be the final step in a
+        templates, it must be the final step in a
         :py:class:`~phyre_engine.component.component.Map` pipeline, which means
         that large numbers of :py:class:`phyre_engine.tools.template.Template`
-        would pile up. Instead, use :py:class:`.BuildTemplate` to load a
-        template into the ``template_obj`` key.
+        objects would pile up. Instead, use :py:class:`.BuildTemplate` to load
+        a template into the ``template_obj`` key.
 
     The chains written by this component are renumbered consecutively starting
     from 1 without any insertion codes. Unless an extra filter is added using
     the `conf_sel` argument, all residue and atom types are written to the PDB
     file.
 
-    This component generate the "canonical" sequence of a PDB structure. This
+    This component generates the "canonical" sequence of a PDB structure. This
     sequence is generated from all residues in the ``ATOM`` records of the PDB
     file that are standard amino acids and have a ``CA`` atom. This sequence is
     written as a single line to ``REMARK 150`` (ASCII "C" + "S" for Canonical
@@ -191,7 +202,10 @@ class ChainPDBBuilder(Component):
     """
 
     REQUIRED = ["PDB"]
-    ADDS = ["structure", "name", "chain", "template_obj", "sequence"]
+    ADDS = [
+        "structure", "name", "chain", "sequence", "original_residues",
+        "canonical_indices",
+    ]
     REMOVES  = []
 
     class MissingSourceError(RuntimeError):
@@ -294,6 +308,8 @@ class ChainPDBBuilder(Component):
                         "Loaded existing chain %s of PDB %s from %s",
                         chain.id, pdb_id, pdb_file)
                 result["sequence"] = template.canonical_seq
+                result["original_residues"] = template.mapping
+                result["canonical_indices"] = template.canonical_indices
                 results.append(result)
         return results
 
@@ -309,28 +325,30 @@ class BuildTemplate(Component):
     template sequence and mapping of original residue numbers to new residue
     numbers.
 
-    :param str chain_dir: Root directory containing chains.
+    See :py:class:`.ChainPDBBuilder` for information about the fields that must
+    be in the pipeline state.
+
+    The fields ``original_residues`` and ``canonical_indices`` are removed from
+    the pipeline state, as that information will be stored in the
+    ``template_obj`` key.
     """
     ADDS = ["template_obj"]
-    REMOVES = []
-    REQUIRED = ["chain", "PDB", "structure"]
-
-    def __init__(self, chain_dir):
-        self.chain_dir = chain_dir
-
-    @classmethod
-    def config(cls, params, config):
-        return config.extract(
-            {"foldlib": ["chain_dir"]}
-        ).merge_params(params)
+    REMOVES = ["original_residues", "canonical_indices"]
+    REQUIRED = [
+        "chain", "PDB", "structure", "original_residues",
+        "canonical_indices", "sequence"
+    ]
 
     def run(self, data, config=None, pipeline=None):
         """Build Template object."""
-        chain_id, pdb_id, structure_file = self.get_vals(data)
         pdb_parser = Bio.PDB.PDBParser()
-        chain = pdb_parser.get_structure("", structure_file)[0]["A"]
-        template = Template.build(pdb_id, chain_id, chain)
+        chain = pdb_parser.get_structure("", data["structure"])[0]["A"]
+        template = Template(
+            data["PDB"], data["chain"], chain, data["original_residues"],
+            data["sequence"], data["canonical_indices"])
         data["template_obj"] = template
+        del data["original_residues"]
+        del data["canonical_indices"]
         return data
 
 

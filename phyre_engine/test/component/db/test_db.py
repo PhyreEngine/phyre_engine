@@ -102,18 +102,45 @@ class TestChainPDBBuilder(unittest.TestCase):
             "PDB file containing chain was created.")
 
     def test_template(self):
-        """Ensure that template metadata is correct."""
+        """Ensure that template sequence and mapping are correct."""
         results = self._build()
-        template = results[0]["template_obj"]
-        self.assertListEqual(
-            template.mapping,
-            minimal.ORIG_MAPPING)
-        self.assertListEqual(
-            template.canonical_indices,
-            minimal.CANONICAL_SEQ_INDICES)
         self.assertEqual(
-            template.canonical_seq,
+            results[0]["sequence"],
             minimal.CANONICAL_SEQ)
+        self.assertEqual(
+            results[0]["original_residues"],
+            minimal.ORIG_MAPPING)
+        self.assertEqual(
+            results[0]["canonical_indices"],
+            minimal.CANONICAL_SEQ_INDICES)
+
+
+class TestBuildTemplate(unittest.TestCase):
+    """Test BuildTemplate component."""
+
+    def test_template(self):
+        """Ensure that template metadata is correct."""
+        with io.StringIO(minimal.MINIMAL_PDB) as structure_file:
+            builder = db.BuildTemplate()
+            results = builder.run({
+                "PDB": "1abc",
+                "chain": "A",
+                "structure": structure_file,
+                "original_residues": minimal.ORIG_MAPPING,
+                "canonical_indices": minimal.CANONICAL_SEQ_INDICES,
+                "sequence": minimal.CANONICAL_SEQ,
+            })
+            template = results["template_obj"]
+            self.assertListEqual(
+                template.mapping,
+                minimal.ORIG_MAPPING)
+            self.assertListEqual(
+                template.canonical_indices,
+                minimal.CANONICAL_SEQ_INDICES)
+            self.assertEqual(
+                template.canonical_seq,
+                minimal.CANONICAL_SEQ)
+
 
 class TestPDBSequence(unittest.TestCase):
     """Tests for the PDBSequence component."""
