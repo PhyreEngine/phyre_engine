@@ -21,7 +21,13 @@ class MaxCluster(Component):
     calculated the number of aligned residue pairs between each structure in
     a list of models.
 
-    :param str executable: Location of the maxcluster executable.
+    :param list[str] flags: List of flags (i.e. boolean options) to pass to
+        the ``maxcluster`` executable.
+
+    :param dict[str, str] options: List of options (i.e. flags with a value)
+        to pass to ``maxcluster``.
+
+    :param str bin_dir: Directory containing the ``maxcluster`` executable.
     """
     REQUIRED = ["templates"]
     ADDS = []
@@ -47,8 +53,8 @@ class MaxCluster(Component):
         "jury_pair_threshold": "P",
     }, long_prefix="-")
 
-    def __init__(self, flags=None, options=None, executable="maxcluster"):
-        self.executable = executable
+    def __init__(self, flags=None, options=None, bin_dir=None):
+        self.bin_dir = bin_dir
         self.flags = [] if flags is None else flags
         self.options = {} if options is None else options
 
@@ -94,7 +100,7 @@ class MaxCluster(Component):
             flags.extend(self.flags)
 
             command_line = self.MAXCLUSTER(
-                (None, self.executable),
+                (self.bin_dir, "maxcluster"),
                 flags=flags, options=options)
             process = subprocess.run(
                 command_line,
