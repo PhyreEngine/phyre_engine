@@ -328,13 +328,22 @@ class TestBranch(unittest.TestCase):
             data["foo"]["bar"] = "baz"
             return data
 
-    def test_branch_copy(self):
+    def test_branch_deep_copy(self):
         """Branched pipeline does not alter data in main branch."""
         pipe = phyre_engine.pipeline.Pipeline([self._AlteringComponent()])
-        branch = Branch(pipe)
+        branch = Branch(pipe, shallow=False)
         start_pipe = {"foo": {"bar": "qux"}}
         results = branch.run(start_pipe)
         self.assertEqual(results, {"foo": {"bar": "qux"}})
+        self.assertIs(results, start_pipe)
+
+    def test_branch_shallow_copy(self):
+        """Shallow copy does allow component to alter deep state."""
+        pipe = phyre_engine.pipeline.Pipeline([self._AlteringComponent()])
+        branch = Branch(pipe, shallow=True)
+        start_pipe = {"foo": {"bar": "qux"}}
+        results = branch.run(start_pipe)
+        self.assertEqual(results, {"foo": {"bar": "baz"}})
         self.assertIs(results, start_pipe)
 
     def test_branch_run(self):
