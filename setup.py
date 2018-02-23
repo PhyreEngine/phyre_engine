@@ -55,6 +55,9 @@ setup(
         "jmespath>=0.9.3",
         "appdirs",
     ],
+    tests_require=[
+        "xmlrunner",
+    ],
     entry_points={
         "console_scripts": [
             "phyre_engine = phyre_engine.run:main"

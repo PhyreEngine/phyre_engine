@@ -19,6 +19,8 @@ import unittest
 import phyre_engine.test
 import phyre_engine.tools.yaml as yaml
 
+import xmlrunner
+
 
 def arg_parser():
     """Set up argument parser."""
@@ -35,6 +37,9 @@ def arg_parser():
     parser.add_argument(
         "-p", "--pattern", dest="pattern", default="test*.py",
         help="Pattern matching test files [default: %(default)s].")
+    parser.add_argument(
+        "-x", "--xml", dest="xml", default=None, metavar="DIR",
+        help="Write JUnit XML reports to directory DIR.")
     parser.add_argument(
         "-c", "--config", dest="config",
         help="YAML configuration file.")
@@ -54,7 +59,11 @@ def _main():
 
         loader = unittest.TestLoader()
         tests = loader.discover(args.test_dir, args.pattern)
-        runner = unittest.TextTestRunner(verbosity=args.verbosity)
+
+        if args.xml:
+            runner = xmlrunner.XMLTestRunner(output=args.xml)
+        else:
+            runner = unittest.TextTestRunner(verbosity=args.verbosity)
         runner.run(tests)
         return 0
     except KeyboardInterrupt:
