@@ -472,7 +472,7 @@ class Branch(PipelineComponent):
         if self.shallow:
             pipeline.start = copy.copy(data)
         else:
-            pipeline_start = copy.deepcopy(data)
+            pipeline.start = copy.deepcopy(data)
 
         branch_results = pipeline.run()
         for field in self.keep:
