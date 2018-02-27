@@ -8,6 +8,28 @@ import phyre_engine.component.util as util
 import shutil
 from pathlib import Path
 
+
+class TestSaveRootDir(unittest.TestCase):
+    """Test SaveRootDir component."""
+
+    def test_save_root(self):
+        """Test saving root directory."""
+        save_cpt = util.SaveRootDir()
+        result = save_cpt.run({})
+        self.assertEqual(result["root_directory"], os.getcwd())
+
+
+class TestRestoreRootDir(unittest.TestCase):
+    """Test RestoreRootDir component."""
+
+    @unittest.mock.patch("os.chdir")
+    def test_restore_root(self, chdir_mock):
+        """Test restoring root directory."""
+        restore_cpt = util.RestoreRootDir()
+        restore_cpt.run({"root_directory": "/foo/bar"})
+        chdir_mock.assert_called_once_with("/foo/bar")
+
+
 class TestChangeDir(unittest.TestCase):
     """Test the ChangeDir component."""
 
