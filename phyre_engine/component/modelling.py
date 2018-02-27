@@ -274,6 +274,8 @@ class SoedingSelect(Component):
             for i in update_indices:
                 template_at_residue[i] = (top_confidences[i], best_template)
 
+        self.logger.info("Filtered %d templates down to %d",
+                         len(data[self.templates]), len(accepted_templates))
         data[self.templates] = accepted_templates
         data["template_at_residue"] = template_at_residue
         return data
