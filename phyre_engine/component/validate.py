@@ -65,8 +65,8 @@ class SeqLenFilter(Component):
     Either `min` or `max` may bet set to `None`, in which case that end of the
     allowed sequence length range is open-ended.
 
-    :param int min: Minimum sequence length (inclusive).
-    :param int max: Maximum sequence length (inclusive).
+    :param int min_len: Minimum sequence length (inclusive).
+    :param int max_len: Maximum sequence length (inclusive).
     """
 
     class SeqLenError(RuntimeError):
