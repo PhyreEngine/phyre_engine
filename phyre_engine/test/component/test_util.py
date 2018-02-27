@@ -3,6 +3,7 @@ import os
 import pathlib
 import tempfile
 import unittest
+import unittest.mock
 import phyre_engine.component.util as util
 import shutil
 from pathlib import Path
@@ -16,12 +17,40 @@ class TestChangeDir(unittest.TestCase):
         try:
             with tempfile.TemporaryDirectory() as tempdir:
                 chdir_cmpt = util.ChangeDir()
-                chdir_cmpt.run({"working_dir": tempdir})
+                result = chdir_cmpt.run({"working_dir": tempdir})
                 self.assertEqual(
                     pathlib.Path(os.getcwd()).resolve(),
                     pathlib.Path(tempdir).resolve())
+                self.assertEqual(
+                    result["directory_stack"],
+                    [orig_dir])
         finally:
             os.chdir(orig_dir)
+
+
+class TestPopDir(unittest.TestCase):
+    """Test PopDir component."""
+
+    def test_popdir(self):
+        """Change directory to a previous directory."""
+        with unittest.mock.patch("os.chdir") as chdir_mock:
+            pop_cmpt = util.PopDir()
+            state = {"directory_stack": ["a", "b", "c"]}
+            result = pop_cmpt.run(state)
+            result = pop_cmpt.run(state)
+            result = pop_cmpt.run(state)
+            result = pop_cmpt.run(state)
+
+            # Moved back through the directory stack
+            self.assertEqual(chdir_mock.call_count, 3)
+            chdir_mock.assert_has_calls([
+                unittest.mock.call("c"),
+                unittest.mock.call("b"),
+                unittest.mock.call("a"),
+            ])
+            # Cleared stack when empty
+            self.assertNotIn("directory_stack", "state")
+
 
 class TestMakeDir(unittest.TestCase):
     """Test the MakeDir component."""

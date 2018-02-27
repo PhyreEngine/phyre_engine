@@ -12,16 +12,52 @@ class ChangeDir(Component):
     """
     Change the process working directory. The new directory must be given in the
     ``working_dir`` key of the pipeline state.
+
+    This component will push the previous working directory onto the
+    ``directory_stack`` list in the pipeline state. The previous working
+    directory can be returned to with :py:class:`.PopDir`.
     """
     REQUIRED = ["working_dir"]
-    ADDS = []
+    ADDS = ["directory_stack"]
     REMOVES = []
 
     def run(self, data, config=None, pipeline=None):
         """Change directory to ``working_dir``."""
+        cwd = os.getcwd()
+        data.setdefault("directory_stack", []).append(cwd)
         working_dir = self.get_vals(data)
         os.chdir(working_dir)
         return data
+
+
+class PopDir(Component):
+    """
+    Reset working directory, or if no change in working directory was recorded
+    do nothing.
+
+    This component will attempt to pop a directory off of the
+    ``directory_stack`` list. If that list does not exist or is empty, the
+    working directory is not changed. If an element could be popped, then the
+    working directory is changed to that directory.  If this leaves
+    ``directory_stack`` empty, it will be removed from the pipeline state.
+    """
+    ADDS = []
+    REMOVES = []
+    REQUIRED = []
+
+    def run(self, data, config=None, pipeline=None):
+        """Go back to a previous directory."""
+        if "directory_stack" not in data or not data["directory_stack"]:
+            self.logger.info("Directory stack empty -- staying put.")
+        else:
+            prev_dir = data["directory_stack"].pop()
+            self.logger.info("Moving to '%s'", prev_dir)
+            os.chdir(prev_dir)
+
+        if "directory_stack" in data and not data["directory_stack"]:
+            del data["directory_stack"]
+        return data
+
 
 class MakeDir(Component):
     """
