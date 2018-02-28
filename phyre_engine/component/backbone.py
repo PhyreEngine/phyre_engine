@@ -34,6 +34,8 @@ class PD2CA2main(Component):
     ADDS = []
     REMOVES = []
 
+    CONFIG_SECTION = ["pd2"]
+
     PD2_CA2MAIN = phyre_engine.tools.external.ExternalTool({
         "input": "pose:io:pdb:i",
         "output": "pose:io:pdb:o",
