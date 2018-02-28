@@ -50,9 +50,9 @@ This module exposes the following variables:
 
 .. seealso::
 
-Section :ref:`description-of-rotamer-variables`
-    For a description of the :py:data:`ROTAMERS` and :py:data:`FINAL_CHI_RANGE`
-    variables.
+    Section :ref:`description-of-rotamer-variables`
+        For a description of the :py:data:`ROTAMERS` and
+        :py:data:`FINAL_CHI_RANGE` variables.
 """
 
 from ..angle_range import AngleRange

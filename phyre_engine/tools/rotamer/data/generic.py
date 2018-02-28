@@ -1,4 +1,4 @@
-"""
+r"""
 Generic constants for defining rotamers. This module exposes the following
 variables:
 
@@ -46,11 +46,11 @@ The ``ROTAMERS`` variable
 
 The ``ROTAMERS`` variable is a two-level dictionary indexed first by the
 (three-letter) amino acid name, and then by the rotamer name. The value should
-be a tuple of :py:class:`phyre_engine.tools.rotamer.AngleRange`s defining the
+be a tuple of :py:class:`phyre_engine.tools.rotamer.AngleRange`\ s defining the
 ranges of χ angles over which a given rotamer is defined. The rotamer names may
 be any hashable value. For example, here is a rotamer for arginine:
 
-.. highlight::
+.. code-block:: python
 
     ROTAMERS["ARG"]["mmm-85"] = (
         AngleRange((240, 360)),
@@ -78,7 +78,7 @@ each value of which is an :py:class:`phyre_engine.tools.rotamer.AngleRange`.
 These definitions may be used when calculating side-chain angles to flip the
 final χ angle by 180°. For example:
 
-.. highlight::
+.. code-block:: python
 
     FINAL_CHI_RANGE["PHE"] = AngleRange((0, 180))
 

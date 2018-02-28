@@ -82,7 +82,7 @@ class Difference(SetOperation):
     Calculate difference between sets of items.
 
     The difference is evaluated from left to right. That is, if `sets` is
-    ``["a", "b", "c"]``, then the result is :py:math:`a - b - c`.
+    ``["a", "b", "c"]``, then the result is :math:`a - b - c`.
 
     .. seealso::
 

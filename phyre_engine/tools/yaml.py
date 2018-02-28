@@ -14,7 +14,7 @@ module. The big changes are:
 In addition to the :py:func:`.load` and :py:func:`.dump` functions, this module
 also defines the YAML loader :py:class:`.ImplicitLoader`. This loader returns a
 :py:class:`.ImplicitDocument` object rather than a `dict`, and understands the
-``!template` tag, which it parses into :py:class:`.TemplateString` objects.
+``!template`` tag, which it parses into :py:class:`.TemplateString` objects.
 The :py:class:`.ImplicitDocument` object returned by the loader contains
 unresolved template strings (represented with :py:class:`.TemplateString`
 classes) which may be resolved using the :py:meth:`.ImplicitDocument.resolve`

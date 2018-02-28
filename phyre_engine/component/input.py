@@ -61,7 +61,7 @@ class MultipleFastaInput(Component):
     Create a template for each sequence in a FASTA file.
 
     Adds the ``templates`` key to the pipeline data. Each template is a
-    dictinoary containing a ``sequence'' key point to a
+    dictionary containing a ``sequence`` key pointing to a
     :py:class:`Bio.PDB.SeqRecord` object.
     """
 
@@ -79,7 +79,7 @@ class MultipleFastaInput(Component):
         return data
 
 class ConvertSeqRecord(Component):
-    """
+    r"""
     Convert the ``seq_record`` field to a simple text string in the ``sequence``
     field. This component will also convert the ``name``, ``id`` and
     ``description`` fields of the ``seq_record`` to pipeline state attributes.
@@ -97,16 +97,17 @@ class ConvertSeqRecord(Component):
     ...     seq_record = Bio.SeqIO.read(fasta_in, 'fasta')
     >>> results = ConvertSeqRecord().run({'seq_record': seq_record})
     >>> results.sequence
-    'AAAGGG'
+    AAAGGG
     >>> results.name
-    'FOO'
+    FOO
     >>> results.id
-    'FOO'
+    FOO
     >>> results.description
-    'FOO BAR'
+    FOO BAR
 
     :param bool metadata: Choose whether to transfer sequence metadata into the
         pipeline state.
+
     """
     REQUIRED = ["seq_record"]
     ADDS = ["sequence", "name", "id", "description"]

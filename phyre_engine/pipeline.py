@@ -16,9 +16,11 @@ import phyre_engine.tools.jmespath
 import phyre_engine.tools.util
 
 #: Allows the state of the pipeline to be saved.
+#:
 #: :param int current_component: Index of the currently-running component. This
 #:     component will be started if the pipeline is resumed fromn this
 #:     checkpoint.
+#:
 #: :param dict state: Data in the pipeline.
 Checkpoint = namedtuple("Checkpoint", ["current_component", "state"])
 
@@ -376,7 +378,7 @@ class Pipeline:
 
         Consider the following ``pipeline_dict``:
 
-        .. highlight:: python
+        .. code-block:: python
 
             {
                 "checkpoint": "checkpoint_file.chk",
@@ -402,7 +404,7 @@ class Pipeline:
         a default empty constructor; the ``Baz`` component will be initialised
         like so:
 
-        .. highlight:: python
+        .. code-block:: python
 
             phyre_engine.component.dummy.Baz(
                 named_arg1="value1",
@@ -468,10 +470,15 @@ class Pipeline:
         of the system at the point of failure.
 
         :ivar component: The component that requires a missing key.
-        :vartype component: `phyre_engine.component.Component`
+
+        :vartype component: :py:class:`phyre_engine.component.Component`
+
         :ivar missing: List of the missing keys.
+
         :vartype missing: List of strings indicatig the missing keys.
+
         :ivar data: List of the missing keys.
+
         :vartype data: Key-value blob describing the state of the pipeline at
             the time this exception was thrown.
         """

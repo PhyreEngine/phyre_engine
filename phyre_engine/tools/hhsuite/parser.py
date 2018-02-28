@@ -39,10 +39,9 @@ class Report:
 
     class Hit(NamedTuple):
         """
-
         Represents a single hit parsed from an hhsuite report file. For
         detailed information, see section 5.1 of the `hh-suite user guide
-        <https://github.com/soedinglab/hh-suite/raw/master/hhsuite-userguide.pdf`_).
+        <https://github.com/soedinglab/hh-suite/raw/master/hhsuite-userguide.pdf>`_).
 
         :param int rank: Rank in the hit list of this hit.
         :param str name: Name of this hit.
@@ -78,14 +77,22 @@ class Report:
     class Summary(NamedTuple):
         """
         Summary of an hhsuite report, stored at the top of the report file.
+
         :param str query: Name of the query sequence/MSA.
+
         :param int match_cols: Number of match columns in the query HMM.
+
         :param float neff: Effective number of sequences.
+
         :param int num_searched: Number of HMMs searched.
+
         :param str date: Date the report file was generated.
+
         :param str command: Command line used to generate the report.
+
         :param tuple(int, int) num_seqs: Number of filtered and input
             sequences.
+
         """
         FIELDS = "query match_cols neff num_searched date command num_seqs"
 
@@ -284,6 +291,7 @@ class Tabular:
     class Hit(NamedTuple):
         """
         Represents a single hit.
+
         :param str name: Name of this hit. Parsed from the tabular report.
         :param list[ResiduePair] alignment: List of residue pairs.
         """
@@ -294,6 +302,7 @@ class Tabular:
         Alignment between two residues.
 
         Some of these scores may be ``None``.
+
         :param int i: Index of the query residue.
         :param int j: Index of the template residue.
         :param float SS: Secondary structure score.

@@ -36,18 +36,21 @@ class Sidechain:
         Calculate side-chain angles from a residue.
 
         :param `Bio.PDB.Residue` residue: Residue to parse.
+
         :param dict final_chi_ranges: Definitions of the angular ranges allowed
             for the final χ atom.
+
         :raise MissingAtomError: If an atom is missing from
+
         :return: A `Sidechain` object populated with the calculated angles or
             `None` if the specified residue doesn't have a side-chain (i.e.
             glycine and alanine).
 
         .. seealso::
 
-        Section :ref:`description-of-rotamer-variables`
-            For a description of the :py:data:`ROTAMERS` and :py:data:`FINAL_CHI_RANGE`
-            variables.
+            Section :ref:`description-of-rotamer-variables`
+                For a description of the :py:data:`ROTAMERS` and
+                :py:data:`FINAL_CHI_RANGE` variables.
         """
         if residue.get_resname() not in AMINO_ACIDS:
             raise UnknownResidueType(residue.get_resname())
@@ -109,12 +112,15 @@ class Sidechain:
         and the angles are approximately equal. Approximate equality is
         calculated using the `math.isclose` function.
 
-        :param `Sidechain` other: Side-chain to compare.
-        :param float rel_tol: Relative tolerance (see `math.isclose`.)
-        :param float abs_tol: Absolute tolerance (see `math.isclose`.)
+        :param Sidechain other: Side-chain to compare.
+        :param float rel_tol: Relative tolerance (see :py:func:`math.isclose`).
+        :param float abs_tol: Absolute tolerance (see :py:func:`math.isclose`).
         :return: Boolean indicating whether side-chains are similar.
+
         .. seealso::
-        Function `math.isclose`.
+
+            :py:func:`math.isclose`
+                Function used to check if aech angle is close.
         """
         if self.res_name != other.res_name:
             return False

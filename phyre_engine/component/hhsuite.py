@@ -571,7 +571,8 @@ class FastaParser(Component):
     necessary.
 
     .. code-block:: python
-        “sequence_alignments”: {
+
+        "sequence_alignments": {
             "ss_pred":  "-----CCHH...",
             "ss_conf":  "-----8899....",
             "ss_dssp":  "-----CCTH...",  #Optionally

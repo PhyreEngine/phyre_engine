@@ -119,6 +119,7 @@ def jmes_sort(data, jmespath_key, root=None, reverse=False, allow_none=False):
 
     For example, to sort a list by the value of each item, use the JMESPath
     expression "``@``", meaning "the entire item".
+
     >>> from phyre_engine.component.sort import jmes_sort
     >>> data = [3, 1, 4, 1, 5, 9]
     >>> jmes_sort(data, "@")
@@ -126,6 +127,7 @@ def jmes_sort(data, jmespath_key, root=None, reverse=False, allow_none=False):
 
     More complicated paths can be used to search according to a key buried deep
     in the hierarchy:
+
     >>> from phyre_engine.component.sort import jmes_sort
     >>> data = [{"x": {"y": 1}}, {"x": {"y": -1}}, {"x": {"y": None}}]
     >>> jmes_sort(sort(data, "x.y", allow_none=True)

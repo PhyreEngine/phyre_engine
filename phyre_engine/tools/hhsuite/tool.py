@@ -8,12 +8,12 @@ import os
 #: As well as the standard short-form flags of hhblits (see ``hhblits -help``),
 #: the following flags are accepted:
 #:
-#: :param database: HHsearch database, equivalent to the ``-d`` flag.
-#: :param input: Input alignment file, equivalent to the ``-i`` flag.
-#: :param iterations: Number of search iterations, equivalent to the
+#: :param str database: HHsearch database, equivalent to the ``-d`` flag.
+#: :param str input: Input alignment file, equivalent to the ``-i`` flag.
+#: :param int iterations: Number of search iterations, equivalent to the
 #:     ``-n`` flag.
-#: :param evalue_cutoff: e-value cutoff, equivalent to the ``-e`` flag.
-#: :param output: output file, equivalent to the ``-o`` flag.
+#: :param float evalue_cutoff: e-value cutoff, equivalent to the ``-e`` flag.
+#: :param str output: output file, equivalent to the ``-o`` flag.
 #: :param int verbose: Verbosity from 0 (silent) to 2 (verbose) (``-v`` flag).
 hhblits = ExternalTool(
     flag_map={
@@ -30,10 +30,10 @@ hhblits = ExternalTool(
 #: As well as the standard short-form flags of hhsearch (see ``hhsearch
 #: -help``), the following flags are accepted:
 #:
-#: :param database: HHsearch database, equivalent to the ``-d`` flag.
-#: :param input: input alignment file, equivalent to the ``-i`` flag.
-#: :param evalue_cutoff: e-value cutoff, equivalent to the ``-e`` flag.
-#: :param output: output file, qquivalent to the ``-o`` flag.
+#: :param str database: HHsearch database, equivalent to the ``-d`` flag.
+#: :param str input: input alignment file, equivalent to the ``-i`` flag.
+#: :param float evalue_cutoff: e-value cutoff, equivalent to the ``-e`` flag.
+#: :param str output: output file, qquivalent to the ``-o`` flag.
 #: :param int verbose: Verbosity from 0 (silent) to 2 (verbose) (``-v`` flag).
 hhsearch = ExternalTool(
     flag_map = {
@@ -69,6 +69,7 @@ hhmake = ExternalTool(
 #: underscores to make valid python identifiers.
 #:
 #: .. code-block:: none
+#:
 #:     infile <file>            Input file with alignment or sequence
 #:     outfile <file>           Output file for generated abstract state sequence (def: <infile>.as)
 #:     append <file>            Append generated abstract state sequence to this file
@@ -88,23 +89,18 @@ cstranslate = ExternalTool()
 #: Wrapper around ffindex_build.
 #:
 #: :param str data: Output data file.
-#:
 #: :param str index: Output index file.
-#:
 #: :param bool append: (``-a``) Append files/indexes, also needed for sorting
 #:     an already existing ffindex.
-#:
 #: :param str ffdata_file: (``-d``) A second ffindex data file for
 #:     inserting/appending.
-#:
 #: :param str ffindex_file: (``-i``) A second ffindex index file for
 #:     inserting/appending.
-#:
 #: :param str file_list: (``-f``) File containing a list of file names, one per
 #:     line.
-#:
 #: :param str sort: (``-s``)  Sort index file, so that the index can queried.
 #:     Append operations can be done without sorting, but should not be.
+#:
 ffindex_build = ExternalTool(
     flag_map = {
         "append": "a",
@@ -118,13 +114,11 @@ ffindex_build = ExternalTool(
 #: Wrapper around ``ffindex_modify``.
 #:
 #: :param bool sort: (``-s``) Sort index file.
-#:
 #: :param bool unlink: (``-u``) Unlink entry from index.
-#:
 #: :param bool version: (``-v``) Print version info and exit.
-#:
 #: :param str file_list: (``-f``) File containing a list of names to remove,
 #:     one per line.
+#:
 ffindex_modify = ExternalTool(
     flag_map = {
         "file_list": "f",

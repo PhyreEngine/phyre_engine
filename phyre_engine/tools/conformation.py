@@ -84,7 +84,7 @@ class ConformationSelector(ABC):
 
         :param Bio.PDB.Atom.Atom atom: Atom to clean.
         :return: A cleaned atom object.
-        :rtype: :py:class`Bio.PDB.Atom.Atom`
+        :rtype: :py:class:`Bio.PDB.Atom.Atom`
         """
         atom.disordered_flag = 0
         atom.set_altloc(' ')

@@ -45,7 +45,7 @@ any, the second gives the residue ID and the third gives the insertion code, if
 any. Null values are represented as spaces. In this case, the mapping will look
 like this:
 
-.. code-block::
+.. code-block:: python
 
     [
         (' ', 10, ' '),

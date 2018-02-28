@@ -1,11 +1,11 @@
 """
-Rotamer definitions according to MolProbity (and therefore from the Penultimate
+Rotamer definitions according to MolProbity and therefore from the Penultimate
 Rotamer Library and (Son of) Penutlimate Rotamer Library.
 
 This module exposes the `ROTAMERS` variable, which is a dictionary indexed by
 three-letter amino acid codes. Each key points to another dictionary, indexed by
 the name of the rotamer according to MolProbity nomenclature. The values of this
-dictionary are a tuple of `AngleRange`s indicating the actual range of each chi
+dictionary are a tuple of `AngleRange`\ s indicating the actual range of each chi
 angle for this rotamer.
 
 :var ROTAMERS: Dictionary indexed by three-letter amino acid codes.
@@ -17,10 +17,9 @@ angle for this rotamer.
 
 .. seealso::
 
-Section :ref:`description-of-rotamer-variables`
-    For a description of the :py:data:`ROTAMERS` and :py:data:`FINAL_CHI_RANGE`
-    variables.
-"""
+    Section :ref:`description-of-rotamer-variables`
+        For a description of the :py:data:`ROTAMERS` and
+        :py:data:`FINAL_CHI_RANGE` variables.  """
 
 from ..angle_range import AngleRange
 from .generic import NUM_CHI_ANGLES

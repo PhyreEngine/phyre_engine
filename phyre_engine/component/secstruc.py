@@ -14,12 +14,12 @@ state and the confidence in that state.
 For example, after running predictor ``foo`` the pipeline state might look like
 this:
 
-.. code-block::
+.. code-block:: python
 
     {
         # Various keys required to run the predictor,
         "secondary_structure": {
-            ``foo``: [
+            "foo": [
                 {"assigned": "C", "confidence": {"C": 0.6, "H": 0.3, "E": 0.1}},
                 {"assigned": "C", "confidence": {"C": 0.7, "H": 0.2, "E": 0.1}},
                 {"assigned": "C", "confidence": {"C": 0.8, "H": 0.1, "E": 0.1}},

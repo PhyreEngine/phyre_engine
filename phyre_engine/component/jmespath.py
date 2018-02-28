@@ -61,7 +61,7 @@ class Update(JMESPathBase):
 
     For example, consider the following pipeline state:
 
-    .. code-block::
+    .. code-block:: python
 
         {"TM": 0.5, "n": 2}
 

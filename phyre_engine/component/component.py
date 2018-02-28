@@ -258,7 +258,8 @@ class PipelineComponent(Component):
         a YAML pipeline file.
 
         :raises TypeError: If the pipeline was passed as an instance of
-        :py:class:`phyre_engine.pipeline.Pipeline`.
+            :py:class:`phyre_engine.pipeline.Pipeline`.
+
         """
         if isinstance(self._pipeline, phyre_engine.Pipeline):
             raise TypeError(

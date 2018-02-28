@@ -14,7 +14,7 @@ possible state and the confidence of that state.
 For example, if the disorder predictor ``foo`` is run, the pipeline state
 afterwards might look like this:
 
-.. code-block::
+.. code-block:: python
 
     {
         "sequence": "AG...", # Required for disorder predictors
@@ -178,7 +178,7 @@ class Disopred(Component):
 
         We parse this into the following list:
 
-        .. code-block:: none
+        .. code-block:: python
 
             [
                 {"assigned": "D", "confidence": {"S": 0.22, "D": 0.78}},

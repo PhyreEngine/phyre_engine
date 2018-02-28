@@ -17,7 +17,7 @@ from phyre_engine.tools.jmespath import JMESExtensions
 
 class EM4GMM(Component):
     """
-    Use `em4gmm <https://github.com/juandavm/em4gmm>`_for clustering via the
+    Use `em4gmm <https://github.com/juandavm/em4gmm>`_ for clustering via the
     Expectation Maximisation (EM) algorithm using Gaussian Mixture Models
     (GMMs).
 

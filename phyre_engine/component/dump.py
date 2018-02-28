@@ -193,7 +193,7 @@ class Csv(Component):
     :param str null_placeholder: Written for fields containing `None` of
         missing fields.
 
-    :param **csv_args: Extra arguments passed directly to the
+    :param \\*\\*csv_args: Extra arguments passed directly to the
         :py:func:`csv.writer` function.
     """
     REQUIRED = []

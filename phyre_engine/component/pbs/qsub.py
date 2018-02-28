@@ -530,7 +530,7 @@ class Wait(Component):
     pipeline state) are complete.    Jobs are considered complete when they are
     in the "C" state.
 
-    .. node::
+    .. note::
 
         This component is fairly stupid: it simply polls ``qstat`` until each
         job is complete.

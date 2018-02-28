@@ -67,13 +67,14 @@ class StoreStartingValue(argparse.Action):
     option and the ``start`` ``dest``. The user passes the following options:
 
     .. code-block:: none
+
         --start foo:bar --start baz:qux1 --start baz:qux2
 
     This will result in the namespace returned by the argument parser having a
     ``start`` (set from the ``dest`` parameter) attribute that looks like the
     following:
 
-    .. code-block::
+    .. code-block:: python
 
        {"foo": "bar", "baz": ["qux1", "qux2"]}
 

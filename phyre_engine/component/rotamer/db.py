@@ -440,7 +440,7 @@ class CalculateRotamerAngles(Component):
                 \sum_i^{N_r} K_m(\phi - \phi_i) K_m(\psi - \psi_i)
             }.
 
-        The scale factor for the kernels :py:math:`K_m` is evaluated once at
+        The scale factor for the kernels :math:`K_m` is evaluated once at
         each query (φ, ψ) point. We follow the method of Shapovalov and Dunbrack
         (2010) and ensure that the bandwidth of the kernel encompasses at least
         25 points.

@@ -14,7 +14,7 @@ class JMESExtensions(jmespath.functions.Functions):
     These can be called as functions. For example, you can retrieve the start
     and stop of a range object using the ``start`` and ``stop`` functions:
 
-    .. code:: none
+    .. code-block:: none
 
         {range_start: start(range_object), range_stop: stop(range_object)}
 

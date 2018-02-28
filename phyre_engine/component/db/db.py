@@ -19,7 +19,8 @@ class StructureType(Enum):
 class PDBList(Component):
     """
     Reads (after optionally downloading) a list of PDB IDs in the format
-    supplied by `https://www.rcsb.org/pdb/rest/getCurrent`_. For each PDB ID a
+    supplied by the RCSB's
+    `web service <https://www.rcsb.org/pdb/rest/getCurrent>`_. For each PDB ID a
     dictionary is added to the ``templates`` list. Each element of ``templates``
     will contain the PDB ID in the key ``PDB``.
 
@@ -58,8 +59,11 @@ class StructureRetriever(Component):
     of the constructor.
 
 
-    :param .StructureType struc_type: Type of file to download.
+    :param phyre_engine.component.db.db.StructureType struc_type: Type of file
+        to download.
+
     :param str base_dir: Base directory in which to save PDB files.
+
     """
 
     REQUIRED = ["PDB"]

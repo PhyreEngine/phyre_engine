@@ -83,7 +83,7 @@ class NamedTuple:
     represent the input or output of a class. For example, class ``ThingDoer``
     might represent its output as a ``ThingDoer.Result``:
 
-    .. code-block::
+    .. code-block:: python
 
         from collections import namedtuple
         class ThingDoer:
@@ -102,7 +102,7 @@ class NamedTuple:
     importantly, named tuples defined as class variables cannot be pickled. The
     following will raise a ``PicklingError``:
 
-    .. code-block::
+    .. code-block:: python
 
         import pickle
         result = ThingDoer().do_thing()
