@@ -588,6 +588,7 @@ class PipelineConfig(dict):
             try:
                 phyre_engine.tools.util.deep_merge(params, config)
             except Exception as err:
+                cls = type(self)
                 log_name = ".".join((cls.__module__, cls.__qualname__))
                 logging.getLogger(log_name).error(
                     "Error merging parameters %s and config %s", params, config)
