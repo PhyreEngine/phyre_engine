@@ -356,7 +356,13 @@ class Pipeline:
         # Collect **kwargs
         if arg_dict is None:
             arg_dict = {}
-        kwargs = component_cls.config(arg_dict, config)
+        try:
+            kwargs = component_cls.config(arg_dict, config)
+        except Exception as err:
+            raise Pipeline.ConstructionError(
+                "Error constructing component {} with arguments {}".format(
+                    dotted_name, arg_dict)
+            ) from err
 
         return component_cls(**kwargs)
 
@@ -461,6 +467,9 @@ class Pipeline:
         return cls(components=components, **pipeline_dict)
 
 
+    class ConstructionError(Exception):
+        """Raised when there was an error constructing a pipeline."""
+        pass
 
     class ValidationError(Exception):
         """Raised when a pipeline is found to be invalid.
