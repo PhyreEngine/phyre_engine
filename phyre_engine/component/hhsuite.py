@@ -181,6 +181,7 @@ class HHSuiteTool(Component):  #pylint: disable=abstract-method
                 env = os.environ
                 env["HHLIB"] = str(self.HHLIB)
 
+            self.logger.debug("Running %s", cmd_line)
             subprocess.run(cmd_line, env=env, check=True)
 
 class HHBlits(HHSuiteTool):
@@ -958,6 +959,10 @@ class PSSM(Component):
                         break
                 elif record_flag:
                     query.append(line.strip())
+        if not query:
+            raise ValueError(
+                "Could not read query sequence '{}' from '{}'.".format(
+                    name, a3m))
         return "".join(query)
 
 

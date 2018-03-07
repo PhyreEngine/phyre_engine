@@ -136,6 +136,8 @@ class Disopred(Component):
     :param str data_dir: Directory containing DISOPRED data files.
     :param str dso_lib_dir: Directory containing DISOPRED library files.
     :param str bin_dir: Directory containing the DISOPRED executables.
+    :param bool overwrite: If `True`, always overwrite existing DISOPRED results
+        with a new run. Otherwise, existing results will be used as-is.
     """
 
     REQUIRED = ["pssm"]
@@ -152,10 +154,11 @@ class Disopred(Component):
     DISO_NEIGHB = ExternalTool()
     COMBINE = ExternalTool()
 
-    def __init__(self, data_dir, dso_lib_dir, bin_dir=None):
+    def __init__(self, data_dir, dso_lib_dir, bin_dir=None, overwrite=False):
         self.data_dir = data_dir
         self.dso_lib_dir = dso_lib_dir
         self.bin_dir = bin_dir
+        self.overwrite = overwrite
 
     @staticmethod
     def parse_results(diso_in):
@@ -212,11 +215,8 @@ class Disopred(Component):
             })
         return disorder
 
-    def run(self, data, config=None, pipeline=None):
-        """Run DISOPRED to predict disorder."""
-        pssms = self.get_vals(data)
-        mtx_file = pssms["mtx"]
-
+    def _run_disopred(self, mtx_file, disopred_results):
+        """Run each tool in the disopred pipeline."""
         with tempfile.TemporaryDirectory() as tmpdir:
             tmpdir = pathlib.Path(tmpdir)
 
@@ -271,7 +271,6 @@ class Disopred(Component):
 
             # $args = join ' ', "$EXE_DIR/combine", "$DATA_DIR/weights_comb.dat", $diso2_fn, $nndiso_fn, $dnb_fn, ">", $diso3_fn, "\n";
             # system($args) == 0 or die "[$0] ERROR: $args failed. Please report error to psipred\@cs.ucl.ac.uk";
-            disopred_results = pathlib.Path("disorder.diso")
             with disopred_results.open("wb") as diso_out:
                 self.logger.info("Combining disordered residue predictions.")
                 combine_cmd = self.COMBINE(
@@ -285,6 +284,15 @@ class Disopred(Component):
                 self.logger.debug("Running %s > %s",
                                   combine_cmd, disopred_results)
                 subprocess.run(combine_cmd, stdout=diso_out, check=True)
+
+    def run(self, data, config=None, pipeline=None):
+        """Run DISOPRED to predict disorder."""
+        pssms = self.get_vals(data)
+        mtx_file = pssms["mtx"]
+        disopred_results = pathlib.Path("disorder.diso")
+
+        if not disopred_results.exists() or self.overwrite:
+            self._run_disopred(mtx_file, disopred_results)
 
         with disopred_results.open("r") as diso_in:
             disorder = self.parse_results(diso_in)
