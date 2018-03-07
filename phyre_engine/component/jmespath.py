@@ -175,6 +175,11 @@ class Replace(JMESPathBase):
         elif isinstance(to_replace, collections.abc.Sequence):
             if not isinstance(replace_with, collections.abc.Sequence):
                 self._type_error(to_replace, replace_with)
+            self.logger.info(
+                ("Replacing result of '%(select_expr)s' (a list of length "
+                 "%(orig_len)d) %(new_len)d-element list"),
+                select_expr=self.select_expr, orig_len=len(to_replace),
+                new_len=len(replace_with))
             to_replace[:] = replace_with
         else:
             self._invalid_selection(to_replace)
