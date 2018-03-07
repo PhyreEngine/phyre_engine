@@ -79,17 +79,11 @@ class Report:
         Summary of an hhsuite report, stored at the top of the report file.
 
         :param str query: Name of the query sequence/MSA.
-
         :param int match_cols: Number of match columns in the query HMM.
-
         :param float neff: Effective number of sequences.
-
         :param int num_searched: Number of HMMs searched.
-
         :param str date: Date the report file was generated.
-
         :param str command: Command line used to generate the report.
-
         :param tuple(int, int) num_seqs: Number of filtered and input
             sequences.
 
@@ -136,7 +130,7 @@ class Report:
 
     #Tokens describing the current state of the parser. The state reflects the
     #section of the report that is currently being parsed.
-    class State(Enum):
+    class _State(Enum):
         HEADER   = 1
         HITS     = 2
         PAIRWISE = 3
@@ -145,7 +139,7 @@ class Report:
 
     def __init__(self, file):
         """Parse a report file."""
-        self._state = Report.State.HEADER
+        self._state = Report._State.HEADER
         self._current_index = 0
         self._summary = {}
         self._hits = []
@@ -177,17 +171,17 @@ class Report:
         with open(file, "r") as in_fh:
             for line in in_fh:
                 line = line.rstrip()
-                if self._state == Report.State.HEADER:
+                if self._state == Report._State.HEADER:
                     self._parse_header_line(line)
-                elif self._state == Report.State.HITS:
+                elif self._state == Report._State.HITS:
                     self._parse_hit_line(line)
-                elif self._state == Report.State.PAIRWISE:
+                elif self._state == Report._State.PAIRWISE:
                     self._parse_pairwise_line(line)
 
     def _parse_header_line(self, line):
         #Scan for state-terminating lines
         if line.startswith(" No Hit"):
-            self._state = Report.State.HITS
+            self._state = Report._State.HITS
             return
 
         #Skip empty lines
@@ -235,7 +229,7 @@ class Report:
 
         #A blank line terminates this section and begins the pairwise section
         if not line.strip():
-            self._state = Report.State.PAIRWISE
+            self._state = Report._State.PAIRWISE
             return
 
         info = {}
@@ -381,7 +375,7 @@ class Tabular:
 
 class Fasta:
     """
-    Parse FASTA files from hhsearch (produced using the ``-Ofas`` option.
+    Parse FASTA files from hhsearch produced using the ``-Ofas`` option.
     Alignments will be stored in the `hits` attribute. Each element of `hits`
     will be a dictionary, containing the keys ``query`` and ``template``. Those
     will contain dictionaries with elements named for each sequence in the FASTA
@@ -405,7 +399,8 @@ class Fasta:
                 "Consensus": "XXAI...",
                 "sequence": "GGAI..."
             }
-        }
+        },
+        # ...
     ]
 
     :param str file: Path of the file to parse.

@@ -23,7 +23,7 @@ method. Templates are formatted using the :py:meth:`str.format` method.
 This allows for fairly powerful templating. For example, consider the following
 pipeline definition:
 
-    .. code-block:: YAML
+.. code-block:: YAML
 
     pipeline:
       config:
@@ -36,14 +36,14 @@ environments) requires three strings to be updated. In complex pipelines you
 will inevitably miss one and break the pipeline in ways that aren't obvious
 until runtime. Instead, we can take advantage of the implicit loader:
 
-    .. code-block:: YAML
+.. code-block:: YAML
 
     pipeline:
       config:
         bin_dir: /long/path/to/bin/dir
-        tool_a: "{bin_dir}/a"
-        tool_b: "{bin_dir}/b"
-        tool_c: "{bin_dir}/c"
+        tool_a: !template "{bin_dir}/a"
+        tool_b: !template "{bin_dir}/b"
+        tool_c: !template "{bin_dir}/c"
 
 The document may then be loaded and the templates resolved:
 
@@ -53,9 +53,9 @@ The document may then be loaded and the templates resolved:
     ... pipeline:
     ...   config:
     ...     bin_dir: /long/path/to/bin/dir
-    ...     tool_a: "{bin_dir}/a"
-    ...     tool_b: "{bin_dir}/b"
-    ...     tool_c: "{bin_dir}/c"''')
+    ...     tool_a: !template "{bin_dir}/a"
+    ...     tool_b: !template "{bin_dir}/b"
+    ...     tool_c: !template "{bin_dir}/c"''')
     >>> pipeline = yaml.load(yaml_doc, Loader=yaml.ImplicitLoader)
     >>> pipeline = pipeline.resolve(pipeline.unresolved["pipeline"]["config"])
     >>> pipeline["config"]
