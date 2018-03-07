@@ -958,6 +958,10 @@ class PSSM(Component):
                         break
                 elif record_flag:
                     query.append(line.strip())
+        if not query:
+            raise ValueError(
+                "Could not read query sequence '{}' from '{}'.".format(
+                    name, a3m))
         return "".join(query)
 
 
