@@ -18,30 +18,57 @@ import collections
 class TestAlignmentToFasta(unittest.TestCase):
     """Test the AlignmentToFasta component."""
 
-    def test_template_seq(self):
-        """Build template_obj part of the alignment from i,j pairs."""
-        template_obj = unittest.mock.MagicMock(spec=template.Template)
-        template_obj.canonical_seq = "ABCDEFGH"
-        query_seq = "JKLMNOP"
-        aln = [(1, 1), (3, 5)]
+    @classmethod
+    def setUpClass(cls):
+        """Initialise sample data."""
+        cls.template = unittest.mock.MagicMock(spec=template.Template)
+        cls.template.canonical_seq = "ABCDEFGH"
+        cls.query_seq = "JKLMNOP"
+        cls.aln = [(1, 1), (3, 5)]
+        cls.hit = {
+            "name": "templatename",
+            "query_sequence": cls.query_seq,
+            "alignment": cls.aln,
+            "template_obj": cls.template,
+        }
 
+
+    def test_template_seq(self):
+        """Build gapped template sequence from alignment."""
         template_seq = hhsuite.AlignmentToFasta.build_template_aln(
-            query_seq, aln, template_obj)
+            self.query_seq,
+            self.aln,
+            self.template)
         self.assertEqual(template_seq, "A-E----")
 
-        # Test formatting of the fasta using different fields.
-        pipe_state = {"sequence": query_seq, "name": "queryname"}
-        hit = {"name": "templatename"}
-
+    def test_fasta(self):
+        """Test generation of FASTA string."""
         aln2fasta = hhsuite.AlignmentToFasta()
         self.assertEqual(
-            aln2fasta.fasta(pipe_state, hit, template_seq),
+            aln2fasta.fasta(self.hit, "A-E----"),
             ">Query\nJKLMNOP\n>Template\nA-E----\n")
 
-        aln2fasta = hhsuite.AlignmentToFasta(q_name="name", t_name="name")
+    def test_fasta_naming(self):
+        """Test names of FASTA seqs are correctly formatted."""
+        aln2fasta = hhsuite.AlignmentToFasta(q_name="foo", t_name="{name}")
         self.assertEqual(
-            aln2fasta.fasta(pipe_state, hit, template_seq),
-            ">queryname\nJKLMNOP\n>templatename\nA-E----\n")
+            aln2fasta.fasta(self.hit, "A-E----"),
+            ">foo\nJKLMNOP\n>templatename\nA-E----\n")
+
+    def test_run(self):
+        """Check that ``fasta_alignment`` is set and a file written."""
+        writer = "phyre_engine.component.hhsuite.AlignmentToFasta._write_file"
+        with unittest.mock.patch(writer) as mock:
+            aln2fasta = hhsuite.AlignmentToFasta(file_name="{name}.fasta")
+            results = aln2fasta.run(self.hit)
+
+            self.assertEqual(
+                results["fasta_alignment"],
+                ">Query\nJKLMNOP\n>Template\nA-E----\n")
+
+            mock.assert_called_once_with(
+                "templatename.fasta",
+                results["fasta_alignment"])
 
 class TestFastaParser(unittest.TestCase):
     """Test the FastaParser component."""
