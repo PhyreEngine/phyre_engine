@@ -194,24 +194,15 @@ class LoadTemplate(Component):
         :py:class:`~phyre_engine.tools.template.Template` class, it should be
         removed before serialising the pipeline state into any format other
         than a Python pickle.
-
-    :param str template_db: Path of the sqlite3 database containing the
-        template information.
-
-    :param str chain_dir: Root directory containing the chains containing the
-        template PDB files.
     """
-    REQUIRED = ["PDB", "chain"]
+    REQUIRED = ["PDB", "chain", "template_db"]
     REMOVES = []
     ADDS = ["template_obj"]
 
-    def __init__(self, template_db, chain_dir):
-        self.template_db = TemplateDatabase(template_db, chain_dir)
-
     def run(self, data, config=None, pipeline=None):
         """Load template given PDB and chain ID."""
-        pdb_id, chain_id = self.get_vals(data)
-        data["template_obj"] = self.template_db.get(pdb_id, chain_id)
+        pdb_id, chain_id, template_db = self.get_vals(data)
+        data["template_obj"] = template_db.get_template(pdb_id, chain_id)
         return data
 
 class TemplateMapping(Component):
