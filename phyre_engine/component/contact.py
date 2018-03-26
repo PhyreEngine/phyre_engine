@@ -65,6 +65,8 @@ class MetaPsicov(component.Component):
     ADDS = ["contacts"]
     REMOVES = []
 
+    CONFIG_SECTION = "metapsicov"
+
     class MetaPsicovContact(util.NamedTuple):
         """
         Named tuple containing the following fields:
