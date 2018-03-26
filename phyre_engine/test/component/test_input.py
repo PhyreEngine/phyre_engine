@@ -1,13 +1,13 @@
+import io
 import unittest
 import tempfile
 import textwrap
 import Bio.SeqRecord
 import Bio.Seq
-from phyre_engine.component.input import (FastaInput, MultipleFastaInput,
-                                          ConvertSeqRecord)
+import phyre_engine.component.input as input_cpts
 
-class TestFastaInput(unittest.TestCase):
-    """Test FastaInput component."""
+class TestReadSingleSequence(unittest.TestCase):
+    """Test ReadSingleSequence component."""
 
     def test_valid(self):
         """Create a valid FASTA file and read it back."""
@@ -23,19 +23,17 @@ class TestFastaInput(unittest.TestCase):
 
         fasta = ">An arbitrary identifer\n{}".format("\n".join(seq_lines))
 
-        valid_fasta_file = tempfile.NamedTemporaryFile("w")
-        valid_fasta_file.write(fasta)
-        valid_fasta_file.flush()
+        valid_fasta_file = io.StringIO(fasta)
 
-
-        fasta_input = FastaInput()
-        seq = fasta_input.run({"input": valid_fasta_file.name})['seq_record']
-        self.assertEqual(seq.seq, "".join(seq_lines))
+        fasta_input = input_cpts.ReadSingleSequence()
+        seq = fasta_input.run({"input": valid_fasta_file})
+        self.assertEqual(seq["sequence"], "".join(seq_lines))
 
     def test_file_exists(self):
         """Check that an IOError is raised if the input file does not exist."""
         with self.assertRaises(IOError):
-            FastaInput().run({"input": "bad_file_name"})
+            input_cpts.ReadSingleSequence().run(
+                {"input": "bad_file_name"})
 
     def test_single_seq_required(self):
         """Require a single sequence only."""
@@ -49,61 +47,34 @@ class TestFastaInput(unittest.TestCase):
                 """)
 
 
-        msa_fasta_file = tempfile.NamedTemporaryFile("w")
-        msa_fasta_file.write(fasta)
-        msa_fasta_file.flush()
+        msa_fasta_file = io.StringIO(fasta)
 
-        with self.assertRaises(FastaInput.TooManySequencesError):
-            FastaInput().run({"input":msa_fasta_file.name})
+        exception_type = input_cpts.ReadSingleSequence.TooManySequencesError
+        with self.assertRaises(exception_type):
+            input_cpts.ReadSingleSequence().run({"input": msa_fasta_file})
 
-class TestMultipleFastaInput(unittest.TestCase):
-    """Test MultipleFastaInput component."""
+class TestReadMultipleSequences(unittest.TestCase):
+    """Test ReadMultipleSequences component."""
 
     _FASTA = textwrap.dedent("""\
-    >FOO
+    >FOO X Y Z
     AAAGGG
-    >BAR
+    >BAR X Y Z
     HHHEEE
     """)
 
     def test_multi_seq(self):
         """Read multiple sequences."""
-        reader = MultipleFastaInput()
-        with tempfile.NamedTemporaryFile("w") as fas_out:
-            print(self._FASTA, file=fas_out)
-            fas_out.flush()
-            results = reader.run({"input": fas_out.name})
+        reader = input_cpts.ReadMultipleSequences()
+        fas_out = io.StringIO(self._FASTA)
+        results = reader.run({"input": fas_out})
 
-            self.assertEqual(
-                results["templates"][0]["seq_record"].seq,
-                "AAAGGG")
-            self.assertEqual(
-                results["templates"][0]["seq_record"].name,
-                "FOO")
+        self.assertEqual(results["templates"][0]["sequence"], "AAAGGG")
+        self.assertEqual(results["templates"][0]["name"], "FOO")
+        self.assertEqual(results["templates"][0]["id"], "FOO")
+        self.assertEqual(results["templates"][0]["description"], "FOO X Y Z")
 
-            self.assertEqual(
-                results["templates"][1]["seq_record"].seq,
-                "HHHEEE")
-            self.assertEqual(
-                results["templates"][1]["seq_record"].name,
-                "BAR")
-
-class TestConvertSeqRecord(unittest.TestCase):
-    """Test ConvertSeqRecord component."""
-
-    _SEQ_RECORD = Bio.SeqRecord.SeqRecord(
-        Bio.Seq.Seq("AAAGGG"),
-        "ID", "NAME", "DESCRIPTION")
-
-    def test_conversion(self):
-        """Test ConvertSeqRecord on a single record."""
-        converter = ConvertSeqRecord()
-        results = converter.run({"seq_record": self._SEQ_RECORD})
-        del results["seq_record"]
-        self.assertDictEqual(
-            results, {
-                "sequence": "AAAGGG",
-                "id": "ID",
-                "name": "NAME",
-                "description": "DESCRIPTION"
-            })
+        self.assertEqual(results["templates"][1]["sequence"], "HHHEEE")
+        self.assertEqual(results["templates"][1]["name"], "BAR")
+        self.assertEqual(results["templates"][1]["id"], "BAR")
+        self.assertEqual(results["templates"][1]["description"], "BAR X Y Z")

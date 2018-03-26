@@ -1,34 +1,52 @@
 """
 Module containing components for reading sequences from files.
 
-Each of the "Input" components in this module add a ``seq_record`` field to the
-pipeline state. The object contained within the ``seq_record`` field is an
-instance of BioPython's :py:class:`~Bio.SeqRecord.SeqRecord` class. The
-:py:class:`.ConvertSeqRecord` component may be used to copy the sequence in the
-``seq_record`` field to the ``sequence`` field as a plain Python string. The
-:py:class:`.ConvertSeqRecord` component will also copy any metadata from the
-``seq_record`` field into the pipeline state.
+PhyreEngine uses `BioPython <http://biopython.org/>`_ to parse sequence files,
+so any format supported by BioPython is also supported by PhyreEngine. The
+sequence is stored as a string in the IUPAC alphabet in the ``sequence`` field
+of the pipeline state, or the ``sequence`` field of each element in the ``templates``
+list for :py:class:`~.ReadMultipleSequences`.
 
-.. versionadded:: 0.1a2
-   Early versions stored a :py:class:`~Bio.SeqRecord.SeqRecord` object in the
-   ``sequence`` field. This behaviour was changed because it was felt to be too
-   unexpected: nearly every other top-level element of the pipeline state is a
-   simple Python datatype, and unexpectedly having an object in the ``sequence``
-   field led to some confusion, especially when attempting to serialise the
-   pipeline state.
+By default, these components also attempt to parse metadata from the input files.
+This can be disabled by setting `metadata=False`. The metadata is read into the
+``id``, ``name``, and ``description`` fields, and varies depending on the format
+being read.
 """
+
 from phyre_engine.component import Component
 import Bio.SeqIO
 from Bio.Alphabet import IUPAC
 
-class FastaInput(Component):
-    """Read a FASTA file as input and output the sequence."""
+class ReadSingleSequence(Component):
+    """
+    Read a single sequence from the file ``input``. The sequence is stored
+    in the ``sequence`` field, and the ``id``, ``name`` and ``description``
+    are parsed from the sequence file and stored in the pipeline state.
+
+    If any of the metadata fields are missing, the value `None` is used in its
+    place. This behaviour is different to the BioPython defaults, which uses
+    a special string (like ``<unknown id>``) to indicate a missing field.
+
+    :param str seq_format: Format of the sequence file. This must be a format
+        understood by BioPython's :py:mod:`Bio.SeqIO` module.
+
+    :param bool metadata: If `False`, ignore all metadata supplied along with
+        the sequence. Otherwise the ``name``, ``id`` and ``description`` fields
+        in the pipeline state are parsed from the input file.
+    """
+
     #: :param str input: Path of the FASTA file from which to read.
     REQUIRED = ['input']
-    #: :param seq_record: Parsed sequence.
-    #: :type seq_record: :class:`Bio.SeqRecord.SeqRecord`
-    ADDS = ['seq_record']
+    #: :param str sequence: Parsed sequence.
+    #: :param str id: Sequence ID.
+    #: :param str name: Sequence name, if any.
+    #: :param str description: Sequence description, if any.
+    ADDS = ['seq_record', 'name', 'id', 'description']
     REMOVES  = []
+
+    def __init__(self, seq_format="fasta", metadata=True):
+        self.seq_format = seq_format
+        self.metadata = metadata
 
     def run(self, data, config=None, pipeline=None):
         """Read the sequence from a FASTA file.
@@ -42,13 +60,21 @@ class FastaInput(Component):
             multiple sequences.
         """
 
-        input = self.get_vals(data)
-        with open(input, "r") as fasta:
-            try:
-                data['seq_record'] = Bio.SeqIO.read(fasta, format="fasta",
-                        alphabet=IUPAC.protein)
-            except ValueError as e:
-                raise FastaInput.TooManySequencesError() from e
+        input_file = self.get_vals(data)
+        try:
+            seq_record = Bio.SeqIO.read(
+                input_file,
+                format=self.seq_format,
+                alphabet=IUPAC.protein)
+
+            data["sequence"] = str(seq_record.seq)
+            if self.metadata:
+                data["id"] = seq_record.id
+                data["name"] = seq_record.name
+                data["description"] = seq_record.description
+
+        except ValueError as e:
+            raise self.TooManySequencesError() from e
         return data
 
 
@@ -56,72 +82,55 @@ class FastaInput(Component):
         """Indicates too many sequences were present in a FASTA file."""
         pass
 
-class MultipleFastaInput(Component):
+
+class ReadMultipleSequences(Component):
     """
-    Create a template for each sequence in a FASTA file.
+    Create a template for each sequence in the ``input`` file.
 
     Adds the ``templates`` key to the pipeline data. Each template is a
-    dictionary containing a ``sequence`` key pointing to a
-    :py:class:`Bio.PDB.SeqRecord` object.
+    dictionary containing the fields added by
+    :py:class:`~.ReadSingleSequenceRecord`.
+
+    >>> from phyre_engine.component.input import ReadMultipleSequences
+    >>> rms = ReadMultipleSequences("fasta")
+    >>> rms.run({"input": "/path/to/fasta/file"})
+    {"templates": [
+        {
+            "sequence": "AAA", "id": "foo", "name": "foo sequence",
+            "description": "A description of this sequence."},
+        }
+        {
+            "sequence": "AGX", "id": "bar", "name": "bar sequence",
+            "description": "A description of this sequence."},
+        }
+        {
+            "sequence": "AGG", "id": "baz", "name": "baz sequence",
+            "description": "A description of this sequence."
+        },
+    ]}
+
+    See :py:class:`~.ReadSingleSequenceRecord` for a description of the
+    component parameters.
     """
 
     REQUIRED = ["input"]
     ADDS = ["templates"]
     REMOVES = []
 
-    def run(self, data, config=None, pipeline=None):
-        """Read multiple sequences from a FASTA file."""
-        input = self.get_vals(data)
-        templates = []
-        for record in Bio.SeqIO.parse(input, "fasta"):
-            templates.append({"seq_record": record})
-        data["templates"] = templates
-        return data
-
-class ConvertSeqRecord(Component):
-    r"""
-    Convert the ``seq_record`` field to a simple text string in the ``sequence``
-    field. This component will also convert the ``name``, ``id`` and
-    ``description`` fields of the ``seq_record`` to pipeline state attributes.
-
-    The ``sequence`` field will consist of one-letter amino acid codes.
-
-    To disable the addition of metadata to the pipeline state, set
-    `metadata=False`.
-
-    >>> from io import StringIO
-    >>> import Bio.SeqIO
-    >>> from phyre_engine.component.input import ConvertSeqRecord
-    >>> fasta = ">FOO BAR\nAAAGGG\n"
-    >>> with StringIO(fasta) as fasta_in:
-    ...     seq_record = Bio.SeqIO.read(fasta_in, 'fasta')
-    >>> results = ConvertSeqRecord().run({'seq_record': seq_record})
-    >>> results.sequence
-    AAAGGG
-    >>> results.name
-    FOO
-    >>> results.id
-    FOO
-    >>> results.description
-    FOO BAR
-
-    :param bool metadata: Choose whether to transfer sequence metadata into the
-        pipeline state.
-
-    """
-    REQUIRED = ["seq_record"]
-    ADDS = ["sequence", "name", "id", "description"]
-    REMOVES = []
-
-    def __init__(self, metadata=True):
+    def __init__(self, seq_format="fasta", metadata=True):
+        self.seq_format = seq_format
         self.metadata = metadata
 
     def run(self, data, config=None, pipeline=None):
-        seq_record = self.get_vals(data)
-        data["sequence"] = str(seq_record.seq)
-        if self.metadata:
-            data["id"] = seq_record.id
-            data["name"] = seq_record.name
-            data["description"] = seq_record.description
+        """Read multiple sequences from a FASTA file."""
+        input_file = self.get_vals(data)
+        templates = []
+        for record in Bio.SeqIO.parse(input_file, "fasta"):
+            template = {"sequence": str(record.seq)}
+            if self.metadata:
+                template["id"] = record.id
+                template["name"] = record.name
+                template["description"] = record.description
+            templates.append(template)
+        data["templates"] = templates
         return data
-
