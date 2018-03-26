@@ -3,17 +3,19 @@
 import copy
 import datetime
 import io
+import os
 import os.path
 import pathlib
 import shutil
 import tempfile
 import textwrap
 import unittest
+import unittest.mock
 import phyre_engine.tools.pdb as pdb
 from phyre_engine.tools.template import Template, TemplateDatabase
 import phyre_engine.test
 from phyre_engine.component.modelling import (HomologyModeller, SoedingSelect,
-                                              LoopModel)
+                                              LoopModel, ModRefiner)
 import Bio.PDB.PDBParser
 import collections
 
@@ -319,6 +321,79 @@ class TestLoopModel(unittest.TestCase):
         residues = list(structure.get_residues())
         self.assertEqual(len(residues), 7)
 
+
+class TestModRefiner(unittest.TestCase):
+    """Test ModRefiner. This is VERY SLOW."""
+
+    BACKBONE = textwrap.dedent("""\
+    ATOM      2  CA  ALA A   4      -5.395  15.042   8.562  1.00 29.18
+    ATOM      6  CA  ARG A   5      -1.926  13.569   8.780  1.00 22.77
+    ATOM     10  CA  TRP A   6      -2.947  11.171  11.533  1.00 22.32
+    ATOM     14  CA  CYS A   7      -1.910   7.640  10.705  1.00 22.05
+    ATOM     18  CA  SER A   8      -0.780   4.478  12.505  1.00 20.18
+    ATOM     22  CA  LEU A   9       2.916   3.961  13.161  1.00 17.82
+    ATOM     26  CA  GLU A  10       2.865   0.972  10.783  1.00 26.95
+    ATOM     30  CA  GLU A  11       1.248   2.744   7.876  1.00 22.83
+    ATOM     34  CA  ALA A  12       3.336   5.907   8.317  1.00 20.91
+    ATOM     38  CA  VAL A  13       6.676   4.138   8.535  1.00 19.66
+    ATOM     42  CA  ALA A  14       4.826   4.984   3.368  1.00 23.16
+    ATOM     46  CA  SER A  15       7.548   7.517   4.253  1.00 12.28
+    ATOM     50  CA  ILE A  16      10.522   5.281   5.118  1.00  7.49
+    ATOM     54  CA  PRO A  17      12.358   3.030   2.632  1.00  6.40
+    ATOM     58  CA  ASP A  18      15.619   1.121   2.504  1.00 10.15
+    ATOM     62  CA  GLY A  19      18.333   3.193   0.823  1.00 12.73
+    ATOM     66  CA  ALA A  20      17.106   6.351   2.603  1.00  7.12
+    """)
+
+    def test_normalise_chains(self):
+        """Test chain name normalisation."""
+        # Replace chain ID of BACKBONE with a space
+        unnormalised = []
+        for bb_line in self.BACKBONE.split("\n"):
+            unnormalised.append(bb_line[:21] + " " + bb_line[22:])
+
+        # Renormalise chain
+        with unittest.mock.patch("Bio.PDB.PDBIO") as pdbio:
+            initial = io.StringIO(self.BACKBONE)
+            refined = io.StringIO("\n".join(unnormalised))
+            ModRefiner.normalise_chains(initial, refined)
+
+            set_structure = pdbio.return_value.set_structure
+            set_structure.assert_called_once()
+            refined_struc = set_structure.call_args[0][0]
+            self.assertEqual(
+                list(refined_struc[0].get_chains())[0].get_id(),
+                "A")
+
+    @phyre_engine.test.requireFields(["bin_dir", "data_dir"],
+                                     ["tools", "modrefiner"])
+    def test_modrefiner(self):
+        """Run ModRefiner over our sample backbone."""
+        orig_dir = os.getcwd()
+        with tempfile.TemporaryDirectory("-modrefiner",
+                                         "phyreengine-test-") as tmpdir:
+
+            try:
+                os.chdir(tmpdir)
+                init = pathlib.Path(tmpdir, "init.pdb")
+
+                with init.open("w") as init_out:
+                    init_out.write(self.BACKBONE)
+
+                config = phyre_engine.test.config["tools"]["modrefiner"]
+                modrefiner = ModRefiner(
+                    bin_dir=config["bin_dir"],
+                    data_dir=config["data_dir"])
+                result = modrefiner.run({"model": init})
+
+                # Model was changed
+                self.assertNotEqual(result["model"], init)
+                # Model includes non-CA atoms
+                struc = Bio.PDB.PDBParser().get_structure(
+                        "", result["model"])[0]["A"]
+                self.assertIn("CB", struc[4])
+            finally:
+                os.chdir(orig_dir)
 
 if __name__ == "__main__":
     unittest.main()

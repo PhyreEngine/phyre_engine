@@ -7,12 +7,17 @@ import Bio.PDB.Model
 import Bio.PDB.Chain
 import Bio.PDB.PDBIO
 import Bio.PDB.Residue
+import Bio.PDB.PDBParser
 from phyre_engine.component import Component
 import phyre_engine.tools.pdb as pdb
 from phyre_engine.tools.template import Template, TemplateDatabase
 import numpy as np
 from phyre_engine.tools.external import ExternalTool
+import phyre_engine.tools.jmespath
+import jmespath
 import operator
+import os
+import random
 import tempfile
 import re
 import subprocess
@@ -380,4 +385,179 @@ class LoopModel(Component):
             data["model"] = str(model_path)
         finally:
             shutil.rmtree(tmpdir)
+        return data
+
+
+class ModRefiner(Component):
+    """
+    Run `ModRefiner <https://zhanglab.ccmb.med.umich.edu/ModRefiner/>`_ to
+    refine the backbone and side-chains of a protein model.
+
+    The `reference` model is the model towards which the `initial` model is
+    pulled. In I-TASSER, the `reference` model is a cluster *centroid* ( the
+    average of the structures in that cluster) and the `initial` model is the
+    cluster *medoid* (the decoy closest to the centroid). This causes the
+    decoy, which has sensible geometry, to be pulled towards the reference
+    structure, which has a geometry that is overall more correct but may have
+    broken fine structure.
+
+    The parameters `reference` and `initial` are JMESPath expressions that
+    should evaluate to the file names of the corresponding structures. The
+    refined model is stored in the ``model`` field in the pipeline state.
+
+    :param str reference: JMESPath expression giving the file name of the
+        reference model.
+    :param str initial: JMESPath expression giving the file name of the
+        starting model.
+    :param int strength: Strength of the attraction towards the reference
+        structure, in the range 0--100.
+    :param int seed: Optional random seed.
+    :param bool overwrite: If `True`, always run ModRefiner; otherwise,
+        any existing output files will be used as-is.
+    :param str bin_dir: Directory containing the ModRefiner binaries.
+    :param str data_dir: Directory containing the ModRefiner data files.
+    """
+    REQUIRED = []
+    ADDS = ["model"]
+    REMOVES = []
+
+    MCREFINEMENT = ExternalTool()
+    EMREFINEMENT = ExternalTool()
+
+    CONFIG_SECTION = "modrefiner"
+
+    class ModRefinerException(Exception):
+        """
+        Raised when initial and reference structures are in different
+        directories.
+        """
+        pass
+
+    def __init__(self, data_dir,
+                 reference="model", initial="model",
+                 strength=50, seed=None,
+                 bin_dir=None, overwrite=False):
+        self.reference = reference
+        self.initial = initial
+        self.strength = strength
+        self.seed = seed
+        self.bin_dir = bin_dir
+        self.data_dir = data_dir
+        self.overwrite = overwrite
+
+    def mcrefinement(self, working_dir, initial, reference):
+        """Run ``mcrefinement`` to refine main chain."""
+        # Called like:
+        # ./mcrefinement data_dir bin_dir ini_name ref_name ran_num
+
+        mc_cmd_line = self.MCREFINEMENT(
+            (self.bin_dir, "mcrefinement"),
+            positional=(
+                working_dir,
+                self.data_dir,
+                initial,
+                reference,
+                self.seed if self.seed else random.randint(0, 1000000)))
+        output_file = Path(working_dir, "mc" + str(initial))
+        if self.overwrite or not output_file.exists():
+            self.logger.debug("Running %s", mc_cmd_line)
+
+            # Can't just use check=True because mcrefinement will return an
+            # exit status of 1 even on success.
+            result = subprocess.run(mc_cmd_line)
+            if result.returncode not in (0, 1):
+                raise subprocess.CalledProcessError(
+                    result.returncode,
+                    mc_cmd_line)
+        return output_file
+
+    def emrefinement(self, working_dir, start, reference):
+        """Run ``emrefinement``, starting from `start`."""
+        # Called like:
+        # ./emrefinement data_dir bin_dir ini_name ref_name str_val ran_num
+
+        em_cmd_line = self.EMREFINEMENT(
+            (self.bin_dir, "emrefinement"),
+            positional=(
+                working_dir,
+                self.data_dir,
+                start,
+                reference,
+                self.strength,
+                self.seed if self.seed else random.randint(0, 1000000)))
+        output_file = Path(working_dir, "em" + str(start))
+        if self.overwrite or not output_file.exists():
+            self.logger.debug("Running %s", em_cmd_line)
+            # Again, manually check for a "valid" return code.
+            result = subprocess.run(em_cmd_line)
+            if result.returncode not in (0, 1):
+                raise subprocess.CalledProcessError(
+                    result.returncode,
+                    mc_cmd_line)
+        return output_file
+
+    @staticmethod
+    def normalise_chains(initial, refined):
+        """
+        ModRefiner sets the chain of the refined model to " ", which is
+        confusing. We reset it to the chain ID of the intial model (assuming
+        there is only one chain).
+        """
+        parser = Bio.PDB.PDBParser(QUIET=True)
+        initial_chain = list(parser.get_structure(
+                "initial", initial
+            )[0].get_chains())[0]
+
+        refined_struc = parser.get_structure("refined", refined)
+        refined_struc[0][" "].id = initial_chain.get_id()
+        pdb_io = Bio.PDB.PDBIO()
+        pdb_io.set_structure(refined_struc)
+        pdb_io.save(str(refined))
+
+    def run(self, data, config=None, pipeline=None):
+        """Run ModRefiner to refine model."""
+        jmes_ext = phyre_engine.tools.jmespath.JMESExtensions(data)
+        jmes_opts = jmespath.Options(custom_functions=jmes_ext)
+
+        initial = Path(jmespath.search(self.initial, data, jmes_opts))
+        reference = Path(jmespath.search(self.reference, data, jmes_opts))
+
+        # We will call the output files "<basename>.mc.pdb" and
+        # "<basename>.em.pdb".  The basename is the basename of the initial
+        # structure.
+        output_files = (
+            initial.with_suffix(".mc.pdb"),
+            initial.with_suffix(".em.pdb"))
+
+        # Use output files if they exist
+        if not self.overwrite and all([i.exists() for i in output_files]):
+            data["model"] = str(output_files[1])
+            return data
+
+        # Modrefiner expects the initial and reference structures to be in the
+        # same directory. This is going to be frustrating for us, so we will
+        # symlink them in a temporary directory. This also allows us to
+        # normalise the names of the files, which is handy because modrefiner
+        # bases the output file name on the input file.
+        with tempfile.TemporaryDirectory("-modrefiner",
+                                         "phyreengine-") as work_dir:
+
+            initial_link = Path(work_dir, "initial.pdb")
+            reference_link = Path(work_dir, "reference.pdb")
+            initial_link.symlink_to(initial.resolve())
+            reference_link.symlink_to(reference.resolve())
+
+            bb_refined = self.mcrefinement(work_dir, initial_link.name,
+                                           reference_link.name)
+            sc_refined = self.emrefinement(work_dir, bb_refined.name,
+                                           reference_link.name)
+
+            # Copy the output files to the current directory
+            shutil.copy2(bb_refined, output_files[0])
+            shutil.copy2(sc_refined, output_files[1])
+
+            # Normalise chain IDs for each output file
+            self.normalise_chains(initial, output_files[0])
+            self.normalise_chains(initial, output_files[1])
+            data["model"] = output_files[1]
         return data
