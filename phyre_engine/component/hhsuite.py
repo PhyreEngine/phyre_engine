@@ -246,8 +246,17 @@ class HHSearch(HHSuiteTool):
             For parameters.
     """
 
-    REQUIRED = []
     REMOVES = []
+
+    @property
+    def REQUIRED(self):
+        if self.input_type == QueryType.A3M:
+            return ["a3m"]
+        elif self.input_type == QueryType.HMM:
+            return ["hhm"]
+        else:
+            raise AttributeError(
+                "Input type {} not supported".format(self.input_type))
 
     @property
     def ADDS(self):
