@@ -84,6 +84,7 @@ setup(
     name="PhyreEngine",
     version=version(),
     packages=find_packages(),
+    include_package_data=True,
     author="Stefans Mezulis",
     author_email="stefans.mezuli08@imperial.ac.uk",
     description="PhyreEngine is a tool for building bioinformatics pipelines.",
