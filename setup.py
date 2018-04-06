@@ -1,40 +1,84 @@
 """PhyreEngine installer."""
 from setuptools import setup, find_packages
 import configparser
+import os
 import subprocess
 
-def version():
-    """
-    Use ``git describe`` to get a version number and write it to ``setup.cfg``.
-
-    If ``git describe`` cannot be called do nothing and let ``setup.cfg`` give
-    the version.
-    """
+def _read_setup_cfg_version():
+    """Returns the version number, or raises a KeyError if it is not set."""
     setup_cfg = configparser.ConfigParser()
     setup_cfg.read("setup.cfg")
-    if "metadata" not in setup_cfg:
-        setup_cfg["metadata"] = {}
+    try:
+        return setup_cfg["metadata"]["version"]
+    except KeyError:
+        return None
 
+
+def _write_setup_cfg(version):
+    """Read ``setup.cfg``, set version number and overwrite."""
+    setup_cfg = configparser.ConfigParser()
+    setup_cfg.read("setup.cfg")
+    setup_cfg.setdefault("metadata", {})["version"] = version
+    with open("setup.cfg", "w") as setup_out:
+        setup_cfg.write(setup_out)
+
+
+def _git_version_string():
+    """
+    Call ``git describe --tags`` to get the version number.
+
+    Any leading "v" is stripped, and all hyphens replaced with underscores.
+    """
     try:
         git_result = subprocess.run(
             ["git", "describe", "--tags"],
-            stdout=subprocess.PIPE, check=True)
+            stdout=subprocess.PIPE, check=True, universal_newlines=True)
+        git_version = git_result.stdout.strip()
 
-        git_version = git_result.stdout.decode("UTF-8").strip()
-
-        # Strip leading "v" from git tag
         if git_version[0] == "v":
             git_version = git_version[1:]
+        git_version = git_version.replace("-", "_")
+        return git_version
+    except subprocess.CalledProcessError:
+        return None
 
-        # Write to setup.cfg
-        setup_cfg["metadata"]["version"] = git_version
-        with open("setup.cfg", "w") as setup_out:
-            setup_cfg.write(setup_out)
-    except Exception as e:
-        # Not a problem, just use the value in setup.cfg
-        pass
 
-    return setup_cfg["metadata"]["version"]
+def _conda_version_string():
+    """Return the ``PKG_VERSION`` environment var or raise a KeyError."""
+    try:
+        return os.environ["PKG_VERSION"]
+    except KeyError:
+        return None
+
+def version():
+    """
+    Deduce version number.
+
+    This works in three stages:
+
+    1. The ``PKG_VERSION`` environment variable is used if it is set. This is
+       the version number set by Conda.
+
+    2. If a call to ``git describe`` succeeds, the output of that is used. A
+       leading "v" is stripped, and any dashes are replaced with underscores.
+
+    3. Finally, attempt to read a version string from ``setup.cfg``.
+
+    If either of the first two methods succeed, the results are also written to
+    ``setup.cfg``.
+    """
+    version_getters = (
+            _conda_version_string,
+            _git_version_string,
+            _read_setup_cfg_version)
+
+    ver = None
+    for getter in version_getters:
+        ver = getter()
+        if ver is not None:
+            break
+    _write_setup_cfg(ver)
+    return ver
 
 setup(
     name="PhyreEngine",
