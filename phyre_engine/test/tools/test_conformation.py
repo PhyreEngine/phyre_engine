@@ -45,9 +45,9 @@ ATOM     25  CA BLYS A   3       7.674  14.952  23.095  0.50 60.74           C
         # If we add a CB atom to the SER, it should increase the population and
         # we should select it.
         add_cb = Bio.PDB.Atom.DisorderedAtom("CB")
+        self.pdb[0]["A"][1].disordered_get("SER").add(add_cb)
         add_cb.disordered_add(
             Bio.PDB.Atom.Atom("CB", [0] * 3, 65, 0.5, "B", "CB", 3, "C"))
-        self.pdb[0]["A"][1].disordered_get("SER").add(add_cb)
         sanitised = sel.select(self.pdb[0]["A"])
         self.assertEqual(sanitised[1].get_resname(), "SER", "Highest weight")
 
