@@ -39,10 +39,7 @@ def version():
 setup(
     name="PhyreEngine",
     version=version(),
-    packages=find_packages(exclude=[
-        "phyre_engine.test",
-        "phyre_engine.test.*"
-    ]),
+    packages=find_packages(),
     author="Stefans Mezulis",
     author_email="stefans.mezuli08@imperial.ac.uk",
     description="PhyreEngine is a tool for building bioinformatics pipelines.",
