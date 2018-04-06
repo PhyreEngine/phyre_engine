@@ -64,8 +64,10 @@ def _main():
             runner = xmlrunner.XMLTestRunner(output=args.xml)
         else:
             runner = unittest.TextTestRunner(verbosity=args.verbosity)
-        runner.run(tests)
-        return 0
+        results = runner.run(tests)
+        if results.wasSuccessful():
+            return 0
+        return 1
     except KeyboardInterrupt:
         ### handle keyboard interrupt ###
         return 0
