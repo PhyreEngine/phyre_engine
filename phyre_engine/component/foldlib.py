@@ -8,12 +8,14 @@ import collections.abc
 import copy
 import datetime
 from pathlib import Path
+import subprocess
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree
 
 import Bio.PDB.PDBParser
 
+import phyre_engine.component.backbone
 import phyre_engine.component.component
 from phyre_engine.component import Component
 import phyre_engine.component.hhsuite
@@ -586,6 +588,74 @@ class ExpandSequenceRepresentatives(Component):
         self.logger.info("%s_%s expanded to %d members",
                          pdb_id, chain_id, len(new_state))
         return new_state
+
+
+class AddMissingBackboneAtoms(Component):
+    """
+    Add missing atoms to the backbone of a template structure.
+
+    A template backbone is missing atoms if ``DSSP`` gives an error when
+    calculating the backbone. If this is the case, ``pd2_ca2main`` is
+    called to add the missing atoms.
+
+    Essentially, this component calls
+    :py:class:`phyre_engine.component.secstruc.DSSP`. If ``mkdssp`` fails, then
+    :py:class:`phyre_engine.component.backbone.PD2CA2main` is called.
+
+    If the backbone is rebuilt, then a note is added to the ``notes`` list in
+    the pipeline state indicating this. If the ``notes`` list does not exist it
+    is created.
+
+    Options beginning with ``pd2_`` are passed to
+    :py:class:`phyre_engine.component.backbone.PD2CA2main` without the prefix.
+    Similarly, options beginning with ``dssp_`` are passed to
+    :py:class:`phyre_engine.component.secstruc.DSSP`.
+    """
+
+    REQUIRED = ["structure"]
+    ADDS = []
+    REMOVES = []
+
+    @classmethod
+    def config(cls, params, config):
+        return config.extract({
+            "dssp": [("bin_dir", "dssp_bin_dir")],
+            "pd2": [
+                ("bin_dir", "pd2_bin_dir"),
+                ("database", "pd2_database"),
+                ("flags", "pd2_flags"),
+                ("options", "pd2_options"),
+            ],
+        }).merge_params(params)
+
+    def __init__(self,
+                 pd2_database,
+                 pd2_flags=None, pd2_options=None, pd2_bin_dir=None,
+                 dssp_bin_dir=None):
+        self.pd2_args = {
+            "database": pd2_database,
+            "flags": pd2_flags,
+            "options": pd2_options,
+            "bin_dir": pd2_bin_dir,
+        }
+        self.dssp_args = {"bin_dir": dssp_bin_dir}
+
+    def run(self, data, config=None, pipeline=None):
+        """Add missing backbone atoms with ``pd2_ca2main``."""
+
+        # First, run DSSP
+        dssp = phyre_engine.component.secstruc.DSSP(**self.dssp_args)
+        try:
+            # Call copy so secondary_structure field is discarded
+            dssp.run(data.copy())
+        except subprocess.CalledProcessError:
+            # Rebuild backbone
+            pd2 = phyre_engine.component.backbone.PD2CA2main(**self.pd2_args)
+            data = pd2.run(data)
+            data.setdefault(
+                "notes", []
+            ).append("Backbone rebuild with pd2_ca2main")
+        return data
 
 
 class BuildProfiles(Component):
