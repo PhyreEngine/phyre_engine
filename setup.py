@@ -48,7 +48,7 @@ setup(
     description="PhyreEngine is a tool for building bioinformatics pipelines.",
     url="http://www.sbg.bio.ic.ac.uk/phyreengine",
     install_requires=[
-        "biopython>=1.70",
+        "biopython>=1.71",
         "numpy",
         "scipy",
         "PyYAML",
