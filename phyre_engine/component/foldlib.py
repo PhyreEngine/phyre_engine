@@ -484,13 +484,29 @@ class UpdateSeqRep(Component):
 
 class DiscardUnchanged(Component):
     """
-    Discard this template (i.e. return `None` to halt the pipeline) if the
-    canonical sequence of the template matches the sequence already in the
-    database.
+    Discard this template (i.e. raise an exception) if the canonical sequence
+    of the template matches the sequence already in the database.
+
+    The exception raised by this component can be caught by
+    :py:class:`phyre_engine.component.component.TryCatch`.
     """
     ADDS = []
     REMOVES = []
     REQUIRED = ["template_db", "template_obj", "PDB", "chain"]
+
+    class TemplateUnchangedException(Exception):
+        """
+        Raised when a template's canonical sequence has not been changed.
+
+        :param phyre_engine.tools.template.Template template: Template object.
+        """
+
+        def __init__(self, template):
+            super().__init__(
+                "Canonical sequence of {}_{} has not changed".format(
+                    template.pdb_id,
+                    template.chain_id))
+            self.template = template
 
     def run(self, data, config=None, pipeline=None):
         """Discard unchanged sequences."""
@@ -501,7 +517,7 @@ class DiscardUnchanged(Component):
                 self.logger.info(
                     "Template %s_%s is already in the fold library: ignoring.",
                     pdb_id, chain_id)
-                return None
+                raise self.TemplateUnchangedException(template)
         except template_db.TemplateNotFoundException:
             pass
         return data
