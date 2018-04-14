@@ -60,3 +60,43 @@ class System(Component):
             formatted_cmd = [arg.format(**data) for arg in cmd]
             subprocess.run(formatted_cmd, shell=self.shell)
         return data
+
+class Python(Component):
+    """
+    Evaluate arbitrary Python code.
+
+    The `code` parameter is executed as though it is the :py:meth:`~.run`
+    method of this component. The local variables ``data``, ``config`` and
+    ``pipeline`` are set from the arguments of :py:meth:`~.run`.
+
+    If the optional parameters `adds`, `removes` or `required` are set, each is
+    interpreted as Python code describing the fields added, removed or required
+    by the pipeline state.
+    """
+
+    @property
+    def REQUIRED(self):
+        return eval(self.required) if self.required is not None else []
+
+    @property
+    def ADDS(self):
+        return eval(self.adds) if self.adds is not None else []
+
+    @property
+    def REMOVES(self):
+        return eval(self.removes) if self.removes is not None else []
+
+    def __init__(self, code, adds=None, removes=None, required=None):
+        self.code = code
+        self.adds = adds
+        self.removes = removes
+        self.required = required
+
+    def run(self, data, config=None, pipeline=None):
+        """Evaluating Python code."""
+        exec(self.code, {}, {
+            "data": data,
+            "config": config,
+            "pipeline": pipeline
+        })
+        return data
