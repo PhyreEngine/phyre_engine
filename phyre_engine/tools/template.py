@@ -399,7 +399,10 @@ class TemplateDatabase:
     @property
     def updated(self):
         """Date of last database update."""
-        return self.conn.execute(self.SELECT_DB_META).fetchone()["updated"]
+        row = self.conn.execute(self.SELECT_DB_META).fetchone()
+        if row is None:
+            return None
+        return row["updated"]
 
     @updated.setter
     def updated(self, updated):
