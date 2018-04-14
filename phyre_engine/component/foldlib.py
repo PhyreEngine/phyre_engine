@@ -208,8 +208,11 @@ class RetrieveNewPDBs(Component):
     """
 
     def __init__(self, override_date=None):
-        self.override_date = datetime.datetime.strptime(
-            override_date, "%Y-%m-%d").date()
+        if override_date:
+            self.override_date = datetime.datetime.strptime(
+                override_date, "%Y-%m-%d").date()
+        else:
+            self.override_date = None
 
     @classmethod
     def config(cls, params, config):
