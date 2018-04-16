@@ -15,6 +15,7 @@ import pickle
 import phyre_engine.run
 from phyre_engine.component.pbs import qsub
 import phyre_engine.tools.yaml as yaml
+import logging
 import logging.config
 
 def arg_parser():
@@ -65,6 +66,11 @@ def main():  # IGNORE:C0111
     except KeyboardInterrupt:
         ### handle keyboard interrupt ###
         return 0
+    except Exception as error:
+        logging.error(
+            "Uncaught exception encountered: exiting.",
+            exc_info=error)
+        raise error
 
 if __name__ == "__main__":
     sys.exit(main())
