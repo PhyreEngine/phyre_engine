@@ -88,6 +88,8 @@ class StructureRetriever(Component):
     type of file to be downloaded can be set using the ``struc_type`` parameter
     of the constructor.
 
+    If it is set, the ``mmcif_dir`` field from the ``foldlib`` section of the
+    pipeline configuration is used as the `base_dir` parameter.
 
     :param phyre_engine.component.db.db.StructureType struc_type: Type of file
         to download.
@@ -102,6 +104,13 @@ class StructureRetriever(Component):
 
     #: URL template from which files are retrieved.
     URL = "https://files.rcsb.org/download/{PDB}.{type}.gz"
+
+    @classmethod
+    def config(cls, params, config):
+        """Sets `base_dir` to ``foldlib.mmcif_dir`` if present."""
+        return config.extract({"foldlib": [
+                ("mmcif_dir", "base_dir"),
+            ]}).merge_params(params)
 
     def __init__(self, struc_type, base_dir="."):
         self.struc_type = StructureType(struc_type)
