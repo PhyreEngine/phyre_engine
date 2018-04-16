@@ -1,3 +1,4 @@
+import phyre_engine.component.component
 from phyre_engine.component import Component
 import phyre_engine.tools.pdb as pdb
 import phyre_engine.tools.conformation
@@ -11,6 +12,8 @@ import logging
 import collections
 import json
 from builtins import FileNotFoundError
+import shutil
+import requests
 
 class StructureType(Enum):
     PDB = "pdb"
@@ -45,6 +48,33 @@ class PDBList(Component):
             entries = pdb.get_current()
 
         data["templates"] = [{"PDB": entry} for entry in entries]
+        return data
+
+
+class HTTPMap(phyre_engine.component.component.Map):
+    """
+    Operates identically to :py:class:`phyre_engine.component.component.Map`,
+    but copies a `requests.Session
+    <http://docs.python-requests.org/en/latest/user/advanced/#session-objects>`_
+    object into the ``session`` field of the pipeline state for each list
+    element. This can be used to speed up repetitive HTTP requests using HTTP
+    Keep-Alive.
+
+    The ``session`` field is automatically cleaned up when this component
+    exits.
+    """
+
+    def run(self, data, config=None, pipeline=None):
+        """Iterate over a list of components with a common HTTP session."""
+        session = requests.Session()
+
+        try:
+            for item in data[self.field]:
+                item["session"] = session
+            data = super().run(data, config, pipeline)
+        finally:
+            for item in data[self.field]:
+                del item["session"]
         return data
 
 class StructureRetriever(Component):
@@ -90,7 +120,10 @@ class StructureRetriever(Component):
             base_dir=self.base_dir)
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        urllib.request.urlretrieve(url, str(path))
+        session = data["session"] if "session" in data else requests.Session()
+        with session.get(url, stream=True) as r:
+            with path.open("wb") as out_fh:
+                shutil.copyfileobj(r.raw, out_fh)
         return data
 
 class ChainPDBBuilder(Component):

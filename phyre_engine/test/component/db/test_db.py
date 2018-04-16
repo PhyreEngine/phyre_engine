@@ -1,8 +1,11 @@
+import copy
 import io
 import json
 import tempfile
 import unittest
 import unittest.mock
+import phyre_engine.component
+import phyre_engine.pipeline
 import phyre_engine.component.db.db as db
 import phyre_engine.tools.pdb as pdb
 from phyre_engine.tools.template import Template
@@ -15,6 +18,36 @@ import shutil
 import textwrap
 import Bio.SeqIO
 import Bio.PDB.PDBParser
+
+
+@unittest.mock.patch("requests.Session")
+class TestHTTPMap(unittest.TestCase):
+    """Test HTTPMap component."""
+    PIPELINE_STATE = {"list": [{"a": 1}, {"a": 2}]}
+
+    class Dummy(phyre_engine.component.Component):
+        ADDS = []
+        REMOVES = []
+        REQUIRED = ["a"]
+
+        def __init__(self, tester):
+            self.tester = tester
+
+        def run(self, data, config=None, pipeline=None):
+            self.tester.assertIn("session", data)
+            data["a"] *= 2
+            return data
+
+    def test_map(self, session_mock):
+        """Map operates as normal."""
+        components = [self.Dummy(self)]
+        pipeline = phyre_engine.pipeline.Pipeline(components=components)
+
+        map_cpt = db.HTTPMap(field="list", pipeline=pipeline)
+        result = map_cpt.run(self.PIPELINE_STATE)
+        self.assertEqual(result, {"list": [{"a": 2}, {"a": 4}]})
+        session_mock.assert_called_once()
+
 
 @phyre_engine.test.requireFields("net_tests")
 class TestStructureRetriever(unittest.TestCase):

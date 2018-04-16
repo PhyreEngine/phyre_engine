@@ -96,6 +96,7 @@ setup(
         "PyYAML",
         "jmespath>=0.9.3",
         "appdirs",
+        "requests",
     ],
     tests_require=[
         "xmlrunner",
