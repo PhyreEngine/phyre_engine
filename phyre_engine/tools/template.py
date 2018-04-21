@@ -134,7 +134,8 @@ class TemplateDatabase:
     Database of templates. This is implemented internally as a relational
     (sqlite) database.
 
-    :param str database: Path to the database file.
+    :param str database: Path to the database file, or an open
+        :py:class:`sqlite3.Connection` object.
 
     :param str file_root: Root of the directory structure containing the
         template files.
@@ -382,11 +383,15 @@ class TemplateDatabase:
 
 
     def __init__(self, database, file_root, exclusive=False, trace=None):
-        self.database = database
-        self.conn = sqlite3.connect(
-            self.database,
-            detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
-        self.conn.row_factory = sqlite3.Row
+        if isinstance(database, sqlite3.Connection):
+            self.database = None
+            self.conn = database
+        else:
+            self.database = str(database)
+            self.conn = sqlite3.connect(
+                self.database,
+                detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
+            self.conn.row_factory = sqlite3.Row
 
         if trace is not None:
             self.conn.set_trace_callback(trace)
@@ -413,7 +418,7 @@ class TemplateDatabase:
     @classmethod
     def create(cls, database):
         """Create an empty template database."""
-        conn = sqlite3.connect(database)
+        conn = sqlite3.connect(str(database))
         conn.executescript(cls.CREATE)
         conn.commit()
 

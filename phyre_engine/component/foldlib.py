@@ -8,6 +8,7 @@ import collections.abc
 import copy
 import datetime
 from pathlib import Path
+import sqlite3
 import subprocess
 import urllib.parse
 import urllib.request
@@ -41,6 +42,8 @@ class Open(Component):
 
     :param str template_db: Location of the template database SQLite file.
     :param str chain_dir: Root directory containing template files.
+    :param bool trace: If `True`, send SQL statements to the logger as they
+        are executed.
     """
     ADDS = ["template_db"]
     REMOVES = []
@@ -873,4 +876,89 @@ class BuildProfiles(Component):
         if "secondary_structure" in data:
             del data["secondary_structure"]
 
+        return data
+
+
+class OpenCopy(Component):
+    """
+    Open a copy of the fold library for reading or writing.
+
+    This component acts the same as :py:class:`.Copy`, except that a *copy* of
+    the SQL databse is opened in memory. Statements executed against the
+    database are logged and stored in the ``sql_dump`` list in the pipeline
+    state.
+
+    This component is intended for use when building a fold library in
+    parallel, on multiple machines. The usual methods would be either to add
+    all items to the database from a master node after all parallel processes
+    are finished, or to use a network-enabled database and write to that from
+    all nodes. This component allows each node to operate in isolation,
+    avoiding network or disk contention issues. Then, when the parallel
+    processe have completed, the contents of the ``sql_dump`` key can be used
+    to insert the records into the database.
+
+    :param str template_db: Location of the template database SQLite file.
+    :param str chain_dir: Root directory containing template files.
+    :param bool trace: If `True`, send SQL statements to the logger as they
+        are executed.
+    """
+    ADDS = ["template_db", "sql_dump"]
+    REMOVES = []
+    REQUIRED = []
+
+    @classmethod
+    def config(cls, params, config):
+        return config.extract(
+            {"foldlib": ["template_db", "chain_dir"]}
+        ).merge_params(params)
+
+    def __init__(self, template_db, chain_dir, trace=False):
+        self.template_db = template_db
+        self.chain_dir = chain_dir
+        self.trace = trace
+
+    def _copy_db(self):
+        """Return an in-memory copy of `template_db`."""
+        old_db = sqlite3.connect(self.template_db)
+        new_db = sqlite3.connect(':memory:')
+        for sql in old_db.iterdump():
+            new_db.execute(sql)
+        new_db.commit()
+        return new_db
+
+    def run(self, data, config=None, pipeline=None):
+        """Open connection to fold library database."""
+
+        data.setdefault("sql_dump", [])
+
+        def trace_callback(sql):
+            if self.trace:
+                self.logger.debug(sql)
+            data["sql_dump"].append(sql)
+
+        sqlite_db = self._copy_db()
+        sqlite_db.set_trace_callback(trace_callback)
+        template_db = TemplateDatabase(sqlite_db, self.chain_dir)
+
+        data["template_db"] = template_db
+        return data
+
+
+class RestoreSQLDump(Component):
+    """
+    Load the contents of the ``sql_dump`` key into the template database open
+    in the ``template_db`` key.
+    """
+    ADDS = []
+    REQUIRED = ["template_db", "sql_dump"]
+    REMOVES = ["sql_dump"]
+
+    def run(self, data, config=None, pipeline=None):
+        """Load SQL dump from pipeline state."""
+        template_db, sql_dump = self.get_vals(data)
+
+        for sql_stmt in sql_dump:
+            template_db.conn.execute(sql_stmt)
+        template_db.commit()
+        del data["sql_dump"]
         return data
