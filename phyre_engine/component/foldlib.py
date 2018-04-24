@@ -948,6 +948,9 @@ class RestoreSQLDump(Component):
     """
     Load the contents of the ``sql_dump`` key into the template database open
     in the ``template_db`` key.
+
+    This component will discard ``BEGIN``, ``COMMIT`` and ``ROLLBACK``
+    statements.
     """
     ADDS = []
     REQUIRED = ["template_db", "sql_dump"]
@@ -958,7 +961,10 @@ class RestoreSQLDump(Component):
         template_db, sql_dump = self.get_vals(data)
 
         for sql_stmt in sql_dump:
-            template_db.conn.execute(sql_stmt)
+            if (not sql_stmt.startswith("BEGIN")
+                    and not sql_stmt.startswith("ROLLBACK")
+                    and not sql_stmt.startswith("COMMIT")):
+                template_db.conn.execute(sql_stmt)
         template_db.commit()
         del data["sql_dump"]
         return data
