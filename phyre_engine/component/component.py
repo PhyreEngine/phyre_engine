@@ -315,6 +315,8 @@ class Map(PipelineComponent):
     is added to the pipeline state.
 
     :param str field: Field over which to iterate.
+    :param list[str] copy: Copy these fields from the root of the pipeline state
+        into each element of the list.
 
     .. seealso::
 
@@ -328,10 +330,11 @@ class Map(PipelineComponent):
     def REQUIRED(self):
         return [self.field]
 
-    def __init__(self, field, *args, discard=False, **kwargs):
+    def __init__(self, field, *args, discard=False, copy=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.field = field
         self.discard = discard
+        self.copy = copy if copy is not None else []
 
     def run(self, data, config=None, pipeline=None):
         """Iterate over given field, applying a child pipeline."""
@@ -341,12 +344,20 @@ class Map(PipelineComponent):
         for i, item in enumerate(data[self.field]):
             self.logger.debug("Runing pipeline %d / %d",
                               i, len(data[self.field]))
+            for field in self.copy:
+                item[field] = data[field]
+
             pipeline.start = item
             pipeline_results = pipeline.run()
             if pipeline_results is not None and not self.discard:
                 if isinstance(pipeline_results, list):
+                    for result in pipeline_results:
+                        for field in self.copy:
+                            del result[field]
                     pipe_output.extend(pipeline_results)
                 else:
+                    for field in self.copy:
+                        del pipeline_results[field]
                     pipe_output.append(pipeline_results)
         data[self.field] = pipe_output
         return data

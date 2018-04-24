@@ -168,6 +168,14 @@ class TestMap(unittest.TestCase):
         def run(self, data, config=None, pipeline=None):
             return [1, 2, 3]
 
+    class _CopyComponent(Component):
+        ADDS = ["result"]
+        REMOVES = []
+        REQUIRED = ["copy"]
+        def run(self, data, config=None, pipeline=None):
+            data["result"] = data["copy"]
+            return data
+
     def test_map_pipeline(self):
         """Run Map with Pipeline as input."""
         components = [Double()]
@@ -212,6 +220,19 @@ class TestMap(unittest.TestCase):
         self.expected_state["values"] = []
         results = map_cmpt.run(self.state)
         self.assertDictEqual(results, self.expected_state)
+
+    def test_copy(self):
+        """Copy items from the root into child elements."""
+        components = [self._CopyComponent()]
+        pipeline = phyre_engine.pipeline.Pipeline(components)
+        map_cmpt = Map("values", pipeline, copy=["copy"])
+
+        # CopyComponent will set result = copy for each element.
+        state = {"copy": 1, "values": [{}, {}]}
+        results = map_cmpt.run(state)
+        self.assertDictEqual(
+            results,
+            {"copy": 1, "values": [{"result": 1}, {"result": 1}]})
 
 
 class TestConditional(unittest.TestCase):
