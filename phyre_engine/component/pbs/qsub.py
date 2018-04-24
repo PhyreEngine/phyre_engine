@@ -582,14 +582,8 @@ class LoadState(Component):
     that the order in which jobs are combined is arbitrary. An array job counts
     as a single job.
 
-    If the ``convert_to_list`` parameter is set to ``True``, then the value
-    pointed to by ``join_var`` will be coerced into a list if it is not already.
-
     :param str join_var: If we are joining multiple jobs (*not* just a single
         array job), this must be defined. Pipeline state is merged on this key.
-
-    :param bool convert_to_list: Convert ``join_var`` to list. This allows the
-        jobs to be joined on scalar variables.
 
     :param bool update: If `True`, the pipeline state is updated rather than
         replaced. That is, only fields that were returned from the remote
@@ -600,9 +594,8 @@ class LoadState(Component):
     REMOVES = ["qsub_jobs"]
     ADDS = []
 
-    def __init__(self, join_var=None, convert_to_list=False, update=True):
+    def __init__(self, join_var=None, update=True):
         self.join_var = join_var
-        self.convert_to_list = convert_to_list
         self.update = update
 
     def run(self, data, config=None, pipeline=None):
@@ -615,13 +608,8 @@ class LoadState(Component):
         for job in data["qsub_jobs"]:
             if full_state is None:
                 full_state = job.state
-                if (self.convert_to_list
-                        and not isinstance(full_state[self.join_var], list)):
-                    full_state[self.join_var] = [full_state[self.join_var]]
             else:
                 job_slice = job.state[self.join_var]
-                if self.convert_to_list and not isinstance(job_slice, list):
-                    job_slice = [job_slice]
                 full_state[self.join_var].extend(job_slice)
 
         del data["qsub_jobs"]
