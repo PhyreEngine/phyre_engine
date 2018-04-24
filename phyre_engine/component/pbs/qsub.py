@@ -111,29 +111,19 @@ class RemoteArrayJob(RemoteJobBase):
         self.state_files = [Path(s) for s in state_files]
         self.join_var = join_var
 
+    def _state_generator(self):
+        for state_file in self.state_files:
+            with state_file.open("rb") as state_in:
+                state = pickle.load(state_in)
+                yield state
+
     @property
     def id(self):
         return self.job_id
 
     @property
     def state(self):
-        # Read the first state, and then append the contents of each sliced
-        # array from the remaining states.
-
-        full_state = None
-        for state_file in self.state_files:
-            with state_file.open("rb") as state_in:
-                partial_state = pickle.load(state_in)
-                if "qsub_complete" not in partial_state:
-                    raise exception.UncompletedState(state_file)
-                del partial_state["qsub_complete"]
-
-                if full_state is None:
-                    full_state = partial_state
-                else:
-                    full_state[self.join_var].extend(
-                        partial_state[self.join_var])
-        return full_state
+        return _load_state(self._state_generator(), self.join_var)
 
     def __repr__(self):
         return "<{name}(job_id={job_id}, join_var={join_var}>".format(
@@ -604,13 +594,9 @@ class LoadState(Component):
 
         # Read states even if replace_state is false so that exceptions are
         # thrown if any job is incomplete.
-        full_state = None
-        for job in data["qsub_jobs"]:
-            if full_state is None:
-                full_state = job.state
-            else:
-                job_slice = job.state[self.join_var]
-                full_state[self.join_var].extend(job_slice)
+        full_state = _load_state(
+            (j.state for j in data["qsub_jobs"]),
+            self.join_var)
 
         del data["qsub_jobs"]
         if self.update:
@@ -741,3 +727,29 @@ def running_jobs():
         job_state = job.find("job_state").text
         jobs[job_id] = job_state
     return jobs
+
+
+def _load_state(states, join_var):
+    """
+    Load state from all the states in the `states` list. Fields are joined
+    according to `join_var`. If `join_var` is a list of fields, then all listed
+    variables are joined.
+
+    It should be perfectly possible to pass a generator as `states`.
+    """
+
+    full_state = None
+    # Convert join_var to list
+    join_var = [join_var] if isinstance(join_var, str) else join_var
+
+    for partial_state in states:
+        if "qsub_complete" not in partial_state:
+            raise exception.UncompletedState(state_file)
+        del partial_state["qsub_complete"]
+
+        if full_state is None:
+            full_state = partial_state
+        else:
+            for var in join_var:
+                full_state[var].extend(partial_state[var])
+    return full_state
