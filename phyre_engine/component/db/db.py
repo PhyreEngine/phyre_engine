@@ -377,6 +377,9 @@ class BuildTemplate(Component):
     The fields ``original_residues`` and ``canonical_indices`` are removed from
     the pipeline state, as that information will be stored in the
     ``template_obj`` key.
+
+    :param bool load_chain: If `False`, the PDB chain is not loaded from disk,
+        and the `chain` attribute is set to `None`.
     """
     ADDS = ["template_obj"]
     REMOVES = ["original_residues", "canonical_indices"]
@@ -385,10 +388,16 @@ class BuildTemplate(Component):
         "canonical_indices", "sequence"
     ]
 
+    def __init__(self, load_chain=True):
+        self.load_chain = load_chain
+
     def run(self, data, config=None, pipeline=None):
         """Build Template object."""
-        pdb_parser = Bio.PDB.PDBParser()
-        chain = pdb_parser.get_structure("", data["structure"])[0]["A"]
+        chain = None
+        if self.load_chain:
+            pdb_parser = Bio.PDB.PDBParser()
+            chain = pdb_parser.get_structure("", data["structure"])[0]["A"]
+
         template = Template(
             data["PDB"], data["chain"], chain, data["original_residues"],
             data["sequence"], data["canonical_indices"])
