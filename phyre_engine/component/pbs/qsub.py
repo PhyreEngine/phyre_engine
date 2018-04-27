@@ -115,6 +115,9 @@ class RemoteArrayJob(RemoteJobBase):
         for state_file in self.state_files:
             with state_file.open("rb") as state_in:
                 state = pickle.load(state_in)
+                if "qsub_complete" not in data:
+                    raise exception.UncompletedState(self.state_file)
+                del data["qsub_complete"]
                 yield state
 
     @property
@@ -743,10 +746,6 @@ def _load_state(states, join_var):
     join_var = [join_var] if isinstance(join_var, str) else join_var
 
     for partial_state in states:
-        if "qsub_complete" not in partial_state:
-            raise exception.UncompletedState(state_file)
-        del partial_state["qsub_complete"]
-
         if full_state is None:
             full_state = partial_state
         else:
