@@ -391,7 +391,7 @@ class TemplateDatabase:
             self.conn = sqlite3.connect(
                 self.database,
                 detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
-            self.conn.row_factory = sqlite3.Row
+        self.conn.row_factory = sqlite3.Row
 
         if trace is not None:
             self.conn.set_trace_callback(trace)
