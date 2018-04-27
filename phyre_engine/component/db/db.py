@@ -3,7 +3,7 @@ from phyre_engine.component import Component
 import phyre_engine.tools.pdb as pdb
 import phyre_engine.tools.conformation
 from phyre_engine.tools.template import Template
-import phyre_engine.logging
+import phyre_engine.logutils
 from enum import Enum
 import pathlib
 import urllib.request
@@ -333,7 +333,7 @@ class ChainPDBBuilder(Component):
 
                     # Store all captured log output in REMARK 999
                     general_logger = logging.getLogger("phyre_engine")
-                    with phyre_engine.logging.capture_log(general_logger) as log_buf:
+                    with phyre_engine.logutils.capture_log(general_logger) as log_buf:
                         # Select conformations.
                         for selector in self.conf_sel:
                             chain = selector.select(chain)

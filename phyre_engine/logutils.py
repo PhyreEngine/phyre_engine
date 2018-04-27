@@ -1,7 +1,22 @@
 import contextlib
 import io
-import logging  #
+import logging
 import os
+
+
+class PhyreEngineLogger(logging.Logger):
+    """
+    Custom logger used by PhyreEngine to log events.
+
+    This logger adds the following attributes to each log record:
+
+    ``hostname``
+        Name of the current host.
+    """
+    def __init__(self, name):
+        super().__init__(name)
+        self.addFilter(HostnameFilter())
+
 
 class HostnameFilter(logging.Filter):
     """

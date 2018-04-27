@@ -14,6 +14,7 @@ from argparse import ArgumentParser
 import pickle
 import phyre_engine.run
 from phyre_engine.component.pbs import qsub
+import phyre_engine.logutils
 import phyre_engine.tools.yaml as yaml
 import logging
 import logging.config
@@ -34,11 +35,13 @@ def arg_parser():
 def main():  # IGNORE:C0111
     '''Command line options.'''
     try:
+        logging.setLoggerClass(phyre_engine.logutils.PhyreEngineLogger)
         parser = arg_parser()
         args = parser.parse_args()
         with open(args.pipeline, "r") as pipeline_fh:
             pipeline_dict = yaml.load(pipeline_fh)
         pipeline = phyre_engine.pipeline.Pipeline.load(pipeline_dict)
+
 
         with open(args.state, "r+b") as state_fh:
             state = pickle.load(state_fh)

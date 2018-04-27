@@ -47,6 +47,7 @@ import sys
 import appdirs
 
 import argparse
+import phyre_engine.logutils
 import phyre_engine.pipeline
 from phyre_engine.tools.util import apply_dotted_key
 import phyre_engine.tools.yaml as yaml
@@ -129,7 +130,7 @@ def default_log_config():
         'disable_existing_loggers': False,
         'formatters': {
             'simple': {
-                'format': '{levelname} : {asctime} : {name} : {message}',
+                'format': '{levelname} : {asctime} : {hostname} : {name} : {message}',
                 'style': '{',
             },
         },
@@ -178,6 +179,7 @@ def init_logging(config):
         if DISABLE_LOGS not in config[LOGGING]:
             config[LOGGING][DISABLE_LOGS] = False
 
+    logging.setLoggerClass(phyre_engine.logutils.PhyreEngineLogger)
     logging.config.dictConfig(config[LOGGING])
 
 def resolve_yml(document, getter, *extra_fields):
