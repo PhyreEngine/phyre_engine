@@ -26,6 +26,26 @@ import phyre_engine.pipeline
 from phyre_engine.tools.template import Template, TemplateDatabase
 import phyre_engine.tools.pdb
 
+
+class Create(Component):
+    """
+    Create a new fold library database file.
+
+    :param str template_db: Database file to create.
+    """
+    ADDS = []
+    REMOVES = []
+    REQUIRED = []
+
+    def __init__(self, template_db):
+        self.template_db = template_db
+
+    def run(self, data, config=None, pipeline=None):
+        """Create an empty fold library database."""
+        TemplateDatabase.create(self.template_db)
+        return data
+
+
 class Open(Component):
     """
     Open the fold library for reading or writing.
