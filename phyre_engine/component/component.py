@@ -7,6 +7,7 @@ import enum
 
 import jmespath
 
+import phyre_engine.logutils
 from phyre_engine.tools.jmespath import JMESExtensions
 from phyre_engine.tools.util import apply_dotted_key, deep_merge
 
@@ -104,7 +105,7 @@ class Component(metaclass=ComponentMeta):
     @property
     def logger(self):
         """Get a logger named for this component."""
-        logger_name = ".".join((type(self).__module__, type(self).__qualname__))
+        logger_name = phyre_engine.logutils.name(self)
         return logging.getLogger(logger_name)
 
     @property

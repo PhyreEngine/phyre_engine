@@ -42,3 +42,11 @@ def capture_log(logger, level=logging.DEBUG):
         yield log_capture_buf
     finally:
         logger.removeHandler(log_capture_handler)
+
+def name(obj):
+    """
+    Standardised logger name for an object.
+
+    This is just the ``__module__`` and ``__qualname__`` separated by a dot.
+    """
+    return ".".join((type(obj).__module__, type(obj).__qualname__))
