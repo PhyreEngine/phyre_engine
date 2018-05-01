@@ -2,8 +2,10 @@
 from enum import Enum
 import io
 import logging
+import math
 import re
 import Bio.AlignIO
+import phyre_engine.logutils
 from phyre_engine.tools.util import Stream, NamedTuple
 
 
@@ -332,6 +334,43 @@ class Tabular:
             record.append(line.rstrip("\n"))
         yield record
 
+    def _parse_record(self, lines):
+        """Parse lines of a record into a Hit."""
+        missing = []
+        name = None
+        header = None
+        pairs = []
+        for line in lines:
+            try:
+                if line.startswith("missing"):
+                    missing.append(line.replace("missing ", ""))
+                elif name is None:
+                    # Strip leading ">"
+                    name = line[1:]
+                elif header is None:
+                    header = line.split()
+                else:
+                    # Use header to generate a dict of field:value pairs
+                    pair_dict = {}
+                    for field, value in zip(header, line.split()):
+                        pair_dict[field] = self._TYPES[field](value)
+                        # If any values are infinite, skip this item.
+                        if (self._TYPES[field] in (int, float)
+                                and not math.isfinite(pair_dict[field])):
+                            raise TypeError("Non-finite value")
+                    # Add missing values with a value of None
+                    for field in missing:
+                        pair_dict[field] = None
+                    # Convert to a Hit ResiduePair object
+                    pairs.append(self.ResiduePair(**pair_dict))
+            except TypeError:
+                log_name = phyre_engine.logutils.name(self)
+                logger = logging.getLogger(log_name)
+                logger.warning(
+                    "Skipping line '%s' due to non-finite %s",
+                    line, field)
+        return self.Hit(name, pairs)
+
     def _parse_file(self, fh):
         #Records start with a line beginning with ">" containing the full name
         #of the hit.
@@ -348,30 +387,12 @@ class Tabular:
         #
         #The remaining lines give the values for each field.
 
+        # One disgusting caveat: sometimes, a probability is given as "inf".
+        # In these cases, we discard the record.
+
         for lines in self._records(fh):
-            missing = []
-            name = None
-            header = None
-            pairs = []
-            for line in lines:
-                if line.startswith("missing"):
-                    missing.append(line.replace("missing ", ""))
-                elif name is None:
-                    # Strip leading ">"
-                    name = line[1:]
-                elif header is None:
-                    header = line.split()
-                else:
-                    # Use header to generate a dict of field:value pairs
-                    pair_dict = {}
-                    for field, value in zip(header, line.split()):
-                        pair_dict[field] = self._TYPES[field](value)
-                    # Add missing values with a value of None
-                    for field in missing:
-                        pair_dict[field] = None
-                    # Convert to a Hit ResiduePair object
-                    pairs.append(self.ResiduePair(**pair_dict))
-            self.hits.append(self.Hit(name, pairs))
+            hit = self._parse_record(lines)
+            self.hits.append(hit)
 
 class Fasta:
     """
