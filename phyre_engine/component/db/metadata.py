@@ -83,6 +83,8 @@ class ParseField(RegexComponent):
 
     :param str field: Name of the field to parse.
     """
+    CONFIG_SECTION = "metadata"
+
     REMOVES = []
 
     @property
