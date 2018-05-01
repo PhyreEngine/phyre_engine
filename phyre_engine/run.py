@@ -300,7 +300,7 @@ def main():  # IGNORE:C0111
         ### handle keyboard interrupt ###
         return 0
     except Exception as error:
-        logging.error(
+        logging.getLogger("root").error(
             "Uncaught exception encountered: exiting.",
             exc_info=error)
         raise error
