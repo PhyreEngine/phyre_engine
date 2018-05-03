@@ -89,7 +89,7 @@ class ReadMultipleSequences(Component):
 
     Adds the ``templates`` key to the pipeline data. Each template is a
     dictionary containing the fields added by
-    :py:class:`~.ReadSingleSequenceRecord`.
+    :py:class:`~.ReadSingleSequence`.
 
     >>> from phyre_engine.component.input import ReadMultipleSequences
     >>> rms = ReadMultipleSequences("fasta")
@@ -109,7 +109,7 @@ class ReadMultipleSequences(Component):
         },
     ]}
 
-    See :py:class:`~.ReadSingleSequenceRecord` for a description of the
+    See :py:class:`~.ReadSingleSequence` for a description of the
     component parameters.
     """
 

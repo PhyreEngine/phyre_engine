@@ -191,7 +191,7 @@ class ChainPDBBuilder(Component):
     sequence.
 
     For example, we might start with the following original PDB file (with
-    everything left of the residue index excised for legibility):
+    everything right of the residue index excised for legibility):
 
     .. code-block:: none
 

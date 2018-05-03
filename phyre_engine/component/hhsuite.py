@@ -54,7 +54,7 @@ class HHSuiteTool(Component):  #pylint: disable=abstract-method
     :param tuple(str, phyre_engine.tools.external.ExternalTool): Name and
         callable for generating command-line arguments.
     :param list[str] flags: List of flags without values to pass to tool.
-    :param dict[str, str] options: Flags with values to pass to the tool.
+    :param dict[str,str] options: Flags with values to pass to the tool.
     :param str bin_dir: Optional directory containing executable.
     :param str HHLIB: Optional HHLIB environment variable.
     :param QueryType input_type: Query type.
@@ -198,6 +198,12 @@ class HHBlits(HHSuiteTool):
     :param str HHLIB: Set the ``HHLIB`` environment variable to this value
         before calling hhblits.
     :param QueryType input_type: Input type.
+
+    .. seealso::
+
+        :py:data:`phyre_engine.tools.hhsuite.tool.hhblits`
+            Command-line interface to ``hhblits``, including aliased
+            parameters.
     """
     REMOVES = []
 
@@ -242,8 +248,12 @@ class HHSearch(HHSuiteTool):
 
     .. seealso::
 
-        `~.HHBlits`
-            For parameters.
+        :py:class:`~.HHBlits`
+            Uses the same class parameters.
+
+        :py:data:`phyre_engine.tools.hhsuite.tool.hhsearch`
+            Command-line interface to ``hhsearch``, including aliased
+            parameters.
     """
 
     REMOVES = []
@@ -286,8 +296,12 @@ class HHMake(HHSuiteTool):
 
     .. seealso::
 
-        `~.HHBlits`
-            For parameters.
+        :py:class:`~.HHBlits`
+            Uses the same class parameters.
+
+        :py:data:`phyre_engine.tools.hhsuite.tool.hhsearch`
+            Command-line interface to ``hhsearch``, including aliased
+            parameters.
     """
 
     REQUIRED = ["a3m"]
@@ -314,8 +328,12 @@ class CSTranslate(HHSuiteTool):
 
     .. seealso::
 
-        `~.HHBlits`
-            For parameters.
+        :py:class:`~.HHBlits`
+            Uses the same class parameters.
+
+        :py:data:`phyre_engine.tools.hhsuite.tool.hhsearch`
+            Command-line interface to ``hhsearch``, including aliased
+            parameters.
     """
 
     REQUIRED = ["a3m"]
@@ -494,6 +512,9 @@ class ReportParser(Component):
 
     The key ``report`` must be present in the pipeline state. This key should
     contain the location of the report file to be parsed.
+
+    See :py:class:`phyre_engine.tools.hhsuite.parser.Report.Hit` for a full
+    list of fields added to each element of the ``templates`` list.
 
     .. warning::
 
