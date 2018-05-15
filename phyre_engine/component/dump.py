@@ -222,13 +222,16 @@ class Csv(Component):
         results = jmespath.search(self.jmespath_expr, data, jmespath_opts)
 
         with Stream(self.file, "w") as csv_out:
-            writer = csv.DictWriter(
-                csv_out, sorted(results[0].keys()),
-                restval=self.null_placeholder)
-            if self.header:
-                writer.writeheader()
-            for record in results:
-                self._fill_placeholders(record)
-                writer.writerow(record)
+            if not results:
+                print("# No results", file=csv_out)
+            else:
+                writer = csv.DictWriter(
+                    csv_out, sorted(results[0].keys()),
+                    restval=self.null_placeholder)
+                if self.header:
+                    writer.writeheader()
+                for record in results:
+                    self._fill_placeholders(record)
+                    writer.writerow(record)
 
         return data
