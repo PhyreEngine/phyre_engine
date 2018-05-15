@@ -1,0 +1,25 @@
+# This is a super simple 'toy' example that simply takes a sequence and builds the 
+# a3m file based on a search of the sequence uniclust library with HHblits
+#
+# This requires a default config file to be placed in ~/.config/phyreengine/config.yml
+
+pipeline:
+  components:
+  # Change to job directory, read query sequence, parse sequence metadata
+  # and validate it.
+  - .util.ChangeDir
+  - .input.ReadSingleSequence
+  - .validate.SeqValidator
+
+  # Generate HMM and search against the fold library.
+  - .hhsuite.HHBlits:
+      database: !template '{LOCAL_DATA_PREFIX}/hhsuite/uniclust30_2017_04/uniclust30_2017_04'
+      input_type: sequence
+      options:
+        output: hhblits_build.hhr
+        cpu: 8
+        iterations: 2
+        oa3m: query.a3m
+        alt: 1
+  - .hhsuite.AddPsipred
+
