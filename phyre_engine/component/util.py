@@ -53,6 +53,7 @@ class ChangeDir(Component):
         data.setdefault("directory_stack", []).append(cwd)
         working_dir = self.get_vals(data)
         os.chdir(working_dir)
+        self.logger.info("Moving to directory '%s'.", working_dir)
         return data
 
 
