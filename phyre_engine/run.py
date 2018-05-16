@@ -54,6 +54,7 @@ import phyre_engine.tools.yaml as yaml
 
 APP_SHORTAUTHOR = "imperial_college"
 APP_SHORTNAME = "phyreengine"
+ROOT_LOGGER = "phyre_engine.run"
 
 class DumpAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -254,13 +255,13 @@ def static_validate(pipeline):
 
     validation_errors = pipeline.validate()
     if validation_errors:
-        logging.getLogger("root").warning(
+        logging.getLogger(ROOT_LOGGER).warning(
             "Some components might be missing input. This analysis is only "
             "an educated guess, so execution is continuing. Silence this "
             "warning with --no-static-check or the no_static_check config "
             "variable.")
     for component, missing in validation_errors:
-        logging.getLogger("root").warning(
+        logging.getLogger(ROOT_LOGGER).warning(
             "Component %s might be missing keys %s",
             component.qualname, missing)
 
@@ -327,11 +328,11 @@ def main():  # IGNORE:C0111
         ### handle keyboard interrupt ###
         return 0
     except phyre_engine.pipeline.Pipeline.ValidationError as error:
-        logging.getLogger("root").error(
+        logging.getLogger(ROOT_LOGGER).error(
             "Component %s expected the missing keys %s in the pipeline state",
             error.component.qualname, error.missing)
     except Exception as error:
-        logging.getLogger("root").error(
+        logging.getLogger(ROOT_LOGGER).error(
             "Uncaught exception encountered: exiting.",
             exc_info=error)
         raise error
