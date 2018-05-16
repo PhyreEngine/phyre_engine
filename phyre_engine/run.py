@@ -120,6 +120,10 @@ def arg_parser():
         "-c", "--config", dest="config", action=StoreStartingValue, nargs=1,
         default={}, help="Modify pipeline configuration.")
     parser.add_argument(
+        "--no-static-check", action="store_true", default=False,
+        dest="no_static_check",
+        help="Do not check component inputs before running.")
+    parser.add_argument(
         dest="pipeline", metavar="pipeline",
         help="YAML file describing the pipeline")
     return parser
@@ -245,6 +249,21 @@ def pipeline_description(pipeline_file):
         lambda doc: doc["pipeline"]["config"],
         {"ENV": os.environ})
 
+def static_validate(pipeline):
+    """Attempt to validate each component's REQUIRED input."""
+
+    validation_errors = pipeline.validate()
+    if validation_errors:
+        logging.getLogger("root").warning(
+            "Some components might be missing input. This analysis is only "
+            "an educated guess, so execution is continuing. Silence this "
+            "warning with --no-static-check or the no_static_check config "
+            "variable.")
+    for component, missing in validation_errors:
+        logging.getLogger("root").warning(
+            "Component %s might be missing keys %s",
+            component.qualname, missing)
+
 def main():  # IGNORE:C0111
     '''Command line options.'''
 
@@ -293,6 +312,14 @@ def main():  # IGNORE:C0111
         # Load a pipeline
         pipeline = phyre_engine.pipeline.Pipeline.load(
             pipeline_desc["pipeline"])
+
+        # Check that the parameters each component requires are present. This
+        # is non-deterministic, so this can be silenced with the
+        # --no-static-check command-line option.
+        if not (args.no_static_check
+                or pipeline.config.get("no_static_check", False)):
+            static_validate(pipeline)
+
         pipeline.run()
 
         return 0
