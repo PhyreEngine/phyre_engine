@@ -68,7 +68,7 @@ class TestPipeline(unittest.TestCase):
             TestPipeline.MockComponentStart(),
             TestPipeline.MockComponentMid()
         ])
-        pipe.validate()
+        self.assertFalse(pipe.validate())
 
         #Run the pipeline
         out = pipe.run()
@@ -78,24 +78,29 @@ class TestPipeline(unittest.TestCase):
     def test_invalid(self):
         """Test an invalid pipeline."""
 
-        #The second MockComponentB requires MCA_1 but it was deleted.
-        with(self.assertRaises(Pipeline.ValidationError)) as cm:
-            Pipeline([
+        #The second MockComponentMid requires MCA_1 but it was deleted.
+        pipeline = Pipeline([
                 TestPipeline.MockComponentStart(),
                 TestPipeline.MockComponentMid(),
                 TestPipeline.MockComponentMid()
-            ]).validate()
-        self.assertSetEqual(set(cm.exception.missing), set(["MCA_1"]))
+            ])
+        validation_errors = pipeline.validate()
+        self.assertEqual(
+            validation_errors,
+            [(pipeline.components[2], ["MCA_1"])])
 
     def test_init_values(self):
         """Test passing initialiser values to a pipeline."""
 
-        #Should raise because MockComponentB requires MCA_1
-        with(self.assertRaises(Pipeline.ValidationError)):
-            Pipeline([TestPipeline.MockComponentMid()]).validate()
+        #Should return an error because MockComponentMid requires MCA_1
+        pipeline = Pipeline([TestPipeline.MockComponentMid()])
+        self.assertEqual(
+            pipeline.validate(),
+            [(pipeline.components[0], ["MCA_1"])])
 
-        #Should not raise because we pass an initial value
-        Pipeline([TestPipeline.MockComponentMid()], {"MCA_1":10}).validate()
+        #Should not return an error we pass an initial value
+        self.assertFalse(Pipeline([TestPipeline.MockComponentMid()],
+                                  {"MCA_1": 10}).validate())
 
 
     def test_bad_pipeline(self):
@@ -106,7 +111,7 @@ class TestPipeline(unittest.TestCase):
             TestPipeline.MockComponentBad(),
             TestPipeline.MockComponentMid()
         ])
-        pipe.validate()
+        self.assertFalse(pipe.validate())
 
         #Run the pipeline
         with(self.assertRaises(Pipeline.ValidationError)) as cm:

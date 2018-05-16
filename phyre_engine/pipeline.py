@@ -140,12 +140,20 @@ class Pipeline:
         """Validate that the inputs and outptuts of each component match.
 
         This method walks through the pipeline, keeping track of the keys that
-        are required, added, and removed for each component. An exception is
-        raised if the components do not match.
+        are required, added, and removed for each component. In a ideal world it
+        would be possible to completely validate a pipeline before it is run; in
+        practice, some components are non-deterministic. For example, we can't
+        know beforehand what fields a component in the
+        :py:mod:`~phyre_engine.component.dump` module will load.
 
-        :raises Pipeline.ValidationError: The pipeline could not be validated.
+        This method returns a list of tuples. The first element of each tuple
+        will be a component, and the second element will be a list of keys that
+        component is missing.
+
+
         """
 
+        components_missing_keys = []
         keys = set(self.start.keys())
         for component in self.components:
             #Build a list of missing keys rather than failing on the first.
@@ -154,8 +162,9 @@ class Pipeline:
             for reqd in component.REQUIRED:
                 if reqd not in keys:
                     missing.append(reqd)
+
             if len(missing) > 0:
-                raise Pipeline.ValidationError(component, missing)
+                components_missing_keys.append((component, missing))
 
             for added in component.ADDS:
                 keys.add(added)
@@ -163,6 +172,8 @@ class Pipeline:
             for removed in component.REMOVES:
                 if removed in keys:
                     keys.remove(removed)
+
+        return components_missing_keys
 
 
     def load_checkpoint(self):
@@ -486,7 +497,7 @@ class Pipeline:
 
         :vartype missing: List of strings indicatig the missing keys.
 
-        :ivar data: List of the missing keys.
+        :ivar data: Current pipeline state.
 
         :vartype data: Key-value blob describing the state of the pipeline at
             the time this exception was thrown.
