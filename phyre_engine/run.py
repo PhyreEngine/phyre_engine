@@ -326,6 +326,10 @@ def main():  # IGNORE:C0111
     except KeyboardInterrupt:
         ### handle keyboard interrupt ###
         return 0
+    except phyre_engine.pipeline.Pipeline.ValidationError as error:
+        logging.getLogger("root").error(
+            "Component %s expected the missing keys %s in the pipeline state",
+            error.component.qualname, error.missing)
     except Exception as error:
         logging.getLogger("root").error(
             "Uncaught exception encountered: exiting.",
