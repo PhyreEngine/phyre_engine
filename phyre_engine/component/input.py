@@ -41,7 +41,7 @@ class ReadSingleSequence(Component):
     #: :param str id: Sequence ID.
     #: :param str name: Sequence name, if any.
     #: :param str description: Sequence description, if any.
-    ADDS = ['seq_record', 'name', 'id', 'description']
+    ADDS = ['sequence', 'name', 'id', 'description']
     REMOVES  = []
 
     def __init__(self, seq_format="fasta", metadata=True):
