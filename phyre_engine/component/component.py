@@ -8,6 +8,7 @@ import enum
 import jmespath
 
 import phyre_engine.logutils
+import phyre_engine.pipeline
 from phyre_engine.tools.jmespath import JMESExtensions
 from phyre_engine.tools.util import apply_dotted_key, deep_merge
 
@@ -294,16 +295,15 @@ class PipelineComponent(Component):
         # Alias to reduce typing
         conf_enum = PipelineComponent.ConfigurationPreference
 
+        parent_config = phyre_engine.pipeline.PipelineConfig(parent_config)
+        child_config = phyre_engine.pipeline.PipelineConfig(child_config)
+
         if self.config_mode == conf_enum.DISCARD_PARENT:
             return child_config
         elif self.config_mode == conf_enum.PREFER_CHILD:
-            base_config = copy.deepcopy(parent_config)
-            base_config.update(child_config)
-            return base_config
+            return parent_config.merge_params(child_config)
         elif self.config_mode == conf_enum.PREFER_PARENT:
-            base_config = copy.deepcopy(child_config)
-            base_config.update(parent_config)
-            return base_config
+            return child_config.merge_params(parent_config)
         else:
             raise ValueError(
                 "Invalid value '{}' for config_mode.".format(self.config_mode))
