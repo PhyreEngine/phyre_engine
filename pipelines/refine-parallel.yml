@@ -106,8 +106,8 @@ pipeline:
 
         # Write results to a CSV file and a JSON file.
         - .dump.Csv:
-            jmespath_expr: *csv_format
-            file: models.csv
+            select_expr: *csv_format
+            output: models.csv
         - .dump.Json:
             output: models.json
         - .phyre.EndedJobInfo
