@@ -219,7 +219,7 @@ class PipelineComponent(Component):
         DISCARD_PARENT = "discard"
 
     def __init__(self, pipeline=None, config_mode="child", lazy_load=True,
-                 components=None):
+                 components=None, **kwargs):
         self.config_mode = type(self).ConfigurationPreference(config_mode)
 
         if (pipeline, components).count(None) != 1:
@@ -229,7 +229,7 @@ class PipelineComponent(Component):
             pipeline = {"components": components}
 
         if not lazy_load and not isinstance(pipeline, phyre_engine.Pipeline):
-            self._pipeline = phyre_engine.Pipeline.load(pipeline)
+            self._pipeline = phyre_engine.Pipeline.load(pipeline, **kwargs)
         else:
             self._pipeline = pipeline
 
