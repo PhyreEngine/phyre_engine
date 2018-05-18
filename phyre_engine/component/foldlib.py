@@ -71,6 +71,7 @@ class Open(Component):
 
     @classmethod
     def config(cls, params, config):
+        """Extract ``template_db`` and ``chain_dir`` from ``foldlib``."""
         return config.extract(
             {"foldlib": ["template_db", "chain_dir"]}
         ).merge_params(params)
