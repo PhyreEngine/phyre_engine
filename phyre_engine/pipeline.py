@@ -7,6 +7,7 @@ import json
 from collections import namedtuple
 import pickle
 import pathlib
+import pprint
 import time
 import logging
 
@@ -82,13 +83,14 @@ class Pipeline:
         FINISHED = "FINISHED"
 
     def __init__(self, components=None, start=None, checkpoint=None,
-                 config=None, statusfile=None):
+                 config=None, statusfile=None, dump_states=None):
         """Initialise a new pipeline with an optional list of components."""
         self.components = components if components else []
         self.start = start if start else {}
         self.checkpoint = checkpoint
         self.config = config
         self.statusfile = statusfile
+        self.dump_states = dump_states
         self.logger = logging.getLogger(
             self.__module__ + "." + type(self).__qualname__)
 
@@ -250,6 +252,19 @@ class Pipeline:
             qualname = ".".join(qualname)
         return qualname
 
+    def dump_state_repr(self, index, state):
+        """Write a pretty-printed dump of the state to a file after running
+        each component.
+
+        Files are named :file:`{dump_states}-{index:02d}.pp` and are written to
+        the current directory
+
+        :param int index: of the component.
+        :param state: Pipeline state.
+        """
+        with open("{}-{:02d}.pp".format(self.dump_states, index), "w") as dump_out:
+            print(_pformat_state(state), file=dump_out)
+
     def run(self, start_index=0):
         """Run this pipeline, executing each component in turn.
 
@@ -271,6 +286,11 @@ class Pipeline:
         # is the reference datum. This is necessary because the process time has
         # no absolute meaning and must be compared to a reference.
         self.store_timings(state, None)
+
+        # Dump state, starting at 0 for the state before any components are
+        # run.
+        if self.dump_states:
+            self.dump_state_repr(current_component, state)
 
         # Start from "current_component" to enable restarting from a checkpoint.
         for cmpt in self.components[current_component:]:
@@ -303,6 +323,9 @@ class Pipeline:
             # Finally, save the checkpoint file.
             current_component += 1
             self.save_checkpoint(current_component, state)
+
+            if self.dump_states:
+                self.dump_state_repr(current_component, state)
 
         # Save a statfile with None as the current component
         self.update_statusfile(self.CurrentComponent.FINISHED)
@@ -632,3 +655,33 @@ class PipelineConfig(dict):
         if section is None:
             return type(self)()
         return type(self)(section)
+
+
+def _pformat_state(state):
+    """Format pipeline state. This is implemented separately so we can use an
+    OrderedDict for the state without its ugly output.
+    """
+    pp = _PrettyPrinter(indent=1)
+    lines = ["{"]
+    for k, v in state.items():
+        key = repr(k) + ": "
+        indent = len(key)
+
+        value_lines = pp.pformat(v).split("\n")
+        value_lines[1:] = [" " * indent + ln for ln in value_lines[1:]]
+
+        lines.append(key + "\n".join(value_lines) + ",")
+    lines.append("}")
+    return "\n".join(lines)
+
+class _PrettyPrinter(pprint.PrettyPrinter):
+    """Extension of PrettyPrinter that truncates long strings."""
+    def __init__(self, *args, max_str_len=20, **kwargs):
+        self.max_str_len = max_str_len
+        super().__init__(*args, **kwargs)
+
+    def format(self, o, context, maxlevels, level):
+        if isinstance(o, str):
+            if len(o) > self.max_str_len:
+                o = o[:self.max_str_len] + '…'
+        return super().format(o, context, maxlevels, level)
