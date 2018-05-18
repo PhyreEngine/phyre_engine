@@ -75,6 +75,8 @@ try:
 except ImportError:
     from yaml import SafeLoader, SafeDumper
 
+import phyre_engine.pipeline
+
 class UnresolvedTemplateError(Exception):
     """Raised when an unresolved value is used in a format string."""
     def __init__(self, template):
@@ -213,6 +215,10 @@ def _construct_yaml_tuple(self, node):
     return tuple(seq)
 
 
+def _represent_pipeline_config(self, data):
+    return self.represent_dict(dict(data))
+
+
 def dump(data, stream=None, Dumper=SafeDumper, **kwargs):
     """See :py:func:`yaml.dump`."""
     return yaml.dump(data, stream=stream, Dumper=Dumper, **kwargs)
@@ -223,3 +229,6 @@ def load(stream, Loader=SafeLoader):
     return yaml.load(stream, Loader)
 
 SafeLoader.add_constructor('tag:yaml.org,2002:seq', _construct_yaml_tuple)
+
+SafeDumper.add_representer(phyre_engine.pipeline.PipelineConfig,
+                           _represent_pipeline_config)
