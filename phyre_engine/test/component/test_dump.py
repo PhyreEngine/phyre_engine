@@ -74,23 +74,15 @@ class TestJsonDumper(DumperTestBase):
         json_dumper.run(self.pipe_input)
         self._verify_dump()
 
-    def test_exclude(self):
+    def test_filter(self):
         """Test exclusions."""
-        json_dumper = dump.Json(self.stream, exclude="^.{3}$")
+        json_dumper = dump.Json(
+            self.stream,
+            select_expr="""except(@, regex_keys(@, ['^.{3}$']))""")
         json_dumper.run(self.pipe_input)
         del self.expected["foo"]
         del self.expected["baz"]
         del self.expected["seq"]
-        self._verify_dump()
-
-    def test_include(self):
-        """Exclude all and specifically include "seq"."""
-        json_dumper = dump.Json(self.stream, exclude="^.*$", include="^seq$")
-        json_dumper.run(self.pipe_input)
-        del self.expected["foo"]
-        del self.expected["baz"]
-        del self.expected["range"]
-        del self.expected["date"]
         self._verify_dump()
 
     def test_range_exception(self):
@@ -112,23 +104,15 @@ class TestYamlDumper(DumperTestBase):
         yaml_dumper.run(self.pipe_input)
         self._verify_dump()
 
-    def test_exclude(self):
+    def test_filter(self):
         """Test exclusions."""
-        yaml_dumper = dump.Yaml(self.stream, exclude="^.{3}$")
+        yaml_dumper = dump.Yaml(
+            self.stream,
+            select_expr="except(@, regex_keys(@, ['^.{3}$']))")
         yaml_dumper.run(self.pipe_input)
         del self.expected["foo"]
         del self.expected["baz"]
         del self.expected["seq"]
-        self._verify_dump()
-
-    def test_include(self):
-        """Exclude all and specifically include "seq"."""
-        yaml_dumper = dump.Yaml(self.stream, exclude="^.*$", include="^seq$")
-        yaml_dumper.run(self.pipe_input)
-        del self.expected["foo"]
-        del self.expected["baz"]
-        del self.expected["range"]
-        del self.expected["date"]
         self._verify_dump()
 
     def test_range_exception(self):
@@ -158,8 +142,8 @@ class TestCsvDumper(unittest.TestCase):
     ]
 
     def roundtrip(self, *args, **kwargs):
-        with io.StringIO("w+") as buffer:
-            csv_dumper = dump.Csv(*args, file=buffer, **kwargs)
+        with io.StringIO() as buffer:
+            csv_dumper = dump.Csv(*args, output=buffer, **kwargs)
             pipeline = copy.deepcopy(self._SAMPLE_PIPE)
             csv_dumper.run(pipeline)
             buffer.seek(0)

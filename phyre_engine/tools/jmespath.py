@@ -3,6 +3,7 @@ Tools used by PhyreEngine when dealing with `JMESPath <http://jmespath.org/>`_
 expressions.
 """
 import datetime
+import re
 
 import jmespath
 
@@ -47,6 +48,15 @@ class JMESExtensions(jmespath.functions.Functions):
         Similar to ``date()``, but returning a :py:class:`~datetime.datetime`
         object.
 
+    ``except(object, fields)``
+        Return a copy of ``object`` with all of ``fields`` removed.
+
+    ``select(object, fields)``
+        The opposite of ``except``: keep only the keys in ``fields``.
+
+    ``regex_keys(object, fields)``
+        Return a list of the keys in ``object`` that match any of the regexes
+        in ``fields``.
 
     :param root: Root of the pipeline state.
     """
@@ -88,3 +98,31 @@ class JMESExtensions(jmespath.functions.Functions):
     @jmespath.functions.signature({"types": ["string"]}, {"types": ["string"]})
     def _func_datetime(self, string, format_str):
         return datetime.datetime.strptime(string, format_str)
+
+    @jmespath.functions.signature({"types": ["object"]}, {"types": ["array"]})
+    def _func_except(self, obj, fields):
+        copy = obj.copy()
+        for field in fields:
+            if field in copy:
+                del copy[field]
+        return copy
+
+    @jmespath.functions.signature({"types": ["object"]}, {"types": ["array"]})
+    def _func_regex_keys(self, obj, fields):
+        regexes = [re.compile(regex) for regex in fields]
+        matching_fields = set()
+
+        for regex in regexes:
+            for key in obj.keys():
+                if regex.search(key):
+                    matching_fields.add(key)
+        return list(matching_fields)
+
+    @jmespath.functions.signature({"types": ["object"]}, {"types": ["array"]})
+    def _func_select(self, obj, keys):
+        result = {}
+
+        for key in keys:
+            if key in obj:
+                result[key] = obj[key]
+        return result

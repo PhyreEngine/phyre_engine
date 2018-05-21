@@ -116,13 +116,12 @@ class Dumper(Component):
     """
     Base class for dumpers.
 
-    The fields to be dumped may be chosen using the `include` and `exclude`
-    regular expressions. Exclusions are processed first, and inclusions are
-    added afterwards.
+    The state may be manipulated via the JMESPath expression `select_expr`. If
+    `select_expr` is not supplied, the entire pipeline state will be dumped.
 
     :param output: A file name, stream or :py:class:`pathlib.Path` object.
-    :param str exclude: Regexp excluding all matching fields.
-    :param str include: Regexp giving the fields to be specifically incldued.
+    :param str select_expr: JMESPath expression to be applied to the pipeline
+        state. The result of the expression is dumped.
     """
     # Disable warnings for this half-implemented class.
     # pylint: disable=abstract-method
@@ -131,29 +130,17 @@ class Dumper(Component):
     REMOVES = []
     REQUIRED = []
 
-    def __init__(self, output=sys.stdout, exclude=None, include=None):
+    def __init__(self, output=sys.stdout, select_expr=None):
         self.output = output
-        self.exclude = re.compile(exclude) if exclude is not None else None
-        self.include = re.compile(include) if include is not None else None
+        self.select_expr = select_expr
 
     def _filter(self, data):
         """Filter data to contain the required fields."""
-        filtered = {}
+        if self.select_expr is None:
+            return data
 
-        # Exclude matching fields if "exclude" is set
-        if self.exclude is not None:
-            for field in data:
-                if self.exclude.search(field) is None:
-                    filtered[field] = data[field]
-        else:
-            filtered = data
-
-        # Go through and explicitly include fields matching "include"
-        if self.include is not None:
-            for field in data:
-                if self.include.search(field) is not None:
-                    filtered[field] = data[field]
-        return filtered
+        opts = jmespath.Options(custom_functions=JMESExtensions(data))
+        return jmespath.search(self.select_expr, data, opts)
 
 class Json(Dumper):
     """Dump the pipeline state in JSON."""
@@ -181,7 +168,7 @@ class Csv(Component):
     """
     Dump a list in the pipeline state in CSV format.
 
-    :param str jmespath_expr: JMESPath expression returning a list of
+    :param str select_expr: JMESPath expression returning a list of
         dictionaries, all values of which will be written to the output file.
 
     :param file: File name or file-like object to write to. Defaults to standard
@@ -200,10 +187,10 @@ class Csv(Component):
     ADDS = []
     REMOVES = []
 
-    def __init__(self, jmespath_expr, file=sys.stdout, header=True,
+    def __init__(self, select_expr, output=sys.stdout, header=True,
                  null_placeholder="NA", **csv_args):
-        self.jmespath_expr = jmespath_expr
-        self.file = file
+        self.select_expr = select_expr
+        self.output = output
         self.header = header
         self.null_placeholder = null_placeholder
         self.csv_args = csv_args
@@ -219,9 +206,9 @@ class Csv(Component):
     def run(self, data, config=None, pipeline=None):
         """Write CSV file."""
         jmespath_opts = jmespath.Options(custom_functions=JMESExtensions(data))
-        results = jmespath.search(self.jmespath_expr, data, jmespath_opts)
+        results = jmespath.search(self.select_expr, data, jmespath_opts)
 
-        with Stream(self.file, "w") as csv_out:
+        with Stream(self.output, "w") as csv_out:
             if not results:
                 print("# No results", file=csv_out)
             else:
