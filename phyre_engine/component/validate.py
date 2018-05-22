@@ -48,8 +48,8 @@ class SeqValidator(Component):
             letters = set(seq)
             invalid = letters - set(alphabet.letters)
 
-            super().__init__("Sequence contained the invalid characters {}",
-                    invalid)
+            super().__init__(
+                "Sequence contained the invalid characters {}".format(invalid))
             self.invalid = invalid
             self.seq = seq
             self.alphabet = alphabet

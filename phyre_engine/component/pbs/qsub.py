@@ -157,7 +157,7 @@ class BaseQsub(PipelineComponent):
 
     def _save_pipeline(self, pipe_path, base_config):
         """
-        Save pipeline specification to a JSON file. If `base_config` is
+        Save pipeline specification to a YAML file. If `base_config` is
         supplied, it is used as the "base" configuration: any configuration
         set in "pipeline.config" overwrites the base configuration.
         """

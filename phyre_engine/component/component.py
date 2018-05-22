@@ -8,6 +8,7 @@ import enum
 import jmespath
 
 import phyre_engine.logutils
+import phyre_engine.pipeline
 from phyre_engine.tools.jmespath import JMESExtensions
 from phyre_engine.tools.util import apply_dotted_key, deep_merge
 
@@ -219,7 +220,7 @@ class PipelineComponent(Component):
         DISCARD_PARENT = "discard"
 
     def __init__(self, pipeline=None, config_mode="child", lazy_load=True,
-                 components=None):
+                 components=None, **kwargs):
         self.config_mode = type(self).ConfigurationPreference(config_mode)
 
         if (pipeline, components).count(None) != 1:
@@ -229,7 +230,7 @@ class PipelineComponent(Component):
             pipeline = {"components": components}
 
         if not lazy_load and not isinstance(pipeline, phyre_engine.Pipeline):
-            self._pipeline = phyre_engine.Pipeline.load(pipeline)
+            self._pipeline = phyre_engine.Pipeline.load(pipeline, **kwargs)
         else:
             self._pipeline = pipeline
 
@@ -294,16 +295,15 @@ class PipelineComponent(Component):
         # Alias to reduce typing
         conf_enum = PipelineComponent.ConfigurationPreference
 
+        parent_config = phyre_engine.pipeline.PipelineConfig(parent_config)
+        child_config = phyre_engine.pipeline.PipelineConfig(child_config)
+
         if self.config_mode == conf_enum.DISCARD_PARENT:
             return child_config
         elif self.config_mode == conf_enum.PREFER_CHILD:
-            base_config = copy.deepcopy(parent_config)
-            base_config.update(child_config)
-            return base_config
+            return parent_config.merge_params(child_config)
         elif self.config_mode == conf_enum.PREFER_PARENT:
-            base_config = copy.deepcopy(child_config)
-            base_config.update(parent_config)
-            return base_config
+            return child_config.merge_params(parent_config)
         else:
             raise ValueError(
                 "Invalid value '{}' for config_mode.".format(self.config_mode))
@@ -315,8 +315,43 @@ class Map(PipelineComponent):
     included in the results. If it returns a list, then each element of the list
     is added to the pipeline state.
 
+    To temporarily copy fields from the root of the pipeline into each child
+    element, the `copy` parameter can be supplied. This may either be a list
+    or a dict. If a list is supplied, the corresponding fields from the root
+    of the pipeline are copied into each child. If a dict is supplied, the
+    fields from the root named by the keys are copied into each child element
+    and named according to the values. That is, if the pipeline looks like
+    this:
+
+    .. code-block:: python
+
+        {"A": 1, "B": 2, "list": [{"foo": 123}, {"foo": 456}]}
+
+    If `copy` is ``["A". "B"]`` then ``A`` and ``B`` are copied into the child
+    elements and the ``list`` temporarily looks like this:
+
+    .. code-block:: python
+
+        [
+            {"foo": 123, "A": 1, "B": 2},
+            {"foo": 456, "A": 1, "B": 2}
+        ]
+
+    Similarly, if `copy` is ``{"A": "C", "B": D"}``, ``list`` will look like
+    this:
+
+    .. code-block:: python
+
+        [
+            {"foo": 123, "C": 1, "D": 2},
+            {"foo": 456, "C": 1, "D": 2}
+        ]
+
+    After the map finishes executing, the copied elements are removed from the
+    list.
+
     :param str field: Field over which to iterate.
-    :param list[str] copy: Copy these fields from the root of the pipeline state
+    :param copy: Copy these fields from the root of the pipeline state
         into each element of the list.
 
     .. seealso::
@@ -345,20 +380,25 @@ class Map(PipelineComponent):
         for i, item in enumerate(data[self.field]):
             self.logger.debug("Runing pipeline %d / %d",
                               i, len(data[self.field]))
-            for field in self.copy:
-                item[field] = data[field]
+
+            to_copy = self.copy
+            if isinstance(to_copy, list):
+                to_copy = {i: i for i in to_copy}
+
+            for field, new_name in to_copy.items():
+                item[new_name] = data[field]
 
             pipeline.start = item
             pipeline_results = pipeline.run()
             if pipeline_results is not None and not self.discard:
                 if isinstance(pipeline_results, list):
                     for result in pipeline_results:
-                        for field in self.copy:
-                            del result[field]
+                        for _, new_name in to_copy.items():
+                            del result[new_name]
                     pipe_output.extend(pipeline_results)
                 else:
-                    for field in self.copy:
-                        del pipeline_results[field]
+                    for _, new_name in to_copy.items():
+                        del pipeline_results[new_name]
                     pipe_output.append(pipeline_results)
         data[self.field] = pipe_output
         return data

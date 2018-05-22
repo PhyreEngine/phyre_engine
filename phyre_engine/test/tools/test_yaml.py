@@ -6,6 +6,7 @@ import unittest
 import yaml.constructor
 import yaml.representer
 
+import phyre_engine.pipeline
 import phyre_engine.tools.yaml as custom_yaml
 
 class TestYaml(unittest.TestCase):
@@ -16,6 +17,17 @@ class TestYaml(unittest.TestCase):
         yaml_doc = "[1, 2]: foo"
         buf = io.StringIO(yaml_doc)
         self.assertEqual(custom_yaml.load(buf), {(1, 2): "foo"})
+
+    def test_represent_pipeline_config(self):
+        """PipelineConfig objects can be represented as dicts."""
+        source = {"a": "b"}
+        conf = phyre_engine.pipeline.PipelineConfig(source)
+        buf = io.StringIO()
+        custom_yaml.dump(conf, buf)
+        buf.seek(0)
+
+        result = custom_yaml.load(buf)
+        self.assertEqual(result, source)
 
     def test_safe_load(self):
         """Safe loader is used by default."""

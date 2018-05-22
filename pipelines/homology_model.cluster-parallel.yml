@@ -19,10 +19,7 @@ pipeline:
   # Change to job directory, read query sequence, parse sequence metadata
   # and validate it.
   - .util.ChangeDir
-  - .input.FastaInput
-  - .input.ConvertSeqRecord
-  - .alter.Remove:
-      field: seq_record
+  - .input.ReadSingleSequence
   - .validate.SeqValidator
 
   - .pbs.qsub.Detach:
@@ -202,8 +199,8 @@ pipeline:
 
         # Write results to a CSV file and a JSON file.
         - .dump.Csv:
-            jmespath_expr: *csv_format
-            file: models.csv
+            select_expr: *csv_format
+            output: models.csv
         - .dump.Json:
             output: models.json
 

@@ -47,3 +47,23 @@ class TestJMESExtensions(unittest.TestCase):
                 """delete(@, `["a", "b"]`)""",
                 {"a": 1, "b": 2, "c": 3}),
             {"c": 3})
+
+    def test_except(self):
+        """The ``except`` function removes fields from a copy of an obj."""
+        obj = {"a": 1, "b": 2}
+        self.assertEqual(self.search("""except(@, `["a"]`)""", obj), {"b": 2})
+        self.assertEqual(obj, {"a": 1, "b": 2})
+
+    def test_select(self):
+        """The ``select`` function chooses fields in an object."""
+        self.assertEqual(
+            self.search("""select(@, `["a", "b"]`)""",
+                        {"a": 1, "b": 2, "c": 3}),
+            {"a": 1, "b": 2})
+
+    def test_regex_keys(self):
+        """The ``regex_keys`` function returns all keys matching regex."""
+        self.assertEqual(
+            set(self.search("""regex_keys(@, `["^a", "b$"]`)""",
+                            {"ab": 1, "c": 2, "db": 3})),
+            set(["ab", "db"]))

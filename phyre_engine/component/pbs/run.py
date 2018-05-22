@@ -19,6 +19,8 @@ import phyre_engine.tools.yaml as yaml
 import logging
 import logging.config
 
+ROOT_LOGGER = "phyre_engine.compnent.pbs.run"
+
 def arg_parser():
     # Setup argument parser
     parser = ArgumentParser(description=__import__('__main__').__doc__)
@@ -70,7 +72,7 @@ def main():  # IGNORE:C0111
         ### handle keyboard interrupt ###
         return 0
     except Exception as error:
-        logging.error(
+        logging.getLogger(ROOT_LOGGER).error(
             "Uncaught exception encountered: exiting.",
             exc_info=error)
         raise error

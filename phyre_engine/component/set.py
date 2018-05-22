@@ -31,7 +31,10 @@ class SetOperation(Component):
     :param str destination: Name of the field in which the results of the
         operation are stored.
     """
-    ADDS = []
+    @property
+    def ADDS(self):
+        return [self.destination]
+
     REMOVES = []
     REQUIRED = []
 

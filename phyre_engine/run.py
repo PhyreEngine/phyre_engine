@@ -54,6 +54,7 @@ import phyre_engine.tools.yaml as yaml
 
 APP_SHORTAUTHOR = "imperial_college"
 APP_SHORTNAME = "phyreengine"
+ROOT_LOGGER = "phyre_engine.run"
 
 class DumpAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -119,6 +120,10 @@ def arg_parser():
     parser.add_argument(
         "-c", "--config", dest="config", action=StoreStartingValue, nargs=1,
         default={}, help="Modify pipeline configuration.")
+    parser.add_argument(
+        "--no-static-check", action="store_true", default=False,
+        dest="no_static_check",
+        help="Do not check component inputs before running.")
     parser.add_argument(
         dest="pipeline", metavar="pipeline",
         help="YAML file describing the pipeline")
@@ -245,6 +250,21 @@ def pipeline_description(pipeline_file):
         lambda doc: doc["pipeline"]["config"],
         {"ENV": os.environ})
 
+def static_validate(pipeline):
+    """Attempt to validate each component's REQUIRED input."""
+
+    validation_errors = pipeline.validate()
+    if validation_errors:
+        logging.getLogger(ROOT_LOGGER).warning(
+            "Some components might be missing input. This analysis is only "
+            "an educated guess, so execution is continuing. Silence this "
+            "warning with --no-static-check or the no_static_check config "
+            "variable.")
+    for component, missing in validation_errors:
+        logging.getLogger(ROOT_LOGGER).warning(
+            "Component %s might be missing keys %s",
+            component.qualname, missing)
+
 def main():  # IGNORE:C0111
     '''Command line options.'''
 
@@ -293,14 +313,26 @@ def main():  # IGNORE:C0111
         # Load a pipeline
         pipeline = phyre_engine.pipeline.Pipeline.load(
             pipeline_desc["pipeline"])
+
+        # Check that the parameters each component requires are present. This
+        # is non-deterministic, so this can be silenced with the
+        # --no-static-check command-line option.
+        if not (args.no_static_check
+                or pipeline.config.get("no_static_check", False)):
+            static_validate(pipeline)
+
         pipeline.run()
 
         return 0
     except KeyboardInterrupt:
         ### handle keyboard interrupt ###
         return 0
+    except phyre_engine.pipeline.Pipeline.ValidationError as error:
+        logging.getLogger(ROOT_LOGGER).error(
+            "Component %s expected the missing keys %s in the pipeline state",
+            error.component.qualname, error.missing)
     except Exception as error:
-        logging.getLogger("root").error(
+        logging.getLogger(ROOT_LOGGER).error(
             "Uncaught exception encountered: exiting.",
             exc_info=error)
         raise error

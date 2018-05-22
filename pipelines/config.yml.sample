@@ -22,18 +22,27 @@ sbg_loop:
   executable: nova
 scwrl4:
   bin_dir: !template '{BIN_PREFIX}/bin'
+dssp:
+  bin_dir: !template '{BIN_PREFIX}/bin'
+pd2:
+  bin_dir: !template '{BIN_PREFIX}/bin'
+  database: !template '{BIN_PREFIX}/share/pd2_ca2main/database'
+  flags:
+  - ca2main:new_fixed_ca
+  options:
+    ca2main:bb_min_steps: 1000
 hhsuite:
   HHLIB: !template '{BIN_PREFIX}/share/hhsuite/'
   bin_dir: !template '{BIN_PREFIX}/bin'
   options:
     verbose: 2
-    cpu: 16
+    cpu: 1
 
 # By default, log everything to the console on stderr
 logging:
   formatters:
     simple:
-      format: '{levelname} : {asctime} : {name} : {message}'
+      format: '{levelname:8} : {asctime} : {hostname} : {name} : {message}'
       style: '{'
   handlers:
     console:
