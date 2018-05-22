@@ -679,9 +679,17 @@ class _PrettyPrinter(pprint.PrettyPrinter):
     def __init__(self, *args, max_str_len=20, **kwargs):
         self.max_str_len = max_str_len
         super().__init__(*args, **kwargs)
+        self._dispatch[list.__repr__] = self._pprint_list
+
+    @staticmethod
+    def _pprint_list(self, object, *args, **kwargs):
+        if len(object) > 3:
+            object = object[0:3] + ["…"]
+        pprint.PrettyPrinter._pprint_list(self, object, *args, **kwargs)
 
     def format(self, o, context, maxlevels, level):
         if isinstance(o, str):
             if len(o) > self.max_str_len:
                 o = o[:self.max_str_len] + '…'
-        return super().format(o, context, maxlevels, level)
+        formatted = super().format(o, context, maxlevels, level)
+        return formatted
