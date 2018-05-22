@@ -761,7 +761,7 @@ class BuildProfiles(Component):
                 ("bin_dir", "hh_bin_dir"),
                 "HHLIB",
                 ("options", "hh_options"),
-                ("database", "blits_db"),
+                "blits_db",
             ],
             "dssp": [("bin_dir", "dssp_bin_dir")],
         }).merge_params(params)
@@ -844,7 +844,7 @@ class BuildProfiles(Component):
         hhblits_opts["input"] = output_files["fasta"]
 
         hhblits = hhsuite.HHBlits(
-            database=self.blits_db,
+            blits_db=self.blits_db,
             bin_dir=self.hh_bin_dir,
             HHLIB=self.HHLIB,
             options=hhblits_opts,

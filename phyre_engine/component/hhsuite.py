@@ -189,7 +189,7 @@ class HHBlits(HHSuiteTool):
     Run hhblits. This can be used to generate an MSA from a query sequence or
     to search a fold library given an MSA.
 
-    :param str database: Path to an hhblits database.
+    :param str blits_db: Path to an hhblits database.
     :param flags: Flags to pass to hhblits (e.g. ``all`` to pass the ``-all``
         option).
     :param options: Flag/option pairs to pass to hhblits (e.g. ``n=3`` to pass
@@ -216,13 +216,13 @@ class HHBlits(HHSuiteTool):
     def ADDS(self):
         return list(self.output_keys())
 
-    def __init__(self, database, flags=None, bin_dir=None, HHLIB=None,
+    def __init__(self, blits_db, flags=None, bin_dir=None, HHLIB=None,
                  input_type=QueryType.SEQUENCE, options=None,
-                 cache_dir="."):
+                 cache_dir=".", **kwargs):
 
         if options is None:
             options = {}
-        options["database"] = database
+        options["database"] = blits_db
 
         super().__init__(
             ("hhblits", tools.hhblits),
@@ -239,6 +239,8 @@ class HHSearch(HHSuiteTool):
     """
     Run hhsearch to match a query profile (or HMM) against a database of
     profiles.
+
+    :param str search_db: Location of the hhsearch database.
 
     .. seealso::
 
@@ -263,13 +265,13 @@ class HHSearch(HHSuiteTool):
         return list(self.output_keys())
 
     def __init__(
-            self, database, flags=None, bin_dir=None, HHLIB=None,
+            self, search_db, flags=None, bin_dir=None, HHLIB=None,
             input_type=QueryType.A3M, options=None,
-            cache_dir="."):
+            cache_dir=".", **kwargs):
 
         if options is None:
             options = {}
-        options["database"] = database
+        options["database"] = search_db
         super().__init__(
             ("hhsearch", tools.hhsearch),
             flags, options, bin_dir, HHLIB, input_type, cache_dir)
@@ -295,7 +297,7 @@ class HHMake(HHSuiteTool):
     ADDS = ["hhm"]
 
     def __init__(self, flags=None, bin_dir=None, HHLIB=None, options=None,
-                 cache_dir="."):
+                 cache_dir=".", **kwargs):
         super().__init__(
             ("hhmake", tools.hhmake),
             flags, options, bin_dir, HHLIB, QueryType.A3M, cache_dir)
@@ -323,7 +325,7 @@ class CSTranslate(HHSuiteTool):
     ADDS = ["cs219"]
 
     def __init__(self, flags=None, bin_dir=None, HHLIB=None, options=None,
-                 cache_dir="."):
+                 cache_dir=".", **kwargs):
         super().__init__(
             ("cstranslate", tools.cstranslate),
             flags, options, bin_dir, HHLIB, QueryType.A3M, cache_dir)
