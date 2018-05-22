@@ -67,6 +67,8 @@ class TMAlign(StructuralAlignment):
 
     :param str executable: Alternate name for the executable.
     """
+    CONFIG_SECTION = "tm"
+
     ADDS = ["TM", "rmsd", "seqid", "structural_alignment"]
 
     def __init__(self, superposition=None, bin_dir=None, executable="TMalign"):
@@ -134,6 +136,8 @@ class TMScore(StructuralAlignment):
 
     :param str executable: Name of the executable.
     """
+    CONFIG_SECTION = "tm"
+
     ADDS = ["TM", "maxsub", "GDT_TS", "GDT_HA", "sequence_alignment"]
 
     def __init__(self, superposition=None, bin_dir=None, executable="TMscore"):
