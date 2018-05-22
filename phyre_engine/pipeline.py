@@ -485,6 +485,8 @@ class Pipeline:
             pipeline.
 
         """
+        log_name = ".".join((cls.__module__, cls.__qualname__))
+
         config = PipelineConfig(pipeline_dict.get("config", {}))
         namespace = pipeline_dict.pop("namespace", DEFAULT_NAMESPACE)
         component_descriptions = pipeline_dict.pop("components", [])
@@ -492,11 +494,26 @@ class Pipeline:
         for description in component_descriptions:
             if isinstance(description, dict):
                 for cls_name, arg_dict in description.items():
-                    component = cls._load_component(cls_name, arg_dict, config,
-                                                    namespace)
+                    try:
+                        component = cls._load_component(cls_name, arg_dict,
+                                                        config, namespace)
+                    except TypeError as error:
+                        # Error initial
+                        logging.getLogger(log_name).error(
+                            "Error loading component %s (args: %s)",
+                            cls_name, arg_dict,
+                            exc_info=error)
+                        raise error
             else:
-                component = cls._load_component(description, None, config,
-                                                namespace)
+                try:
+                    component = cls._load_component(description, None,
+                                                    config, namespace)
+                except TypeError as error:
+                    # Error initial
+                    logging.getLogger(log_name).error(
+                        "Error loading component %s (args: [])",
+                        description, exc_info=error)
+                    raise error
             components.append(component)
         return cls(components=components, **pipeline_dict)
 
