@@ -375,16 +375,19 @@ class Map(PipelineComponent):
     def run(self, data, config=None, pipeline=None):
         """Iterate over given field, applying a child pipeline."""
 
+        # If we were given a list of items to copy, it is equivalent to a
+        # dictionary with the new names equal to the old.
+        to_copy = self.copy
+        if isinstance(to_copy, list):
+            to_copy = {i: i for i in to_copy}
+
         pipeline = self.pipeline(config)
         pipe_output = []
         for i, item in enumerate(data[self.field]):
             self.logger.debug("Runing pipeline %d / %d",
                               i, len(data[self.field]))
 
-            to_copy = self.copy
-            if isinstance(to_copy, list):
-                to_copy = {i: i for i in to_copy}
-
+            # Copy top-level elements into child elements
             for field, new_name in to_copy.items():
                 item[new_name] = data[field]
 
@@ -392,14 +395,22 @@ class Map(PipelineComponent):
             pipeline_results = pipeline.run()
             if pipeline_results is not None and not self.discard:
                 if isinstance(pipeline_results, list):
-                    for result in pipeline_results:
-                        for _, new_name in to_copy.items():
-                            del result[new_name]
                     pipe_output.extend(pipeline_results)
                 else:
-                    for _, new_name in to_copy.items():
-                        del pipeline_results[new_name]
                     pipe_output.append(pipeline_results)
+
+            # Components in the child pipeline may return copies of the
+            # original elements, so we need to clean up extra fields in the
+            # original elements as well as the returned elements.
+            for new_name in to_copy.values():
+                del item[new_name]
+
+        # Clean up copied elements in results
+        for result in pipe_output:
+            for new_name in to_copy.values():
+                if new_name in result:
+                    del result[new_name]
+
         data[self.field] = pipe_output
         return data
 
