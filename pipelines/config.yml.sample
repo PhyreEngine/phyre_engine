@@ -5,7 +5,7 @@ LOCAL_DATA_PREFIX: '/data/phyre3/data'
 CONFIG_PREFIX: '/bmm/phyreengine/share'
 
 qsub:
-  qsub_args: ["-q", "long", "-l", "nodes=1:ppn=16"]
+  qsub_args: ["-q", "long", "-l", "nodes=1:ppn=1"]
 foldlib:
   template_db: !template '{FOLDLIB_PREFIX}/foldlib.db'
   chain_dir: !template '{FOLDLIB_PREFIX}/chains'
@@ -34,6 +34,8 @@ pd2:
 hhsuite:
   HHLIB: !template '{BIN_PREFIX}/share/hhsuite/'
   bin_dir: !template '{BIN_PREFIX}/bin'
+  blits_db: !template '{LOCAL_DATA_PREFIX}/hhsuite/uniclust30_2017_10/uniclust30_2017_10'
+  search_db: !template '{FOLDLIB_PREFIX}/foldlib'
   options:
     verbose: 2
     cpu: 1
