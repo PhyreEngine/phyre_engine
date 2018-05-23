@@ -62,7 +62,7 @@ class EM4GMM(Component):
         option of ``gmmtrain``).
 
     :param int threads: Optional maximum number of threads used (``-t`` option
-        of ``gmmtrain``and ``gmmclass``). Default is 1.
+        of ``gmmtrain`` and ``gmmclass``). Default is 1.
 
     :param str world_model: Optional world model used for smoothing (``-w``
         option of ``gmmclass``).

@@ -8,7 +8,7 @@ tuple must be the residue IDs of the contacting residues, and the next element
 must be the confidence of that contact. The remaining fields are unspecified.
 For example:
 
-.. code-block::
+.. code-block:: python
 
     {"contacts": [
         <Contact i=1, j=10, confidence=0.99>,

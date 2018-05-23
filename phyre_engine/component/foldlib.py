@@ -71,7 +71,16 @@ class Open(Component):
 
     @classmethod
     def config(cls, params, config):
-        """Extract ``template_db`` and ``chain_dir`` from ``foldlib``."""
+        """
+        Extract ``foldlib.template_db`` and ``foldlib.chain_dir``.
+
+
+        .. csv-table:: Configuration mapping
+            :header: "Section", "Field", "Parameter"
+
+            ``foldlib``,   ``template_db``,  ``template_db``
+                       ,   ``chain_dir``,    ``chain_dir``
+        """
         return config.extract(
             {"foldlib": ["template_db", "chain_dir"]}
         ).merge_params(params)
@@ -240,6 +249,14 @@ class RetrieveNewPDBs(Component):
 
     @classmethod
     def config(cls, params, config):
+        """
+        Extract ``foldlib.override_date``.
+
+        .. csv-table:: Configuration mapping
+            :header: "Section", "Field", "Parameter"
+
+            ``foldlib``,   ``override_date``,  ``override_date``
+        """
         return config.extract(
             {"foldlib": ["override_date"]}
         ).merge_params(params)
@@ -327,6 +344,14 @@ class UncompressTemplate(Component):
 
     @classmethod
     def config(cls, params, config):
+        """
+        Extract ``foldlib.chain_dir``.
+
+        .. csv-table:: Configuration mapping
+            :header: "Section", "Field", "Parameter"
+
+            ``foldlib``,   ``chain_dir``,  ``chain_dir``
+        """
         return config.extract({"foldlib": ["chain_dir"]}).merge_params(params)
 
     def run(self, data, config=None, pipeline=None):
@@ -405,6 +430,14 @@ class FoldLibMetadata(phyre_engine.component.pdb.MMCIFMetadata):
 
     @classmethod
     def config(cls, params, config):
+        """
+        Extract ``foldlib.mmcif_dir``.
+
+        .. csv-table:: Configuration mapping
+            :header: "Section", "Field", "Parameter"
+
+            ``foldlib``,   ``mmcif_dir``,  ``mmcif_dir``
+        """
         return config.extract({"foldlib": ["mmcif_dir"]}).merge_params(params)
 
     def __init__(self, mmcif_dir):
@@ -440,11 +473,7 @@ class AddPDB(Component):
     def run(self, data, config=None, pipeline=None):
         """Add PDB entry to template database."""
         pdb_id, metadata, template_db = self.get_vals(data)
-        try:
-            template_db.get_pdb(pdb_id)
-            template_db.update_pdb(pdb_id, metadata)
-        except template_db.PdbNotFoundException:
-            template_db.add_pdb(pdb_id, metadata)
+        template_db.add_or_update_pdb(pdb_id, metadata)
         return data
 
 
@@ -661,6 +690,20 @@ class AddMissingBackboneAtoms(Component):
 
     @classmethod
     def config(cls, params, config):
+        """
+        Extract fields from ``dssp`` and ``pd2``.
+
+        .. csv-table:: Configuration mapping
+            :header: "Section", "Field", "Parameter"
+
+            ``dssp``,   ``bin_dir``,    ``dssp_bin_dir``
+            ``pd2``,    ``bin_dir``,    ``pd2_bin_dir``
+                   ,    ``database``,   ``pd2_database``
+                   ,    ``flags``,      ``pd2_flags``
+                   ,    ``options``,    ``pd2_options``
+        """
+
+
         return config.extract({
             "dssp": [("bin_dir", "dssp_bin_dir")],
             "pd2": [
@@ -755,6 +798,20 @@ class BuildProfiles(Component):
 
     @classmethod
     def config(cls, params, config):
+        """
+        Extract fields from the ``foldlib``, ``hhsuite`` and ``dssp`` sections.
+
+        .. csv-table:: Configuration mapping
+            :header: "Section", "Field", "Parameter"
+
+            ``foldlib``,   ``profile_dir``, ``profile_dir``
+                       ,   ``overwrite``,   ``overwrite``
+            ``hhsuite``,   ``bin_dir``,     ``hh_bin_dir``
+                       ,   ``HHLIB``,       ``HHLIB``
+                       ,   ``options``,     ``hh_options``
+                       ,   ``blits_db``,    ``blits_db``
+            ``dssp``,      ``bin_dir``,     ``dssp_bin_dir``
+        """
         return config.extract({
             "foldlib": ["profile_dir", "overwrite"],
             "hhsuite": [
@@ -929,6 +986,15 @@ class OpenCopy(Component):
 
     @classmethod
     def config(cls, params, config):
+        """
+        Extract ``foldlib.template_db`` and ``foldlib.chain_dir``.
+
+        .. csv-table:: Configuration mapping
+            :header: "Section", "Field", "Parameter"
+
+            ``foldlib``,   ``template_db``, ``template_db``
+                       ,   ``chain_dir``,   ``chain_dir``
+        """
         return config.extract(
             {"foldlib": ["template_db", "chain_dir"]}
         ).merge_params(params)

@@ -85,7 +85,7 @@ Template Objects
 ----------------
 
 A template is represented by a :py:class:`~.Template` object. Each
-:py:class:`phyre_engine.tools.template.Template` object has a with a
+:py:class:`phyre_engine.tools.template.Template` object has an associated
 :py:class:`~Bio.PDB.Chain.Chain` object, canonical sequence and list of
 canonical indices. Each object also contains an array of residue IDs giving the
 ID of the original residue before renumbering and sanitisation.
@@ -110,14 +110,194 @@ The SQLite database portion of the template database contains metadata for an
 entire PDB file such as deposition date, as well as metadata for the template
 such as canonical sequence.
 
-The metadata describing a PDB entry are the same as the metadata that can be
-specified when adding a PDB entry via :py:meth:`~.TemplateDatabase.add_pdb`.
-Metadata may be retrieved via the :py:meth:`~.TemplateDatabase.get_pdb`
-method.
+The metadata describing a PDB entry are described in the method
+:py:meth:`~.TemplateDatabase.add_pdb`. Metadata may be retrieved via the
+:py:meth:`~.TemplateDatabase.get_pdb` method. An empty database may be created
+using the :py:meth:`~.TemplateDatabase.create` class method.
 
 The metadata describing a template is the same as described in
 :py:class:`~.Template`.
 
+SQL Database format
+~~~~~~~~~~~~~~~~~~~
+
+The SQL part of the template database contains the following tables:
+
+``meta``
+    Simply contains the date of the last fold library update.
+
+``pdbs``
+    Contains metadata for each PDB entry in the database.
+
+``chains``
+    Metadata for each chain in the database. Currently, this only contains the
+    canonical sequence of each chain.
+
+``sequence_reps``
+    For each unique canonical sequence, this table contains the PDB and chain ID
+    of the structure chosen to represent that sequence.
+
+``canonical``
+    Contains a mapping between the residues in the canonical sequence and the
+    renumbered residue IDs in the corresponding structure file.
+
+``original_residues``
+    The residue IDs of the structure as annotated by the structure authors.
+
+The ``meta`` table stands alone, while the remaining tables are linked via
+foreign key constraints on PDB and chain IDs. This means that if a PDB entry is
+deleted, all rows referencing that PDB entry are recursively deleted. Similarly,
+if a chain is deleted then all rows referencing it---but not the row in the
+``pdbs`` table---are deleted.
+
+.. graphviz::
+
+    digraph Schema {
+        graph [pad="0.5", nodesep="0.5", ranksep="2"];
+        node [shape=plain]
+        rankdir=LR;
+
+        meta [label=<
+        <table border="0" cellborder="1" cellspacing="0">
+          <tr><td><i>meta</i></td></tr>
+          <tr><td port="updated" align="left">udpated</td></tr>
+        </table>>];
+
+        pdbs [label=<
+        <table border="0" cellborder="1" cellspacing="0">
+          <tr><td><i>pdbs</i></td></tr>
+          <tr><td port="pdb_id" align="left">pdb_id</td></tr>
+          <tr><td port="deposition_date" align="left">deposition_date</td></tr>
+          <tr><td port="last_update_date" align="left">last_update_date</td></tr>
+          <tr><td port="release_date" align="left">release_date</td></tr>
+          <tr><td port="method" align="left">method</td></tr>
+          <tr><td port="resolution" align="left">resolution</td></tr>
+          <tr><td port="organism_name" align="left">organism_name</td></tr>
+          <tr><td port="organism_id" align="left">organism_id</td></tr>
+          <tr><td port="title" align="left">title</td></tr>
+          <tr><td port="descriptor" align="left">descriptor</td></tr>
+        </table>>];
+
+        chains [label=<
+        <table border="0" cellborder="1" cellspacing="0">
+          <tr><td><i>chains</i></td></tr>
+          <tr><td port="pdb_id" align="left">pdb_id</td></tr>
+          <tr><td port="chain_id" align="left">chain_id</td></tr>
+          <tr><td port="canonical_sequence" align="left">canonical_sequence</td></tr>
+        </table>>];
+        chains:pdb_id -> pdbs:pdb_id;
+
+        sequence_reps [label=<
+        <table border="0" cellborder="1" cellspacing="0">
+          <tr><td><i>sequence_reps</i></td></tr>
+          <tr><td port="pdb_id" align="left">pdb_id</td></tr>
+          <tr><td port="chain_id" align="left">chain_id</td></tr>
+          <tr><td port="canonical_sequence" align="left">canonical_sequence</td></tr>
+        </table>>];
+        sequence_reps:pdb_id -> pdbs:pdb_id;
+        sequence_reps:pdb_id -> chains:pdb_id;
+        sequence_reps:chain_id -> chains:chain_id;
+
+        canonical [label=<
+        <table border="0" cellborder="1" cellspacing="0">
+          <tr><td><i>canonical</i></td></tr>
+          <tr><td port="pdb_id" align="left">pdb_id</td></tr>
+          <tr><td port="chain_id" align="left">chain_id</td></tr>
+          <tr><td port="sequence_index" align="left">sequence_index</td></tr>
+          <tr><td port="aa" align="left">aa</td></tr>
+          <tr><td port="residue_id" align="left">residue_id</td></tr>
+        </table>>];
+        canonical:pdb_id -> chains:pdb_id;
+        canonical:chain_id -> chains:chain_id;
+
+        original_residues [label=<
+        <table border="0" cellborder="1" cellspacing="0">
+          <tr><td><i>original_residues</i></td></tr>
+          <tr><td port="pdb_id" align="left">pdb_id</td></tr>
+          <tr><td port="chain_id" align="left">chain_id</td></tr>
+          <tr><td port="sequence_index" align="left">sequence_index</td></tr>
+          <tr><td port="hetero_flag" align="left">hetero_flag</td></tr>
+          <tr><td port="orig_residue_id" align="left">orig_residue_id</td></tr>
+          <tr><td port="insertion_code" align="left">insertion_code</td></tr>
+        </table>>];
+        original_residues:pdb_id -> chains:pdb_id;
+        original_residues:chain_id -> chains:chain_id;
+    }
+
+Building a template database
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Building the SQL portion of a template database is done in several steps. It is
+recommended that the entire process take place in a single transaction, so that
+failures do not leave a partially-constructed database behind. A
+partially-constructed database is left in an undefined, arbitrary state, so be
+careful about when you commit data. When you create a new instance of
+:py:class:`~.TemplateDatabase`, a transaction is automatically started for you.
+
+Constructing a database proceeds like this:
+
+1. Call :py:meth:`~.TemplateDatabase.create` to create an empty database.
+
+2. Connect to that database by creating a new instance of
+   :py:class:`~.TemplateDatabase`.
+
+3. Add PDB metadata using :py:meth:`~.TemplateDatabase.add_pdb`. This method
+   requires some metadata; the component
+   :py:class:`phyre_engine.component.foldlib.FoldLibMetadata` can be used to
+   retrieve metadata from an mmCIF file.
+
+4. For each chain in each PDB entry that was added to the database, call
+   :py:meth:`~.TemplateDatabase.add_template`. The
+   :py:meth:`~.TemplateDatabase.add_template` method accepts a
+   :py:class:`~.Template` object as an argument, which may be constructed
+   from the component :py:class:`phyre_engine.component.db.db.BuildTemplate`,
+   which requires data generated by
+   :py:class:`phyre_engine.component.db.db.ChainPDBBuilder`.
+
+   The :py:meth:`~.TemplateDatabase.add_template` method will update the
+   ``chains``, ``canonical`` and ``original_residues`` tables.
+
+5. Update the ``sequence_reps`` table by calling
+   :py:meth:`~.TemplateDatabase.update_all_seq_reps`. This will loop over
+   each unique sequence in the ``chains`` table, and update the
+   ``sequence_reps`` table to point to the chain with the lowest resolution,
+   breaking ties by sorting on PDB and chain ID.
+
+6. Set the current update date by using the
+   :py:attr:`~.TemplateDatabase.updated` setter: ``template_db.updated =
+   datetime.date.today()``.
+
+7. Finally, commit the changes using :py:meth:`~.TemplateDatabase.commit`.
+   This will write all changes to the database.
+
+Updating a template database
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Adding structures to a template database is similar to building a new database,
+but the following should be kept in mind:
+
+1. *Deleting* a PDB entry will cascade through the database and delete all the
+   chain information, sequence representative information, and any other data
+   referring to that PDB. In most cases, changes reported by the RCSB are
+   simply metadata changes that do not affect the geometry of the structure,
+   so it is not necessary to delete and re-insert all template information.
+   Use :py:meth:`~.TemplateDatabase.add_or_update_pdb` to update PDB entries
+   (or add them if they don't exist), rather than calling
+   :py:meth:`~.TemplateDatabase.del_pdb`. The component
+   :py:class:`phyre_engine.component.foldlib.AddPDB` will take care of this for
+   you.
+
+2. Because most changes to PDB entries do not affect the ATOM records, the
+   canonical sequence is unlikely to change. The
+   :py:class:`phyre_engine.component.foldlib.DiscardUnchanged` component can
+   be used to discard templates for which the canonical sequence has not
+   changed.
+
+3. Use the :py:meth:`~.TemplateDatabase.update_seq_rep` method for each
+   template, rather than using
+   :py:meth:`~.TemplateDatabase.update_all_seq_reps`. Most PDB updates affect
+   only a tiny fraction of the PDB, so there is no need to update *all*
+   sequence representatives.
 """
 import collections
 import json
@@ -312,8 +492,8 @@ class TemplateDatabase:
     VALUES (:pdb_id, :chain_id, :canonical_sequence)
     """
 
-    INSERT_PDB = """
-    INSERT INTO pdbs (
+    _INSERT_PDB_FORMAT_STR = """
+    INSERT {} INTO pdbs (
            pdb_id, deposition_date, last_update_date, release_date,
            method, resolution,
            organism_name, organism_id,
@@ -324,6 +504,8 @@ class TemplateDatabase:
            :organism_name, :organism_id,
            :title, :descriptor)
     """
+    INSERT_PDB = _INSERT_PDB_FORMAT_STR.format("")
+    INSERT_OR_UPDATE_PDB = _INSERT_PDB_FORMAT_STR.format("OR REPLACE")
 
     UPDATE_PDB = """
     UPDATE pdbs
@@ -552,8 +734,6 @@ class TemplateDatabase:
         fields = collections.defaultdict(lambda: None)
         fields["pdb_id"] = pdb_id.lower()
         fields.update(metadata)
-        for date in ("deposition_date", "last_update_date", "release_date"):
-            fields[date] = fields[date].strftime("%Y-%m-%d")
         return fields
 
     def add_pdb(self, pdb_id, metadata):
@@ -592,15 +772,30 @@ class TemplateDatabase:
         fields = self._format_metadata(pdb_id, metadata)
         self.conn.execute(self.INSERT_PDB, fields)
 
+    def add_or_update_pdb(self, pdb_id, metadata):
+        """
+        Updates `pdb_id` entry in the ``pdbs`` table, inserting the entry
+        without error if it is missing.
+
+        See :py:class:`.add_pdb` for information about the fields expected in
+        `metadata`.
+        """
+        fields = self._format_metadata(pdb_id, metadata)
+        cursor = self.conn.execute(self.INSERT_OR_UPDATE_PDB, fields)
+
     def update_pdb(self, pdb_id, metadata):
         """
         Update a PDB entry in the fold library database.
 
         See :py:class:`.add_pdb` for information about the fields expected in
         `metadata`.
+
+        :raises PdbNotFoundException: If the PDB was not found.
         """
         fields = self._format_metadata(pdb_id, metadata)
-        self.conn.execute(self.UPDATE_PDB, fields)
+        cursor = self.conn.execute(self.UPDATE_PDB, fields)
+        if cursor.rowcount == 0:
+            raise self.PdbNotFoundException(pdb_id)
 
     def del_pdb(self, pdb_id):
         """
@@ -608,20 +803,27 @@ class TemplateDatabase:
         entry from the database.
 
         :param str pdb_id: Identifier of the PDB entry to delete.
+        :raises PdbNotFoundException: If the PDB was not found.
         """
-        self.conn.execute(self.DELETE_PDB, {"pdb_id": pdb_id.lower()})
+        cursor = self.conn.execute(self.DELETE_PDB, {"pdb_id": pdb_id.lower()})
+        if cursor.rowcount == 0:
+            raise self.PdbNotFoundException(pdb_id)
 
     def del_template(self, pdb_id, chain_id):
         """
-        The the template with the given PDB and chain IDs, along with all
+        Delete the template with the given PDB and chain IDs, along with all
         metatadata associated with that template.
 
         :param str pdb_id: PDB ID of the template to delete.
         :param str chain_id: Chain ID of the template to delete.
+        :raises TemplateNotFoundException: If the template was not found.
         """
-        self.conn.execute(
+        cursor = self.conn.execute(
             self.DELETE_TEMPLATE,
             {"pdb_id": pdb_id.lower(), "chain_id": chain_id})
+
+        if cursor.rowcount == 0:
+            raise self.TemplateNotFoundException(pdb_id, chain_id)
 
     def update_all_seq_reps(self):
         """

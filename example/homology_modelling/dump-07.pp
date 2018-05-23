@@ -1,0 +1,15 @@
+{
+'working_dir': '.',
+'input': 'query.fasta',
+'directory_stack': ['/bmm/phyreengine/home/phyreenginedev/homology_model_session'],
+'sequence': 'MASGHSLLLENAQQVVLVCA…',
+'id': 'Q96NU7',
+'name': 'Q96NU7',
+'description': 'Q96NU7',
+'a3m': 'query.a3m',
+'report': 'hhsearch_search.hhr',
+'atab': 'hhsearch_search.atab',
+'pairwise_fasta': 'alignments.fasta',
+'secondary_structure_sequence': {'ss_conf': '97653131242442578605…',
+                                 'ss_pred': 'CCCCCHHHEECCCEEEEECC…'},
+}

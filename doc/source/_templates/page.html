@@ -1,0 +1,16 @@
+{% extends "!page.html" %}
+{# Courtesy of pbauer: https://stackoverflow.com/a/25543713 #}
+
+{% set css_files = css_files + ["_static/custom.css"] %}
+
+{% block footer %}
+ <script type="text/javascript">
+    $(".toggle .header").wrap("<button class='header'></button>").contents().unwrap();
+    $(".toggle").children().not(".header").hide()
+    $(".toggle .header").show();
+    $(".toggle .header").click(function() {
+        $(this).parent().children().not(".header").toggle();
+        $(this).toggleClass("open");
+    });
+</script>
+{% endblock %}

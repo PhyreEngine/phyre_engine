@@ -107,7 +107,14 @@ class StructureRetriever(Component):
 
     @classmethod
     def config(cls, params, config):
-        """Sets `base_dir` to ``foldlib.mmcif_dir`` if present."""
+        """
+        Sets `base_dir` to ``foldlib.mmcif_dir`` if present.
+
+        .. csv-table:: Configuration mapping
+            :header: "Section", "Field", "Parameter"
+
+            ``foldlib``,   ``mmcif_dir``,   ``base_dir``
+        """
         return config.extract({"foldlib": [
                 ("mmcif_dir", "base_dir"),
             ]}).merge_params(params)
@@ -191,7 +198,7 @@ class ChainPDBBuilder(Component):
     sequence.
 
     For example, we might start with the following original PDB file (with
-    everything left of the residue index excised for legibility):
+    everything right of the residue index excised for legibility):
 
     .. code-block:: none
 
@@ -287,6 +294,15 @@ class ChainPDBBuilder(Component):
 
     @classmethod
     def config(cls, params, config):
+        """
+        Extract ``foldlib.chain_dir`` and ``foldlib.mmcif_dir``.
+
+        .. csv-table:: Configuration mapping
+            :header: "Section", "Field", "Parameter"
+
+            ``foldlib``,   ``chain_dir``,   ``chain_dir``
+                       ,   ``mmcif_dir``,   ``mmcif_dir``
+        """
         return config.extract(
             {"foldlib": ["chain_dir", "mmcif_dir"]}
         ).merge_params(params)
