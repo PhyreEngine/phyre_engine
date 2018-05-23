@@ -71,10 +71,10 @@ are available as though they were installed normally to your system.
 
 .. code-block:: bash
 
-    source activate phyreengine
+    conda activate phyreengine
     conda install phyreengine
 
-To deactivate the environment, you can run ``source deactivate``.
+To deactivate the environment, you can run ``conda deactivate``.
 
 .. _developing-phyreengine:
 
@@ -92,9 +92,9 @@ package:
 
 .. code-block:: bash
 
-    source deactivate
+    conda deactivate
     conda install conda-build
-    source activate phyreengine
+    conda activate phyreengine
     cd $PHYRE_ENGINE_SRC
     conda develop .
 
