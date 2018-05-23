@@ -124,10 +124,9 @@ class Replace(JMESPathBase):
     """
     Alter an existing value in the pipeline state, clearing existing values.
 
-    This component operates in a similar manner to :py:class:`.Replace`, the
-    value returned by `select_expr` are *replaced* by the results of
-    `value_expr`. The `value_expr` is again evaluated in the context of the
-    results of `select_expr`.
+    This component operates in a similar manner to :py:class:`.Update`. The
+    values returned by `select_expr` are *replaced* by the results of
+    `value_expr`.
 
     If `select_expr` returns a list, the contents of that list are replaced
     with the results of `value_expr`, which should also be a list. If the

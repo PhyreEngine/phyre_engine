@@ -1,13 +1,3 @@
-import Bio.PDB
-
-from phyre_engine.component import Component
-from phyre_engine.tools.rotamer.rotamer import Sidechain, MissingAtomError, \
-    UnknownResidueType
-from phyre_engine.tools.rotamer.data.generic import NUM_CHI_ANGLES
-from math import sqrt
-import sys
-
-
 r"""
 ===============================
 Calculating side-chain accuracy
@@ -77,6 +67,16 @@ add a value to that dictionary. After a component is run, each element in the
 models arrary will look like ``{..., "sidechain_accuracy": {...}}``.
 
 """
+import Bio.PDB
+
+from phyre_engine.component import Component
+from phyre_engine.tools.rotamer.rotamer import Sidechain, MissingAtomError, \
+    UnknownResidueType
+from phyre_engine.tools.rotamer.data.generic import NUM_CHI_ANGLES
+from math import sqrt
+import sys
+
+
 
 # pylint: disable=abstract-method
 class SidechainMetric(Component):

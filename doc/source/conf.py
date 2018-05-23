@@ -42,8 +42,10 @@ extensions = ['sphinx.ext.autodoc',
     'sphinx.ext.doctest',
     'sphinx.ext.todo',
     'sphinx.ext.coverage',
-    'sphinx.ext.imgmath',
-    'sphinx.ext.viewcode']
+    'sphinx.ext.mathjax',
+    'sphinx.ext.viewcode',
+    'sphinx.ext.intersphinx',
+    'sphinx.ext.graphviz']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -166,4 +168,8 @@ texinfo_documents = [
 ]
 
 
+# -- Graphviz output format for HTML
+graphviz_output_format = "svg"
 
+# -- Allow links to Python documentation
+intersphinx_mapping = {'python': ('https://docs.python.org/3', None)}

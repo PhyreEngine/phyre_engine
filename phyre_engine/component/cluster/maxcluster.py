@@ -1,5 +1,5 @@
 """
-Compare structures in various ways using MaxCluster
+Compare structures in various ways using `MaxCluster
 <http://www.sbg.bio.ic.ac.uk/maxcluster/index.html>`_.
 """
 from pathlib import Path

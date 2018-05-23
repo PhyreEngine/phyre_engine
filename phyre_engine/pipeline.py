@@ -512,18 +512,10 @@ class Pipeline:
         runtime rather than at validation. It should contain the current state
         of the system at the point of failure.
 
-        :ivar component: The component that requires a missing key.
-
-        :vartype component: :py:class:`phyre_engine.component.Component`
-
-        :ivar missing: List of the missing keys.
-
-        :vartype missing: List of strings indicatig the missing keys.
-
-        :ivar data: Current pipeline state.
-
-        :vartype data: Key-value blob describing the state of the pipeline at
-            the time this exception was thrown.
+        :param component: The component that requires a missing key.
+        :type component: :py:class:`phyre_engine.component.Component`
+        :param list[str] missing: List of the missing keys.
+        :param dict data: Pipeline state at the time the exception was raised.
         """
 
         def __init__(self, component, missing, data = None):
