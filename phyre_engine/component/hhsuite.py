@@ -380,14 +380,16 @@ class AddPsipred(Component):
     CONFIG_SECTION = "hhsuite"
 
     @classmethod
-    def config(cls, params, pipeline_config):
-        if "HHLIB" in params:
-            return params
+    def config(cls, params, config):
+        """
+        Extract the ``HHLIB`` field from the ``hhsuite`` section.
 
-        if "hhsuite" in pipeline_config:
-            if "HHLIB" in pipeline_config["hhsuite"]:
-                params["HHLIB"] = pipeline_config["hhsuite"]["HHLIB"]
-        return params
+        .. csv-table:: Configuration mapping
+            :header: "Section", "Field", "Parameter"
+
+            ``hhsuite``,   ``HHLIB``,   ``HHLIB``
+        """
+        return config.extract({"hhsuite": ["HHLIB"]}).merge_params(params)
 
     def __init__(self, HHLIB=None):
         if HHLIB is None and "HHLIB" not in os.environ:
@@ -1056,6 +1058,17 @@ class FFDatabaseUnlink(Component):
 
     @classmethod
     def config(cls, params, config):
+        """
+        Extract fields from ``foldlib`` and ``hhsuite``.
+
+        .. csv-table:: Configuration mapping
+            :header: "Section", "Field", "Parameter"
+
+            ``foldlib``,   ``db_prefix``,   ``db_prefix``
+                       ,   ``overwrite``,   ``overwrite``
+            ``hhsuite``,   ``bin_dir``,     ``bin_dir``
+
+        """
         return config.extract({
             "foldlib": ["db_prefix", "overwrite"],
             "hhsuite": ["bin_dir"],
@@ -1142,6 +1155,17 @@ class BuildDatabase(Component):
 
     @classmethod
     def config(cls, params, config):
+        """
+        Extract fields from ``foldlib`` and ``hhsuite``.
+
+        .. csv-table:: Configuration mapping
+            :header: "Section", "Field", "Parameter"
+
+            ``foldlib``,   ``db_prefix``,   ``db_prefix``
+                       ,   ``overwrite``,   ``overwrite``
+            ``hhsuite``,   ``bin_dir``,     ``bin_dir``
+        """
+
         return config.extract({
             "foldlib": ["db_prefix", "overwrite"],
             "hhsuite": ["bin_dir"],

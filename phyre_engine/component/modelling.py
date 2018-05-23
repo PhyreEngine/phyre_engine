@@ -78,6 +78,15 @@ class HomologyModeller(Component):
 
     @classmethod
     def config(cls, params, config):
+        """
+        Extract ``foldlib.template_db`` and ``foldlib.chain_dir``.
+
+        .. csv-table:: Configuration mapping
+            :header: "Section", "Field", "Parameter"
+
+            ``foldlib``,   ``template_db``, ``template_db``
+                       ,   ``chain_dir``,   ``chain_dir``
+        """
         return config.extract({
             "foldlib": ["template_db", "chain_dir"]
         }).merge_params(params)
