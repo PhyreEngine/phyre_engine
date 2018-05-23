@@ -1,0 +1,18 @@
+/* Courtesy of pbauer: https://stackoverflow.com/a/25543713 */
+.toggle > * {
+    display: none;
+}
+
+.toggle .header:after {
+    content: " ▼";
+}
+
+.toggle .header.open:after {
+    content: " ▲";
+}
+
+.aside {
+    margin-left: 0.5em;
+    padding-left: 0.5em;
+    border-left: 0.1em solid #EFF0F1;
+}
