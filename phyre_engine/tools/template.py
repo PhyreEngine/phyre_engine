@@ -312,8 +312,8 @@ class TemplateDatabase:
     VALUES (:pdb_id, :chain_id, :canonical_sequence)
     """
 
-    INSERT_PDB = """
-    INSERT INTO pdbs (
+    _INSERT_PDB_FORMAT_STR = """
+    INSERT {} INTO pdbs (
            pdb_id, deposition_date, last_update_date, release_date,
            method, resolution,
            organism_name, organism_id,
@@ -324,6 +324,8 @@ class TemplateDatabase:
            :organism_name, :organism_id,
            :title, :descriptor)
     """
+    INSERT_PDB = _INSERT_PDB_FORMAT_STR.format("")
+    INSERT_OR_UPDATE_PDB = _INSERT_PDB_FORMAT_STR.format("OR REPLACE")
 
     UPDATE_PDB = """
     UPDATE pdbs
@@ -552,8 +554,6 @@ class TemplateDatabase:
         fields = collections.defaultdict(lambda: None)
         fields["pdb_id"] = pdb_id.lower()
         fields.update(metadata)
-        for date in ("deposition_date", "last_update_date", "release_date"):
-            fields[date] = fields[date].strftime("%Y-%m-%d")
         return fields
 
     def add_pdb(self, pdb_id, metadata):
@@ -592,15 +592,30 @@ class TemplateDatabase:
         fields = self._format_metadata(pdb_id, metadata)
         self.conn.execute(self.INSERT_PDB, fields)
 
+    def add_or_update_pdb(self, pdb_id, metadata):
+        """
+        Updates `pdb_id` entry in the ``pdbs`` table, inserting the entry
+        without error if it is missing.
+
+        See :py:class:`.add_pdb` for information about the fields expected in
+        `metadata`.
+        """
+        fields = self._format_metadata(pdb_id, metadata)
+        cursor = self.conn.execute(self.INSERT_OR_UPDATE_PDB, fields)
+
     def update_pdb(self, pdb_id, metadata):
         """
         Update a PDB entry in the fold library database.
 
         See :py:class:`.add_pdb` for information about the fields expected in
         `metadata`.
+
+        :raises PdbNotFoundException: If the PDB was not found.
         """
         fields = self._format_metadata(pdb_id, metadata)
-        self.conn.execute(self.UPDATE_PDB, fields)
+        cursor = self.conn.execute(self.UPDATE_PDB, fields)
+        if cursor.rowcount == 0:
+            raise self.PdbNotFoundException(pdb_id)
 
     def del_pdb(self, pdb_id):
         """
@@ -608,20 +623,27 @@ class TemplateDatabase:
         entry from the database.
 
         :param str pdb_id: Identifier of the PDB entry to delete.
+        :raises PdbNotFoundException: If the PDB was not found.
         """
-        self.conn.execute(self.DELETE_PDB, {"pdb_id": pdb_id.lower()})
+        cursor = self.conn.execute(self.DELETE_PDB, {"pdb_id": pdb_id.lower()})
+        if cursor.rowcount == 0:
+            raise self.PdbNotFoundException(pdb_id)
 
     def del_template(self, pdb_id, chain_id):
         """
-        The the template with the given PDB and chain IDs, along with all
+        Delete the template with the given PDB and chain IDs, along with all
         metatadata associated with that template.
 
         :param str pdb_id: PDB ID of the template to delete.
         :param str chain_id: Chain ID of the template to delete.
+        :raises TemplateNotFoundException: If the template was not found.
         """
-        self.conn.execute(
+        cursor = self.conn.execute(
             self.DELETE_TEMPLATE,
             {"pdb_id": pdb_id.lower(), "chain_id": chain_id})
+
+        if cursor.rowcount == 0:
+            raise self.TemplateNotFoundException(pdb_id, chain_id)
 
     def update_all_seq_reps(self):
         """

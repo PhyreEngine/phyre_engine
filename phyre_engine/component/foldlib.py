@@ -440,11 +440,7 @@ class AddPDB(Component):
     def run(self, data, config=None, pipeline=None):
         """Add PDB entry to template database."""
         pdb_id, metadata, template_db = self.get_vals(data)
-        try:
-            template_db.get_pdb(pdb_id)
-            template_db.update_pdb(pdb_id, metadata)
-        except template_db.PdbNotFoundException:
-            template_db.add_pdb(pdb_id, metadata)
+        template_db.add_or_update_pdb(pdb_id, metadata)
         return data
 
 
