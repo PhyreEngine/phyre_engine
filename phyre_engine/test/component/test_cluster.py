@@ -67,7 +67,7 @@ class TestEM4GMM(unittest.TestCase):
 
         self.assertEqual(results["clusters"], self.MODEL_DETAILS)
         for sample, result in zip(results["data"], self.SAMPLE_CLASS):
-            self.assertEqual(sample["class"], result["class"])
+            self.assertEqual(sample["cluster"], result["class"])
             self.assertEqual(sample["lprob"], result["lprob"])
 
 if __name__ == "__main__":
