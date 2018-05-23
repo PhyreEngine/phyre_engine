@@ -2,6 +2,7 @@
 import contextlib
 import datetime
 import pathlib
+import re
 import sqlite3
 import tempfile
 import unittest
@@ -62,7 +63,7 @@ class TestOpenCopy(unittest.TestCase):
             results["template_db"].commit()
 
             self.assertGreater(len(results["sql_dump"]), 1)
-            self.assertTrue(any([sql.strip().startswith("INSERT INTO pdbs")
+            self.assertTrue(any([re.match("^INSERT\s+INTO\s+pdbs", sql.lstrip())
                             for sql in results["sql_dump"]]))
 
 
