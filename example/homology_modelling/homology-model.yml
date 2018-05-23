@@ -12,179 +12,179 @@ pipeline:
           format: '{levelname:8} : {name} : {message}'
 
   components:
-# Change to job directory, read query sequence, parse sequence metadata
-# and validate it.
-- .util.ChangeDir
-- .input.ReadSingleSequence
-- .validate.SeqValidator
+  # Change to job directory, read query sequence, parse sequence metadata
+  # and validate it.
+  - .util.ChangeDir
+  - .input.ReadSingleSequence
+  - .validate.SeqValidator
 
-# Generate HMM and search against the fold library.
-- .hhsuite.HHBlits:
-    database: !template '{LOCAL_DATA_PREFIX}/hhsuite/uniclust30_2017_04/uniclust30_2017_04'
-    input_type: sequence
-    options:
-      output: hhblits_build.hhr
-      iterations: 2
-      oa3m: query.a3m
-      alt: 1
-- .hhsuite.AddPsipred
-- .hhsuite.HHSearch:
-    database: !template '{FOLDLIB_PREFIX}/foldlib'
-    input_type: a3m
-    options:
-      output: hhsearch_search.hhr
-      atab: hhsearch_search.atab
-      alt: 1
-      z: 100
-      b: 100
-      Z: 50000
-      B: 50000
-      E: 10
-      Ofas: alignments.fasta
-- .hhsuite.A3MSSParser
+  # Generate HMM and search against the fold library.
+  - .hhsuite.HHBlits:
+      database: !template '{LOCAL_DATA_PREFIX}/hhsuite/uniclust30_2017_04/uniclust30_2017_04'
+      input_type: sequence
+      options:
+        output: hhblits_build.hhr
+        iterations: 2
+        oa3m: query.a3m
+        alt: 1
+  - .hhsuite.AddPsipred
+  - .hhsuite.HHSearch:
+      database: !template '{FOLDLIB_PREFIX}/foldlib'
+      input_type: a3m
+      options:
+        output: hhsearch_search.hhr
+        atab: hhsearch_search.atab
+        alt: 1
+        z: 100
+        b: 100
+        Z: 50000
+        B: 50000
+        E: 10
+        Ofas: alignments.fasta
+  - .hhsuite.A3MSSParser
 
-# Parse results of hhsearch.
-- .hhsuite.ReportParser
-- .hhsuite.TabularParser
-- .hhsuite.FastaParser:
-    ignore: ["Consensus"]
+  # Parse results of hhsearch.
+  - .hhsuite.ReportParser
+  - .hhsuite.TabularParser
+  - .hhsuite.FastaParser:
+      ignore: ["Consensus"]
 
-# Generate position-specific scoring matrix from query MSA.
-- .hhsuite.PSSM:
-    hhsuite_dir: !template '{BIN_PREFIX}/bin'
-    HHLIB: !template '{BIN_PREFIX}/share/hhsuite/'
-    blast_dir: !template '{BIN_PREFIX}/bin'
+  # Generate position-specific scoring matrix from query MSA.
+  - .hhsuite.PSSM:
+      hhsuite_dir: !template '{BIN_PREFIX}/bin'
+      HHLIB: !template '{BIN_PREFIX}/share/hhsuite/'
+      blast_dir: !template '{BIN_PREFIX}/bin'
 
-# Predict disorder using disopred
-- .disorder.Disopred
+  # Predict disorder using disopred
+  - .disorder.Disopred
 
-# Sort by "sum_probs" field. Sum_probs / query length is a good estimator of
-# the model TM-score.
-- .sort.Sort:
-    field: templates
-    keys: [{key: 'sum_probs', reverse: True}]
+  # Sort by "sum_probs" field. Sum_probs / query length is a good estimator of
+  # the model TM-score.
+  - .sort.Sort:
+      field: templates
+      keys: [{key: 'sum_probs', reverse: True}]
 
-# Parse template PDB and chain IDs from their names.
-- .foldlib.Open
-- .foldlib.Map:
-    components:
-    - .db.metadata.ParseField:
-        field: name
-        regex: '^(?P<PDB>\w{4})_(?P<chain>\S+)$'
+  # Parse template PDB and chain IDs from their names.
+  - .foldlib.Open
+  - .foldlib.Map:
+      components:
+      - .db.metadata.ParseField:
+          field: name
+          regex: '^(?P<PDB>\w{4})_(?P<chain>\S+)$'
 
-# Expand list of templates based on identical sequences.
-- .foldlib.Map:
-    components:
-    - .foldlib.ExpandSequenceRepresentatives
+  # Expand list of templates based on identical sequences.
+  - .foldlib.Map:
+      components:
+      - .foldlib.ExpandSequenceRepresentatives
 
-# Read metadata for each template.
-- .foldlib.Map:
-    components:
-    - .foldlib.Metadata
-- .foldlib.Rollback
+  # Read metadata for each template.
+  - .foldlib.Map:
+      components:
+      - .foldlib.Metadata
+  - .foldlib.Rollback
 
-# Cluster models accordinging to start/stop position
-- .cluster.EM4GMM:
-    select_expr: templates
-    dimensions_expr: '[start(query_range), stop(query_range)]'
-    num_components: 5
-    merge: 0.01
-    bin_dir: !template '{BIN_PREFIX}/bin'
+  # Cluster models accordinging to start/stop position
+  - .cluster.EM4GMM:
+      select_expr: templates
+      dimensions_expr: '[start(query_range), stop(query_range)]'
+      num_components: 5
+      merge: 0.01
+      bin_dir: !template '{BIN_PREFIX}/bin'
 
-# Choose the first template in each class. This is done by converting the
-# "templates" list to a set. We just use a Union with a single list here.
-- .set.Union:
-    sets: [templates]
-    key: cluster
-    destination: cluster_reps
-# Model each cluster representative in full.
-- .component.Map:
-    field: cluster_reps
-    copy:
-      pssm: pssm
-      sequence: query_sequence
-    components:
-    - .modelling.HomologyModeller
-    - .modelling.LoopModel
-    - .sidechain.Scwrl4
+  # Choose the first template in each class. This is done by converting the
+  # "templates" list to a set. We just use a Union with a single list here.
+  - .set.Union:
+      sets: [templates]
+      key: cluster
+      destination: cluster_reps
+  # Model each cluster representative in full.
+  - .component.Map:
+      field: cluster_reps
+      copy:
+        pssm: pssm
+        sequence: query_sequence
+      components:
+      - .modelling.HomologyModeller
+      - .modelling.LoopModel
+      - .sidechain.Scwrl4
 
-# If the "native" field was supplied on the command line, use TMscore to add
-# a "TM" field for each template.
-- .component.Conditional:
-    field: native
-    components:
-    - .component.Map:
-        field: cluster_reps
-        copy: [native]
-        components:
-        - .strucaln.TMScore
+  # If the "native" field was supplied on the command line, use TMscore to add
+  # a "TM" field for each template.
+  - .component.Conditional:
+      field: native
+      components:
+      - .component.Map:
+          field: cluster_reps
+          copy: [native]
+          components:
+          - .strucaln.TMScore
 
-# Merge the cluster representatives back into the main list of templates.
-- .set.Union:
-    sets: [cluster_reps, templates]
-    key: '[PDB, chain, rank]'
-    destination: templates
-- .sort.Sort:
-    field: templates
-    keys: [{key: 'sum_probs', reverse: True}]
+  # Merge the cluster representatives back into the main list of templates.
+  - .set.Union:
+      sets: [cluster_reps, templates]
+      key: '[PDB, chain, rank]'
+      destination: templates
+  - .sort.Sort:
+      field: templates
+      keys: [{key: 'sum_probs', reverse: True}]
 
-# Generate images of each model using pymol
-- .pymol.Init:
-    # Load python functions we want to use
-    pymol: !template '{BIN_PREFIX}/bin/pymol'
-    command: !template 'run {CONFIG_PREFIX}/pymol/phyre_engine.py'
-    quiet: False
-- .pymol.Run:
-    # Load colour scheme
-    commands: 
-    - !template '@{CONFIG_PREFIX}/pymol/setup_magma.pml'
+  # Generate images of each model using pymol
+  - .pymol.Init:
+      # Load python functions we want to use
+      pymol: !template '{BIN_PREFIX}/bin/pymol'
+      command: !template 'run {CONFIG_PREFIX}/pymol/phyre_engine.py'
+      quiet: False
+  - .pymol.Run:
+      # Load colour scheme
+      commands:
+      - !template '@{CONFIG_PREFIX}/pymol/setup_magma.pml'
 
-# Render each model
-- .component.Map:
-    field: templates
-    copy: [pymol]
-    components:
-    - .component.Conditional:
-        field: model
-        components:
-        - .pymol.Run:
-            commands:
-            - 'load {model}'
-            - !template '@{CONFIG_PREFIX}/pymol/render_magma.pml'
-            - 'png {rank:03d}-{PDB}_{chain}.png'
-            - 'delete all'
-        - .alter.Set:
-            field: image
-            value: '{rank:03d}-{PDB}_{chain}.png'
-            reformat: True
-- .pymol.Quit
+  # Render each model
+  - .component.Map:
+      field: templates
+      copy: [pymol]
+      components:
+      - .component.Conditional:
+          field: model
+          components:
+          - .pymol.Run:
+              commands:
+              - 'load {model}'
+              - !template '@{CONFIG_PREFIX}/pymol/render_magma.pml'
+              - 'png {rank:03d}-{PDB}_{chain}.png'
+              - 'delete all'
+          - .alter.Set:
+              field: image
+              value: '{rank:03d}-{PDB}_{chain}.png'
+              reformat: True
+  - .pymol.Quit
 
-# Save state so we can deserialise it and use it later for finishing models.
-- .dump.Pickle:
-    output: state.pickle
+  # Save state so we can deserialise it and use it later for finishing models.
+  - .dump.Pickle:
+      output: state.pickle
 
-# Write results to a CSV file and a JSON file.
-- .dump.Csv:
-    file: models.csv
-    select_expr: >
-      templates[].{
-        length: length(root().sequence),
-        model: model,
-        template: name,
-        sum_probs: sum_probs,
-        prob: prob,
-        evalue: evalue,
-        qrange_start: start(query_range),
-        qrange_stop: stop(query_range),
-        score: score,
-        similarity: similarity,
-        TM: TM
-      }
+  # Write results to a CSV file and a JSON file.
+  - .dump.Csv:
+      file: models.csv
+      select_expr: >
+        templates[].{
+          length: length(root().sequence),
+          model: model,
+          template: name,
+          sum_probs: sum_probs,
+          prob: prob,
+          evalue: evalue,
+          qrange_start: start(query_range),
+          qrange_stop: stop(query_range),
+          score: score,
+          similarity: similarity,
+          TM: TM
+        }
 
-# Dump a machine-readable version of the pipeline. This 
-- .dump.Json:
-    output: models.json
-    select_expr: >
-      merge(@, {templates: map(
-          &except(@, ['alignment']),
-          templates[])})
+  # Dump a machine-readable version of the pipeline. This
+  - .dump.Json:
+      output: models.json
+      select_expr: >
+        merge(@, {templates: map(
+            &except(@, ['alignment']),
+            templates[])})
