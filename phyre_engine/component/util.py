@@ -129,8 +129,8 @@ class Symlink(Component):
     ...     "chain": "X",
     ...     "rank": 1,
     ...     "model": "awkward_name.pdb"})
-    >>> pathlib.Path("01-1ABC_X.final.pdb").resolve(strict=False)
-    awkward_name.pdb
+    >>> pathlib.Path("01-1ABC_X.final.pdb").resolve(strict=False).name
+    'awkward_name.pdb'
 
     :param str name: Name of the symbolic link. String formatting is applied
         using all the keys in the pipeline state.

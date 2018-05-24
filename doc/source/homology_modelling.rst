@@ -1332,6 +1332,9 @@ Component :py:class:`.component.Map` (modelling)
         - .modelling.HomologyModeller
         - .modelling.LoopModel
         - .sidechain.Scwrl4
+        - .util.Symlink:
+            target: model
+            name: "{rank:02d}-{PDB}_{chain}.final.pdb"
 
 .. literalinclude:: /homology_modelling_session/dump-21.pp
     :diff: /homology_modelling_session/dump-20.pp
@@ -1365,12 +1368,61 @@ modelling" pipeline is bookkeeping. Here, we loop over each of the hits in the
 :py:class:`.modelling.LoopModel`, and then repack side-chains using
 :py:class:`.sidechain.Scwrl4`.
 
-.. note::
 
-    These tools make no guarantees about *where* the modelled files will end up.
-    Use the ``model`` field of the pipeline state to determine the file name. In
-    the future, these components will likely be changed to produce more friendly
-    file names.
+The name of the model produced by :py:class:`~.HomologyModeller` can be set
+using the ``name`` parameter, but the other components are allowed to write
+model files wherever they please. *Always retrieve the file name of the model
+via the ``model`` parameter rather than guessing its name.!* This is a bit
+unintuitive from the point of view of the user, so we follow the modelling
+components with the :py:class:`.util.Symlink` component, which we tell to
+create a symbolic link pointing to the file in the ``model`` field named by the
+string ``{rank:02d}-{PDB}_{chain}.final.pdb`` formatted with the fields in the
+pipeline state.
+
+If we list all the PDB files generated in the current directory, we can see
+what this :py:class:`~.component.Map` has done:
+
+.. code-block:: console
+
+    $ # Show all regular files ending in .pdb
+    $ find -name '*.pdb' -type f
+    ./94-2IMR_A-crude.pdb
+    ./94-2IMR_A-crude.loop/model.1/model.1.pdb
+    ./94-2IMR_A-crude.loop/model.1/model.2.pdb
+    ./94-2IMR_A-crude.loop/model.1/model.3.pdb
+    ./94-2IMR_A-crude.loop/model.1/model.4.pdb
+    ./94-2IMR_A-crude.loop/model.1/model.5.pdb
+    ./94-2IMR_A-crude.loop/model.1/model.6.pdb
+    ./94-2IMR_A-crude.loop/model.1/model.7.pdb
+    ./94-2IMR_A-crude.loop/model.1/model.8.pdb
+    ./94-2IMR_A-crude.loop/model.1/model.9.pdb
+    ./94-2IMR_A-crude.loop/model.1/model.10.pdb
+    ./94-2IMR_A-crude.loop/model.1/model.1.scwrl4.pdb
+    ./01-2BB0_A-crude.pdb
+    ./01-2BB0_A-crude.loop/model.1/model.1.pdb
+    ./01-2BB0_A-crude.loop/model.1/model.2.pdb
+    ./01-2BB0_A-crude.loop/model.1/model.3.pdb
+    ./01-2BB0_A-crude.loop/model.1/model.4.pdb
+    ./01-2BB0_A-crude.loop/model.1/model.5.pdb
+    ./01-2BB0_A-crude.loop/model.1/model.6.pdb
+    ./01-2BB0_A-crude.loop/model.1/model.7.pdb
+    ./01-2BB0_A-crude.loop/model.1/model.8.pdb
+    ./01-2BB0_A-crude.loop/model.1/model.9.pdb
+    ./01-2BB0_A-crude.loop/model.1/model.10.pdb
+    ./01-2BB0_A-crude.loop/model.1/model.1.scwrl4.pdb
+    $ # Show all symlinks ending in .pdb with their targets
+    $ find -name '*.pdb' -type l -printf '%p → %l\n'
+    ./01-2BB0_A.final.pdb → 01-2BB0_A-crude.loop/model.1/model.1.scwrl4.pdb
+    ./94-2IMR_A.final.pdb → 94-2IMR_A-crude.loop/model.1/model.1.scwrl4.pdb
+
+The :py:class:`~.component.Map` componet began by running `~.HomologyModeller`,
+which wrote the files named like :file:`{rank}-{template}-crude.pdb`. Next, the
+:py:class:`~.LoopModel` component generates several loop candidates in the
+:file:`{rank}-{template}-crude.loop/` subdirectory, and selects the first one as
+the most likely model. This is followed by :py:class:`~.Scwrl4`, which adds
+side-chains and builds a model with the :file:`.scwrl4.pdb` prefix. Because this
+is a huge mess, we use the :py:class:`~.Symlink` component to generate the
+:file:`{rank}-{name}.final.pdb` symlink.
 
 Component :py:class:`.component.Conditional` (TMScore)
 ------------------------------------------------------

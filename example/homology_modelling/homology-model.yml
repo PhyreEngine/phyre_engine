@@ -107,6 +107,9 @@ pipeline:
       - .modelling.HomologyModeller
       - .modelling.LoopModel
       - .sidechain.Scwrl4
+      - .util.Symlink:
+          target: model
+          name: "{rank:02d}-{PDB}_{chain}.final.pdb"
 
   # If the "native" field was supplied on the command line, use TMscore to add
   # a "TM" field for each template.
