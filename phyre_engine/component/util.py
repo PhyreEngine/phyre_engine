@@ -109,3 +109,49 @@ class MakeDir(Component):
         working_dir = self.get_vals(data)
         Path(working_dir).mkdir(parents=self.parents, exist_ok=self.exist_ok)
         return data
+
+class Symlink(Component):
+    """
+    Create a symbolic link with the name `name` targetting the file named by the
+    ``target`` field in the pipeline state.
+
+    For example, this component could be used to create a nice-looking symbolic
+    link to a model with an awkward name.
+
+
+    >>> import phyre_engine.component.util as util
+    >>> import pathlib
+    >>> cmpt = util.Symlink(
+    ...     name="{rank:02d}-{PDB}_{chain}.final.pdb",
+    ...     target="model")
+    >>> cmpt.run({
+    ...     "PDB": "1ABC",
+    ...     "chain": "X",
+    ...     "rank": 1,
+    ...     "model": "awkward_name.pdb"})
+    >>> pathlib.Path("01-1ABC_X.final.pdb").resolve(strict=False)
+    awkward_name.pdb
+
+    :param str name: Name of the symbolic link. String formatting is applied
+        using all the keys in the pipeline state.
+    :param str target: Name of the field in the pipeline state containing the
+        target filename.
+    """
+
+    @property
+    def REQUIRED(self):
+        return [self.target]
+
+    ADDS = []
+    REMOVES = []
+
+    def __init__(self, name, target):
+        self.name = name
+        self.target = target
+
+    def run(self, data, config=None, pipeline=None):
+        """Create symlink to target."""
+        dst = Path(self.name.format(**data))
+        dst.symlink_to(data[self.target])
+        data[self.target] = str(dst)
+        return data

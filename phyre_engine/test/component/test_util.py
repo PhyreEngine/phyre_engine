@@ -116,3 +116,25 @@ class TestMakeDir(unittest.TestCase):
         target = Path(self.tmpdir, "a")
         mkdir.run({"working_dir": target})
         self.assertTrue(target.exists(), "Created {}".format(target))
+
+
+@unittest.mock.patch("pathlib.Path.symlink_to", spec=Path)
+class TestSymlink(unittest.TestCase):
+    """Test the Symlink component."""
+
+    def test_symlink(self, symlink_mock):
+        """Symbolic link is created with correct name pointing to target."""
+        orig_name = "awkward_name.pdb"
+        final_name = "01-1ABC_X.final.pdb"
+
+        cmpt = util.Symlink(
+            name="{rank:02d}-{PDB}_{chain}.final.pdb",
+            target="model")
+        result = cmpt.run({
+            "PDB": "1ABC",
+            "chain": "X",
+            "rank": 1,
+            "model": orig_name})
+
+        symlink_mock.assert_called_once_with(orig_name)
+        self.assertEqual(result["model"], final_name)
