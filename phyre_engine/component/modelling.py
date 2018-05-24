@@ -71,7 +71,7 @@ class HomologyModeller(Component):
     REMOVES = []
 
     def __init__(self, template_db, chain_dir,
-                 model_name="{rank:02d}-{PDB}_{chain}.pdb"):
+                 model_name="{rank:02d}-{PDB}_{chain}-crude.pdb"):
         self.template_db = TemplateDatabase(template_db, chain_dir)
         self.chain_dir = chain_dir
         self.model_name = model_name
