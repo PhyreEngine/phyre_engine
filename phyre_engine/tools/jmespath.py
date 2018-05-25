@@ -3,6 +3,7 @@ Tools used by PhyreEngine when dealing with `JMESPath <http://jmespath.org/>`_
 expressions.
 """
 import datetime
+import distutils.util # strtobool
 import re
 
 import jmespath
@@ -57,6 +58,21 @@ class JMESExtensions(jmespath.functions.Functions):
     ``regex_keys(object, fields)``
         Return a list of the keys in ``object`` that match any of the regexes
         in ``fields``.
+
+    ``to_bool(any)``
+        Parse any type into a boolean.
+
+        .. csv-table:: Truthiness
+            :header: "Type", "Evaluated as", "Values"
+
+            ``string``,   `True`,   "``y``, ``yes``, ``t``, ``true``, ``on`` and ``1`` (case insensitive)."
+                      ,   `False`,  "``n``, ``no``, ``f``, ``false``, ``off`` and ``0`` (case insensitive)."
+            ``integer``,  `True`,   Any non-zero value,
+                       ,  `False`,  0,
+            ``object``,   `True`,   Any non-empty object,
+                      ,   `False`,  ``{}``,
+            ``list``,    `True`,   Any non-empty list,
+                    ,    `False`,  ``[]``
 
     :param root: Root of the pipeline state.
     """
@@ -126,3 +142,10 @@ class JMESExtensions(jmespath.functions.Functions):
             if key in obj:
                 result[key] = obj[key]
         return result
+
+    @jmespath.functions.signature({"types": []})
+    def _func_to_bool(self, val):
+        if isinstance(val, str):
+            return distutils.util.strtobool(val)
+        else:
+            return bool(val)

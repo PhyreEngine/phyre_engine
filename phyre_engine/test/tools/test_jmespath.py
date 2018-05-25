@@ -67,3 +67,14 @@ class TestJMESExtensions(unittest.TestCase):
             set(self.search("""regex_keys(@, `["^a", "b$"]`)""",
                             {"ab": 1, "c": 2, "db": 3})),
             set(["ab", "db"]))
+
+    def test_bool(self):
+        """The ``to_bool`` function handles all values."""
+        for t in ("'y'", "'yes'", "'t'", "'true'", "'on'", "'1'",
+                  "`1`", "`-1000`", "`[1, 3]`", "{a: `1`}"):
+            with self.subTest(test=t):
+                self.assertTrue(self.search("to_bool({})".format(t), {}))
+        for t in ("'n'", "'no'", "'f'", "'false'", "'off'", "'0'",
+                  "`0`", "`[]`", "`{}`"):
+            with self.subTest(test=t):
+                self.assertFalse(self.search("to_bool({})".format(t), {}))
