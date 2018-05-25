@@ -673,7 +673,7 @@ class ExpandSequenceRepresentatives(Component):
         for new_pdb_id, new_chain_id in clus_ids:
             new_member = copy.copy(data) if self.duplicate_extra else {}
             new_member["PDB"] = new_pdb_id
-            new_member["chain_id"] = new_chain_id
+            new_member["chain"] = new_chain_id
             new_state.append(new_member)
         self.logger.info("%s_%s expanded to %d members",
                          pdb_id, chain_id, len(new_state))
