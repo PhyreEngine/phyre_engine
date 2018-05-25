@@ -378,7 +378,7 @@ class Map(PipelineComponent):
         # If we were given a list of items to copy, it is equivalent to a
         # dictionary with the new names equal to the old.
         to_copy = self.copy
-        if isinstance(to_copy, list):
+        if not hasattr(to_copy, "items"):
             to_copy = {i: i for i in to_copy}
 
         pipeline = self.pipeline(config)
