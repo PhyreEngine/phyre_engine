@@ -158,3 +158,10 @@ can be a bit tricky.
 
 The format of the SQL portion of the template database is described in detail
 in the :py:mod:`phyre_engine.tools.template` module documentation.
+
+Building and updating
+=====================
+
+A complete fold library can be built using the sample pipeline files
+:file:`fold_library-serial.yml` or :file:`fold_library-parallel.yml`. See
+:ref:`example_usage`.
