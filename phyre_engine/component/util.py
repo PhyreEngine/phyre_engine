@@ -132,6 +132,8 @@ class Symlink(Component):
     >>> pathlib.Path("01-1ABC_X.final.pdb").resolve(strict=False).name
     'awkward_name.pdb'
 
+    Existing symbolic links are removed beforew new ones are created.
+
     :param str name: Name of the symbolic link. String formatting is applied
         using all the keys in the pipeline state.
     :param str target: Name of the field in the pipeline state containing the
@@ -152,6 +154,8 @@ class Symlink(Component):
     def run(self, data, config=None, pipeline=None):
         """Create symlink to target."""
         dst = Path(self.name.format(**data))
+        if dst.exists():
+            dst.unlink()
         dst.symlink_to(data[self.target])
         data[self.target] = str(dst)
         return data
