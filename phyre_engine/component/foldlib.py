@@ -31,11 +31,29 @@ class Create(Component):
     """
     Create a new fold library database file.
 
+    If a database already exists in ``template_db``, a
+    :py:exc:`sqlite3.OperationalError` will be raised.
+
     :param str template_db: Database file to create.
     """
     ADDS = []
     REMOVES = []
     REQUIRED = []
+
+    @classmethod
+    def config(cls, params, config):
+        """
+        Extract ``foldlib.template_db``.
+
+
+        .. csv-table:: Configuration mapping
+            :header: "Section", "Field", "Parameter"
+
+            ``foldlib``,   ``template_db``,  ``template_db``
+        """
+        return config.extract(
+            {"foldlib": ["template_db"]}
+        ).merge_params(params)
 
     def __init__(self, template_db):
         self.template_db = template_db
