@@ -1,0 +1,231 @@
+pipeline:
+  config:
+    hhsuite:
+      blits_db: !template '{LOCAL_DATA_PREFIX}/data/hhsuite/uniclust30_2017_10/uniclust30_2017_10'
+      search_db: !template '{LOCAL_DATA_PREFIX}/foldlib/foldlib'
+      options:
+        verbose: 2
+        cpu: 2
+  config:
+    # Columns printed by the CSV printers
+    CSV_FORMAT: >
+      {
+        query: query_name,
+        query_length: length(query_sequence),
+        model: model,
+        template: name,
+        sum_probs: sum_probs,
+        prob: prob,
+        evalue: evalue,
+        qrange_start: start(query_range),
+        qrange_stop: stop(query_range),
+        score: score,
+        similarity: similarity,
+        identities: identities
+      }
+    
+  components:
+  # Read a list of sequences
+  - .input.ReadMultipleSequences
+  - .component.Map:
+      field: templates 
+      components:
+      # Failure in this block will just cause that sequence to be discarded
+      - .component.TryCatch:
+          components:
+          # Validate sequence and check length. An error here will skip to the
+          # end of the TryCatch block.
+          - .validate.SeqValidator
+          - .validate.SeqLenFilter:
+              max_len: 3000
+
+  - .pbs.qsub.Trickle:
+      # Use ppn=2 because running 64 hhblits can exhaust the memory.
+      # Better to use -cpu 2 for hhblits and run half as many jobs per node.
+      qsub_args: ["-q", "long", "-l", "nodes=1:ppn=2"]
+      split_var: templates
+      # Number of seconds between queuing each job
+      queue_interval: 2
+      # Max number of concurrent jobs (polls qstat for jobs in Q or R state)
+      max_jobs: 500
+      # Number of queries per job
+      num_elements: 10
+      name: BulkGenome
+      components:
+      # Iterate over that list
+      - .component.Map:
+          field: templates
+          components:
+          # Save current working directory
+          - .util.SaveRootDir
+ 
+          # Failure in this block will just cause that sequence to be discarded
+          - .component.TryCatch:
+              pass_through: True
+              components:
+              # Validate sequence and check length. An error here will skip to the
+              # end of the TryCatch block.
+              - .validate.SeqValidator
+              - .validate.SeqLenFilter:
+                  max_len: 3000
+
+              # Parse name from sequence identifier
+              - .db.metadata.ParseField:
+                  field: name
+
+              # Make directory and move to it. The "Copy" component copies the
+              # "name" field into the "working_dir" field, which is used by MakeDir
+              # and ChangeDir.
+              - .alter.Copy:
+                  src: name
+                  dst: working_dir
+              - .util.MakeDir
+              - .util.ChangeDir
+
+              # Generate HMM and search against the fold library.
+              - .hhsuite.HHBlits:
+                  database: !template '{LOCAL_DATA_PREFIX}/hhsuite/uniclust30_2017_10/uniclust30_2017_10'
+                  input_type: sequence
+                  options:
+                    output: hhblits_build.hhr
+                    iterations: 2
+                    oa3m: query.a3m
+                    alt: 1
+                    cpu: 1
+              - .hhsuite.AddPsipred
+              - .hhsuite.HHSearch:
+                  database: /bmm/phyreengine/scratch/test_foldlib/test
+                  input_type: a3m
+                  options:
+                    output: hhsearch_search.hhr
+                    atab: hhsearch_search.atab
+                    alt: 1
+                    z: 100
+                    b: 100
+                    Z: 50000
+                    B: 50000
+                    E: 10
+                    Ofas: alignments.fasta
+                    cpu: 1
+              - .hhsuite.A3MSSParser
+
+              # Parse results of hhsearch.
+              - .hhsuite.ReportParser
+              - .hhsuite.TabularParser
+              - .hhsuite.FastaParser:
+                  ignore: ["Consensus"]
+
+              # Generate position-specific scoring matrix from query MSA.
+              - .hhsuite.PSSM:
+                  hhsuite_dir: !template '{BIN_PREFIX}/bin'
+                  HHLIB: !template '{BIN_PREFIX}/share/hhsuite/'
+                  blast_dir: !template '{BIN_PREFIX}/bin'
+
+              # Predict disorder using disopred
+              - .disorder.Disopred
+
+              # Sort by "sum_probs" field. Sum_probs / query length is a good estimator of
+              # the model TM-score.
+              - .sort.Sort:
+                  field: templates
+                  keys: [{key: 'sum_probs', reverse: True}]
+
+              # Bookkeeping stuff: copy the query sequence into each template, along with
+              # the PSSM field. These are required by the modelling components and output
+              # components.
+              - .jmespath.Update:
+                  select_expr: templates
+                  value_expr: |
+                    {
+                      query_sequence: root().sequence,
+                      query_name: root().name,
+                      pssm: root().pssm
+                    }
+
+              # Parse template PDB and chain IDs from their names.
+              - .component.Map:
+                  field: templates
+                  components:
+                  - .db.metadata.ParseField:
+                      field: name
+                      regex: '^(?P<PDB>\w{4})_(?P<chain>\S+)$'
+
+              # Expand list of templates based on identical sequences.
+              - .foldlib.Open
+              - .foldlib.Map:
+                  components:
+                  - .foldlib.ExpandSequenceRepresentatives
+
+              # Write unfiltered hits results to a CSV file
+              - .dump.Csv:
+                  select_expr: !template 'templates[].{CSV_FORMAT}'
+                  output: unfiltered_hits.csv
+       
+              # Select templates by Soeding algorithm
+              - .modelling.SoedingSelect
+              - .alter.Remove:
+                  field: template_at_residue
+
+              # Further filter to 25 residues
+              - .jmespath.Replace:
+                  select_expr: templates
+                  value_expr: '@[?cols >= `25`]'
+
+              # Further filter to 95% confidence
+              - .jmespath.Replace:
+                  select_expr: templates
+                  value_expr: '@[?prob >= `95`]'
+
+              # Read metadata for each template.
+              - .foldlib.Map:
+                  components:
+                  - .foldlib.Metadata
+              - .foldlib.Rollback
+
+              # Model each cluster representative in full.
+              - .component.Map:
+                  field: templates
+                  components:
+                  - .component.TryCatch:
+                      components:
+                      - .modelling.HomologyModeller
+                  - .component.TryCatch:
+                      log_level: WARNING
+                      pass_through: True
+                      components:
+                      - .modelling.LoopModel
+                  - .component.TryCatch:
+                      log_level: WARNING
+                      pass_through: True
+                      components:
+                      - .sidechain.Scwrl4
+
+              # Write modelled hits to a CSV file
+              - .dump.Csv:
+                  select_expr: !template 'templates[].{CSV_FORMAT}'
+                  output: modelled_hits.csv
+
+          # Write output in JSON format
+          - .dump.Json:
+              output: modelled_hits.json
+              # This says to keep everything except "disorder" from the
+              # pipeline state, and then overwrite "templates" with the
+              # templates list generated by removing the "alignment" key from
+              # every template.
+              select_expr: >
+                merge(
+                  except(@, ['disorder']),
+                  {templates: map(&except(@, ['alignment']), templates[])})
+
+          # Back to the original directory
+          - .util.RestoreRootDir
+
+  - .pbs.qsub.Wait
+  - .pbs.qsub.LoadState:
+      join_var: templates
+  # Write results to a CSV file and a JSON file.
+  - .dump.Csv:
+      select_expr: !template 'templates[].templates[].{CSV_FORMAT}'
+      output: summary.csv
+  - .dump.Json:
+      output: summary.json
