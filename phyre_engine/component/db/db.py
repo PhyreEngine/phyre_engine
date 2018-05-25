@@ -96,6 +96,8 @@ class StructureRetriever(Component):
 
     :param str base_dir: Base directory in which to save PDB files.
 
+    :param bool overwrite: If `False`, structures that have already been
+        downloaded are skipped.
     """
 
     REQUIRED = ["PDB"]
@@ -114,14 +116,17 @@ class StructureRetriever(Component):
             :header: "Section", "Field", "Parameter"
 
             ``foldlib``,   ``mmcif_dir``,   ``base_dir``
+                       ,   ``overwrite``,   ``overwrite``
         """
         return config.extract({"foldlib": [
                 ("mmcif_dir", "base_dir"),
+                "overwrite",
             ]}).merge_params(params)
 
-    def __init__(self, struc_type, base_dir="."):
+    def __init__(self, struc_type, base_dir=".", overwrite=False):
         self.struc_type = StructureType(struc_type)
         self.base_dir = pathlib.Path(base_dir)
+        self.overwrite = overwrite
 
     def run(self, data, config=None, pipeline=None):
         """Run component."""
@@ -134,6 +139,9 @@ class StructureRetriever(Component):
             pdb_id,
             ".{}.gz".format(self.struc_type.value),
             base_dir=self.base_dir)
+        if self.overwrite and path.exists():
+            return data
+
         path.parent.mkdir(parents=True, exist_ok=True)
 
         session = data["session"] if "session" in data else requests.Session()
