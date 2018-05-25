@@ -10,7 +10,6 @@ pipeline:
 
   # Generate HMM and search against the fold library.
   - .hhsuite.HHBlits:
-      database: !template '{LOCAL_DATA_PREFIX}/hhsuite/uniclust30_2017_04/uniclust30_2017_04'
       input_type: sequence
       options:
         output: hhblits_build.hhr
@@ -19,7 +18,6 @@ pipeline:
         alt: 1
   - .hhsuite.AddPsipred
   - .hhsuite.HHSearch:
-      database: !template '{FOLDLIB_PREFIX}/foldlib'
       input_type: a3m
       options:
         output: hhsearch_search.hhr
@@ -48,12 +46,6 @@ pipeline:
   # Predict disorder using disopred
   - .disorder.Disopred
 
-  # Sort by "sum_probs" field. Sum_probs / query length is a good estimator of
-  # the model TM-score.
-  - .sort.Sort:
-      field: templates
-      keys: [{key: 'sum_probs', reverse: True}]
-
   # Parse template PDB and chain IDs from their names.
   - .foldlib.Open
   - .foldlib.Map:
@@ -66,6 +58,15 @@ pipeline:
   - .foldlib.Map:
       components:
       - .foldlib.ExpandSequenceRepresentatives
+
+  # Sort by "sum_probs" field. Sum_probs / query length is a good estimator of
+  # the model TM-score.
+  - .sort.Sort:
+      field: templates
+      keys:
+      - {key: 'sum_probs', reverse: True}
+      - {key: 'PDB'}
+      - {key: 'chain'}
 
   # Read metadata for each template.
   - .foldlib.Map:
@@ -119,7 +120,10 @@ pipeline:
       destination: templates
   - .sort.Sort:
       field: templates
-      keys: [{key: 'sum_probs', reverse: True}]
+      keys:
+      - {key: 'sum_probs', reverse: True}
+      - {key: 'PDB'}
+      - {key: 'chain'}
 
   # Generate images of each model using pymol
   - .pymol.Init:

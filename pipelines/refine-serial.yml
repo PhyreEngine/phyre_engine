@@ -38,23 +38,26 @@ pipeline:
       # Load python functions we want to use
       pymol: !template '{BIN_PREFIX}/bin/pymol'
       command: !template 'run {CONFIG_PREFIX}/pymol/phyre_engine.py'
-      quiet: False
+      quiet: True
   - .pymol.Run:
       # Load colour scheme
       commands: 
       - !template '@{CONFIG_PREFIX}/pymol/setup_magma.pml'
-  # Copy "pymol" tag into each template element.
-  - .jmespath.Update:
-      select_expr: 'template_slice'
-      value_expr: '{pymol: root().pymol}'
 
   # Generate models for everything in "template_slice"
   - .component.Map:
       field: template_slice
+      copy:
+        pymol: pymol
+        sequence: query_sequence
+        pssm: pssm
       components:
       - .modelling.HomologyModeller
       - .modelling.LoopModel
       - .sidechain.Scwrl4
+      - .util.Symlink:
+          target: model
+          name: "{rank:02d}-{PDB}_{chain}.final.pdb"
 
       - .pymol.Run:
           commands:
@@ -79,28 +82,44 @@ pipeline:
   # Repeat sorting because sets are unordered.
   - .sort.Sort:
       field: templates
-      keys: [{key: 'sum_probs', reverse: True}]
-
-  # Save state so we can deserialise it and use it later for finishing models.
-  - .dump.Pickle:
-      output: state.pickle
+      keys:
+      - {key: 'sum_probs', reverse: True}
+      - {key: 'PDB'}
+      - {key: 'chain'}
 
   # Clean up fields that were used internally, but are of no interest to the
   # outside world.
   - .jmespath.Replace:
       select_expr: '@'
-      value_expr: |
-        delete(@, `["template_slice", "template_at_residue"]`)
-  - .jmespath.Replace:
-      select_expr: 'templates'
-      value_expr: |
-        [*].delete(@, `[
-          "alignment", "pssm", "query_sequence", "sequence"
-        ]`)
+      value_expr: 'delete(@, `["template_slice"]`)'
+
+  # Save state so we can deserialise it and use it later for finishing models.
+  - .dump.Pickle:
+      output: state.pickle
 
   # Write results to a CSV file and a JSON file.
   - .dump.Csv:
-      select_expr: *csv_format
-      output: models.csv
+      file: models.csv
+      select_expr: >
+        templates[].{
+          length: length(root().sequence),
+          model: model,
+          template: name,
+          sum_probs: sum_probs,
+          prob: prob,
+          evalue: evalue,
+          qrange_start: start(query_range),
+          qrange_stop: stop(query_range),
+          score: score,
+          similarity: similarity,
+          TM: TM
+        }
+
+  # Dump a machine-readable version of the pipeline. This removes the
+  # "alignment" field from each template before dumping.
   - .dump.Json:
       output: models.json
+      select_expr: >
+        merge(@, {templates: map(
+            &except(@, ['alignment']),
+            templates[])})
