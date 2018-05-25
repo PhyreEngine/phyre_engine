@@ -15,6 +15,7 @@ PhyreEngine: A modular bioinformatics pipeline
    development
    homology_modelling
    foldlib
+   example_usage
    apidoc/modules
 
 Indices and tables
