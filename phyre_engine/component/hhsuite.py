@@ -342,6 +342,18 @@ class CSTranslate(HHSuiteTool):
     REMOVES = []
     ADDS = ["cs219"]
 
+    @classmethod
+    def config(cls, params, config):
+        """
+        Extract the ``HHLIB`` field from the ``hhsuite`` section.
+
+        .. csv-table:: Configuration mapping
+            :header: "Section", "Field", "Parameter"
+
+            ``hhsuite``,   ``HHLIB``,   ``HHLIB``
+        """
+        return config.extract({"hhsuite": ["HHLIB"]}).merge_params(params)
+
     def __init__(self, flags=None, bin_dir=None, HHLIB=None, options=None,
                  cache_dir=".", **kwargs):
         super().__init__(
