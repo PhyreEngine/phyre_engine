@@ -139,10 +139,10 @@ class HHSuiteTool(Component):  #pylint: disable=abstract-method
         atab = self._find_option(r"^-?atab$")
         ofas = self._find_option(r"^-?Ofas$")
 
-        if a3m: output["a3m"] = a3m
-        if report: output["report"] = report
-        if atab: output["atab"] = atab
-        if ofas: output["pairwise_fasta"] = ofas
+        if a3m: output["a3m"] = str(Path(a3m).resolve())
+        if report: output["report"] = str(Path(report).resolve())
+        if atab: output["atab"] = str(Path(atab).resolve())
+        if ofas: output["pairwise_fasta"] = str(Path(ofas).resolve())
 
         return output
 
@@ -321,7 +321,7 @@ class HHMake(HHSuiteTool):
         """Build an hhm file from an a3m file."""
         super().execute(data)
         hhm_file = self._find_option(r"^(?:-?o|output)$")
-        data["hhm"] = hhm_file
+        data["hhm"] = str(Path(hhm_file).resolve())
         return data
 
 class CSTranslate(HHSuiteTool):
@@ -358,7 +358,7 @@ class CSTranslate(HHSuiteTool):
     def output_keys(self):
         """Output keys, extracted from outfile parameter."""
         cs219_file = self._find_option(r"^(?:-?o|outfile)$")
-        return {"cs219": cs219_file}
+        return {"cs219": str(Path(cs219_file).resolve())}
 
     def run(self, data, config=None, pipeline=None):
         """Build 219-state sequence representing sequence profile."""
