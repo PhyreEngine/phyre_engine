@@ -222,3 +222,34 @@ class Csv(Component):
                     writer.writerow(record)
 
         return data
+
+class Debugger(Component):
+    """
+    Dump all keys of dictionaries of the pipeline state along with the type of
+    their values up to depth 1. If it is a list then check the first element of
+    that list whether a dictionary. 
+
+    :param output: A file name, stream or :py:class:`pathlib.Path` object.
+    """
+
+    ADDS = []
+    REMOVES = []
+    REQUIRED = []
+
+    def __init__(self, output=sys.stdout):
+        self.output = output
+
+    def run(self, data, config=None, pipeline=None):
+        """Write file."""
+        with Stream(self.output, "w") as out:
+            for key1, value1 in data.items():
+                out.write(key1 + ":" + str(type(value1)) + "\n")
+                # If it is a list then 
+                if isinstance(value1, list):
+                     value1 = value1[0]
+                if isinstance(value1, dict):
+                    for key2, value2 in value1.items():
+                        out.write("\t" + key2 + ":" + str(type(value2)) + "\n")
+
+        return data
+
