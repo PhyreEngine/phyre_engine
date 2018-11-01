@@ -139,7 +139,7 @@ class StructureRetriever(Component):
             pdb_id,
             ".{}.gz".format(self.struc_type.value),
             base_dir=self.base_dir)
-        if self.overwrite and path.exists():
+        if (not self.overwrite) and path.exists():
             return data
 
         path.parent.mkdir(parents=True, exist_ok=True)
