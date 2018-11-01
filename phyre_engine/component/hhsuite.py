@@ -1109,6 +1109,7 @@ class FFDatabaseUnlink(Component):
 
             for file_type in db_types:
                 ffindex = Path("{}_{}.ffindex".format(db_prefix, file_type))
+#                if ffindex.exists():
                 cmd_line = tools.ffindex_modify(
                     (self.bin_dir, "ffindex_modify"),
                     options={"file_list": file_list.name},
