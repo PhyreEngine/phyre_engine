@@ -518,7 +518,10 @@ class AddTemplate(Component):
     def run(self, data, config=None, pipeline=None):
         """Add template to template database."""
         template, template_db = self.get_vals(data)
-        template_db.del_template(template.pdb_id, template.chain_id)
+        try:        
+            template_db.del_template(template.pdb_id, template.chain_id)
+        except template_db.TemplateNotFoundException:
+            pass
         template_db.add_template(template)
         return data
 
